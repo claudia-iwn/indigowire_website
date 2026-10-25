@@ -14,8 +14,9 @@ Static Astro site for Indigo Wire Networks (Claudia de Luna, network engineer/ar
 | JS unit tests | `npm test` (Vitest, `src/**/*.test.js`) |
 | One JS test | `npx vitest run src/games/arp/engine.test.js -t "<name>"` |
 | Python tests | `uv run pytest` (one test: `uv run pytest tests/test_validate_spark.py -k <name>`) |
+| Smoke tests (Playwright) | `npm run build && npm run test:e2e`; one test: `npx playwright test -g "/learn/arp"` |
 | Lint (ESLint, Prettier, ruff) | `npm run lint`; auto-fix with `npm run format` |
-| Everything (lint + Vitest + pytest + build) | `npm run check` — must pass before any commit |
+| Everything (lint + Vitest + pytest + build + Playwright) | `npm run check` — must pass before any commit |
 | Validate a Spark entry | `uv run scripts/validate_spark.py <entry.md \| image.webp \| dir>` |
 | One publisher pass (no push) | `uv run scripts/spark_publisher.py --once --dry-run` (stub until M3) |
 

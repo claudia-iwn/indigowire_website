@@ -1,0 +1,26 @@
+// Playwright smoke tests (spec section 3, N6) against the production build.
+// Uses the installed Google Chrome (channel: 'chrome') instead of downloading Chromium.
+import { defineConfig } from '@playwright/test';
+
+const PORT = 4323;
+
+export default defineConfig({
+  testDir: 'tests',
+  testMatch: '*.spec.js',
+  fullyParallel: true,
+  reporter: process.env.CI ? 'line' : 'list',
+  use: {
+    baseURL: `http://localhost:${PORT}`,
+    channel: 'chrome',
+  },
+  projects: [
+    { name: 'mobile-360', use: { viewport: { width: 360, height: 740 } } },
+    { name: 'desktop-1280', use: { viewport: { width: 1280, height: 800 } } },
+  ],
+  // Serves dist/, so run `npm run build` first (npm run check does).
+  webServer: {
+    command: `npx astro preview --port ${PORT} --ignore-lock`,
+    url: `http://localhost:${PORT}`,
+    reuseExistingServer: !process.env.CI,
+  },
+});

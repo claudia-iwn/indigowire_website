@@ -36,3 +36,7 @@ images/
 main.py
 spark-art-github-publishing-and-operations-addendum.md
 indigowire.net Site Specification_SPEC.md
+
+# Playwright
+test-results/
+playwright-report/

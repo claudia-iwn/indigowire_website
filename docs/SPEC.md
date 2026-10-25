@@ -69,8 +69,8 @@ A failed build deploys nothing, so the live site stays as it was until the next 
 | Game rendering | Inline SVG | Clickable, crisp at any size, styled by the same tokens. |
 | Content | Astro content collections, Markdown + YAML frontmatter | Schemas validated at build time. |
 | Unit tests | Vitest | Required for game engines (pure logic). |
-| Smoke tests | Playwright | Home, a Spark permalink and `/learn/arp` load without console errors. |
-| Tooling | npm, Node LTS, Prettier, ESLint | `npm run check` runs lint (ESLint, Prettier, ruff), Vitest, pytest and the build. Dev-only plugins: `prettier-plugin-astro`, `eslint-plugin-astro`, `@eslint/js`, `globals`. Prettier skips all Markdown so the spec and content keep their hand formatting. |
+| Smoke tests | Playwright | Every route loads with status 200, no console errors and no horizontal scroll at 360 and 1280 px; also the 404 status, RSS feed, external-link attributes and theme toggle. Runs against `astro preview` of the build, in the installed Google Chrome (`channel: 'chrome'`), so no browser download. |
+| Tooling | npm, Node LTS, Prettier, ESLint | `npm run check` runs lint (ESLint, Prettier, ruff), Vitest, pytest, the build and the Playwright smoke tests. Dev-only plugins: `prettier-plugin-astro`, `eslint-plugin-astro`, `@eslint/js`, `globals`. Prettier skips all Markdown so the spec and content keep their hand formatting. |
 | Content scripts | Python 3 | `scripts/validate_spark.py` for Hermes; the owner's primary language. Managed with uv through pyproject.toml and uv run; tested with pytest, linted with ruff. |
 | Hosting | Cloudflare Workers static assets + Workers Builds | Free tier; see section 8. |
 | Analytics | Cloudflare Web Analytics + PostHog (cookieless) | Both free; see section 9. |
@@ -124,7 +124,7 @@ indigowire_website/
 └── tests/
     ├── test_validate_spark.py # pytest
     ├── fixtures/              # deliberately broken Spark entry
-    └── smoke.spec.js          # Playwright (M1)
+    └── smoke.spec.js          # Playwright; config in playwright.config.js
 ```
 
 ### Collection: `spark`
@@ -420,7 +420,7 @@ The site should be fast, accessible and private by default, with targets Claude 
 | N3 | Accessibility | WCAG 2.2 AA; Lighthouse Accessibility = 100 | Lighthouse + keyboard walk-through |
 | N4 | Motion | All animation respects `prefers-reduced-motion` | Manual check with the OS setting on |
 | N5 | Theming | Light and dark themes from `prefers-color-scheme`, plus a manual toggle in the header. A manual choice is stored in `localStorage` and applied by an inline `<head>` script before first paint; choosing the OS theme again clears it. Without JavaScript the toggle is hidden and the OS setting applies | Visual check in both themes; toggle, persistence and no-JS checked in headless Chrome |
-| N6 | Responsive | Works from 360 px to 1920 px with no horizontal scroll | Playwright at 360 and 1280 widths |
+| N6 | Responsive | Works from 360 px to 1920 px with no horizontal scroll | Playwright at 360 and 1280 widths (`tests/smoke.spec.js`, every route) |
 | N7 | Privacy | No cookies or browser storage for tracking; the only third-party scripts are Cloudflare Web Analytics and PostHog in cookieless mode | Network tab shows only the site's origin, Cloudflare Web Analytics and PostHog; Application tab shows no cookies |
 | N8 | SEO and sharing | Title, description and Open Graph image on every page; Spark permalinks use the image as the OG image | View source |
 | N9 | Maintainability | `npm run check` passes before every merge | Workers Builds log / local run |
@@ -490,7 +490,7 @@ Seven milestones, each ending in a deployed, working site; hand Claude Code one 
 - [x] `BaseLayout`, Header, Footer, `site.config.js` with the external links (R1)
 - [ ] Draft `pages/about.md` from the tailored-resume skill's career facts and the master CV; owner reviews before publishing (R2)
 - [x] Home, Contact and 404 pages (R3, R11 placeholder, R14)
-- [ ] Playwright smoke test and Lighthouse baseline (N1, N3, N6)
+- [ ] Playwright smoke test and Lighthouse baseline (N1, N3, N6) (smoke tests done, covering N6; Lighthouse baseline pending)
 - [ ] Turn on Cloudflare Web Analytics; add PostHog in cookieless mode and `src/analytics.js` with `outbound_click` (R15)
 
 ### M2: Content model and topics

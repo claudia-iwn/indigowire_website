@@ -13,13 +13,15 @@
     "test": "vitest run",
     "lint": "eslint . && prettier --check . && uv run ruff check scripts tests && uv run ruff format --check scripts tests",
     "format": "prettier --write . && uv run ruff format scripts tests",
-    "check": "npm run lint && npm run test && uv run pytest && astro build"
+    "check": "npm run lint && npm run test && uv run pytest && astro build && npm run test:e2e",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "astro": "^7.4.2"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.64.1",
     "eslint": "^10.13.0",
     "eslint-plugin-astro": "^1.7.0",
     "globals": "^17.13.0",
