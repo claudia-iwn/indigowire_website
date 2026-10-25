@@ -62,7 +62,7 @@ A failed build deploys nothing, so the live site stays as it was until the next 
 
 | Area | Choice | Notes |
 | --- | --- | --- |
-| Framework | Astro, static output | No adapter needed in v1; pages ship zero JavaScript unless they hold a game. |
+| Framework | Astro, static output | No adapter needed in v1; pages ship zero JavaScript unless they hold a game (one small exception: N2). |
 | Language | JavaScript (ES modules) with JSDoc type comments | Matches the owner's goal of learning JS; TypeScript can come later. |
 | Styling | Plain CSS with custom properties (design tokens) | Light and dark themes from one token set. No CSS framework. |
 | Animation | GSAP | Free for commercial use, including all plugins. |
@@ -70,8 +70,8 @@ A failed build deploys nothing, so the live site stays as it was until the next 
 | Content | Astro content collections, Markdown + YAML frontmatter | Schemas validated at build time. |
 | Unit tests | Vitest | Required for game engines (pure logic). |
 | Smoke tests | Playwright | Home, a Spark permalink and `/learn/arp` load without console errors. |
-| Tooling | npm, Node LTS, Prettier, ESLint | `npm run check` runs lint, tests and build. |
-| Content scripts | Python 3 | `scripts/validate_spark.py` for Hermes; the owner's primary language. Managed with uv through pyproject.toml and uv run. |
+| Tooling | npm, Node LTS, Prettier, ESLint | `npm run check` runs lint (ESLint, Prettier, ruff), Vitest, pytest and the build. Dev-only plugins: `prettier-plugin-astro`, `eslint-plugin-astro`, `@eslint/js`, `globals`. Prettier skips all Markdown so the spec and content keep their hand formatting. |
+| Content scripts | Python 3 | `scripts/validate_spark.py` for Hermes; the owner's primary language. Managed with uv through pyproject.toml and uv run; tested with pytest, linted with ruff. |
 | Hosting | Cloudflare Workers static assets + Workers Builds | Free tier; see section 8. |
 | Analytics | Cloudflare Web Analytics + PostHog (cookieless) | Both free; see section 9. |
 
@@ -94,7 +94,7 @@ indigowire_website/
 ├── astro.config.mjs
 ├── wrangler.jsonc
 ├── package.json
-├── public/                    # favicon, robots.txt, static files copied as-is
+├── public/                    # favicon, robots.txt, logo.svg, logo-dark.svg
 ├── scripts/
 │   ├── validate_spark.py      # checks one image + sidecar pair
 │   └── spark_publisher.py     # watches the clone, commits and pushes
@@ -102,9 +102,11 @@ indigowire_website/
 │   └── spark-publisher.service  # systemd user unit for the DGX Spark
 ├── pyproject.toml             # uv: pillow, pyyaml, watchdog; dev: pytest, ruff
 ├── src/
+│   ├── assets/brand/          # logo masters (.ai, .eps, .pdf) and exports
 │   ├── content.config.js      # collection schemas
 │   ├── content/
-│   │   ├── pages/             # about.md, home intro
+│   │   ├── tags.yaml          # shared tag list
+│   │   ├── pages/             # about.md, home.md
 │   │   ├── learn/             # one .md per game or topic
 │   │   └── spark/YYYY/MM/     # <slug>.webp + <slug>.md pairs
 │   ├── games/
@@ -113,11 +115,16 @@ indigowire_website/
 │   │       ├── engine.test.js
 │   │       ├── frames.js      # frame building + hex encoding
 │   │       └── renderer.js    # SVG + GSAP view
-│   ├── components/            # Header, Footer, TagList, SparkCard
+│   ├── components/            # Header, Footer, TagList, SparkCard, SparkGrid, LearnList, BackHome
 │   ├── layouts/BaseLayout.astro
+│   ├── lib/content.js         # collection queries shared by routes (drafts filtered, sorting)
 │   ├── pages/                 # routes (section 5)
-│   └── styles/tokens.css      # colors, type, spacing
-└── tests/smoke.spec.js        # Playwright
+│   ├── site.config.js         # site name and every external URL
+│   └── styles/                # tokens.css (colors, type, spacing), global.css
+└── tests/
+    ├── test_validate_spark.py # pytest
+    ├── fixtures/              # deliberately broken Spark entry
+    └── smoke.spec.js          # Playwright (M1)
 ```
 
 ### Collection: `spark`
@@ -125,15 +132,19 @@ indigowire_website/
 | Field | Type | Required | Rule |
 | --- | --- | --- | --- |
 | `title` | string | yes | ≤ 80 characters |
-| `date` | ISO 8601 datetime with offset | yes | e.g. `2026-10-25T14:05:00-07:00` |
+| `date` | ISO 8601 datetime with offset | yes | e.g. `2026-10-25T14:05:00-07:00`; `Z` is accepted, a space instead of `T` is not. Checked on the raw text, because YAML drops the offset when it parses the value |
 | `category` | enum | yes | `working-on` \| `saw-this` \| `mood` |
-| `image` | relative path | yes | Same basename as the `.md`, `.webp` |
+| `image` | relative path | yes | Same basename as the `.md`, `.webp`; WebP, longest edge ≤ 2048 px, ≤ 25 MiB (over 1.5 MB is a warning) |
 | `alt` | string | yes | Describes the image for screen readers |
 | `caption` | string | no | ≤ 280 characters, Markdown allowed |
 | `tags` | string\[\] | no | Lowercase kebab-case, from the shared tag list |
 | `model` | string | no | Generator name, shown on the permalink |
 | `draft` | boolean | no | `true` hides it from all listings |
 | `prompt` | string | no | Shown on the permalink only when present; omit to keep a prompt private |
+
+File names follow the glue-code contract (section 7): `YYYY-MM-DD-HHMM-<kebab-slug>`, in the matching `spark/YYYY/MM/` folder. The permalink slug is the file name without its folders.
+
+Rules are enforced twice: by `validate_spark.py` before a push, and at build time by `src/content.config.js` (the Zod schema, plus the glob loader's `generateId`, which checks the image basename and the raw date). Keep the two in sync.
 
 ### Collection: `learn`
 
@@ -149,7 +160,7 @@ indigowire_website/
 
 ### Shared tags
 
-Tags are lowercase kebab-case (`arp`, `layer-2`, `ai-art`, `automation`). Keep the allowed list in `src/content/tags.yaml` with a display name per tag, so a typo fails validation instead of creating a new tag.
+Tags are lowercase kebab-case (`arp`, `layer-2`, `ai-art`, `automation`). Keep the allowed list in `src/content/tags.yaml` with a display name per tag, so a typo fails validation instead of creating a new tag. The build reads the top-level keys of `tags.yaml` into the schemas' tag enum; the file is also loaded as a `tags` collection for display names.
 
 ## 5. Pages and routes
 
@@ -162,11 +173,11 @@ Every route is generated at build time; nothing renders on request.
 | `/contact` | "Contact me through LinkedIn" + link | Hard-coded component | R3 |
 | `/learn` | All games and topics by category | `learn` collection | R4 |
 | `/learn/arp` | ARP simulator | `learn/arp.md` + `src/games/arp/` | R5 |
-| `/learn/<slug>` | Other games and articles | `learn` collection | R4 |
+| `/learn/<slug>` | Other games and articles | `learn` collection; entries with a `component` get their own page (`src/pages/learn/<component>.astro`) and are skipped here | R4 |
 | `/spark` | Gallery, newest first, filters | `spark` collection | R6 |
 | `/spark/<slug>` | Image permalink | `spark` entry | R7 |
 | `/spark/category/<category>` | One category | `spark` collection | R6 |
-| `/spark/rss.xml` | Feed of latest 50 | `spark` collection | R12 |
+| `/spark/rss.xml` | Feed of latest 50 | `spark` collection; hand-built XML endpoint, no RSS package | R12 |
 | `/topics` | All tags with counts | `tags.yaml` + both collections | R10 |
 | `/topics/<tag>` | Everything with that tag | Both collections | R10 |
 | `/404` | Not-found page | Hard-coded | R14 |
@@ -312,7 +323,8 @@ A Python service on the DGX Spark, run with uv under systemd, that turns new fil
 ### Validation script (`scripts/validate_spark.py`)
 
 - Python 3 with Pillow and PyYAML, run with uv, so it runs on the Spark without the Node toolchain. Hermes calls it as uv run scripts/validate\_spark.py.
-- Checks every rule in the section 4 `spark` table, that the image exists, is WebP, and is within the size limits, and that each tag is in `tags.yaml`.
+- Checks every rule in the section 4 `spark` table, that the image exists, is WebP, and is within the size limits, and that each tag is in `tags.yaml`. It also checks the file name and `YYYY/MM/` location, and warns (without failing) about unknown fields and images over 1.5 MB.
+- Accepts a sidecar, an image (its sidecar is found beside it) or a directory.
 - Exit code 0 on success; non-zero with one line per problem.
 - The same rules are enforced again by the Astro schema at build time (R9), so a skipped validation still cannot publish a broken entry.
 
@@ -404,7 +416,7 @@ The site should be fast, accessible and private by default, with targets Claude 
 | ID | Area | Target | How it is checked |
 | --- | --- | --- | --- |
 | N1 | Performance | Lighthouse Performance ≥ 95 on Home, `/spark` and `/learn/arp` (mobile) | Lighthouse run before each milestone closes |
-| N2 | JavaScript budget | 0 KB on content pages; ≤ 150 KB gzipped on a game page | Build output size check |
+| N2 | JavaScript budget | 0 KB on content pages, except a < 1 KB inline script on Spark permalinks that shows the date in the viewer's locale (section 7; UTC text is the no-JS fallback); ≤ 150 KB gzipped on a game page | Build output size check |
 | N3 | Accessibility | WCAG 2.2 AA; Lighthouse Accessibility = 100 | Lighthouse + keyboard walk-through |
 | N4 | Motion | All animation respects `prefers-reduced-motion` | Manual check with the OS setting on |
 | N5 | Theming | Light and dark themes from `prefers-color-scheme`, plus a manual toggle | Visual check in both themes |
@@ -425,9 +437,9 @@ The site uses the existing Indigo Wire Networks logo (2018): a circular wire mar
 | `--iw-copper` | `#99482D` | Body of "WIRE" | Accents, active states, frames in the ARP game |
 | `--iw-copper-light` | `#F6B88C` | Highlight of "WIRE" | Copper gradient end, dark-theme accent |
 
-**Logo assets** are in `indigowire_website/images/logos/logo-archive/` on the owner's computer: `.ai`, `.eps`, `.pdf` (vector masters) and `.png`, `.jpg` exports. For the web:
+**Logo assets** are tracked in `src/assets/brand/`: `.ai`, `.eps`, `.pdf` (vector masters) and `.png`, `.jpg` exports. (The original `images/logos/logo-archive/` folder on the owner's computer is gitignored.) For the web:
 
-- Convert the PDF master to an SVG for the header (`public/logo.svg`), plus a light version for the dark theme.
+- Convert the PDF master to an SVG for the header (`public/logo.svg`), plus a light version for the dark theme. Done with `pdftocairo -svg` (poppler), cropped to the artwork. `public/logo-dark.svg` recolors navy to `#FFFFFF` and indigo to `#B8C4FF`, keeping the copper gradient; the header switches between them with `<picture>` and `prefers-color-scheme`.
 - Make a favicon and app icon from the circular mark alone.
 - Check contrast: navy and indigo on white pass WCAG AA for text; copper is for accents and large text only, unless a contrast check shows it passes.
 
@@ -473,24 +485,24 @@ Seven milestones, each ending in a deployed, working site; hand Claude Code one 
 
 ### M1: Site shell
 
-- [ ] Convert the logo's PDF master to `public/logo.svg` (plus a dark-theme version); make the favicon from the circular mark
-- [ ] Design tokens from the logo palette in `tokens.css`, light and dark (section 9, N5)
-- [ ] `BaseLayout`, Header, Footer, `site.config.js` with the external links (R1)
+- [ ] Convert the logo's PDF master to `public/logo.svg` (plus a dark-theme version); make the favicon from the circular mark (SVGs done; favicon pending)
+- [x] Design tokens from the logo palette in `tokens.css`, light and dark (section 9, N5); the N5 manual toggle is still to do
+- [x] `BaseLayout`, Header, Footer, `site.config.js` with the external links (R1)
 - [ ] Draft `pages/about.md` from the tailored-resume skill's career facts and the master CV; owner reviews before publishing (R2)
-- [ ] Home, Contact and 404 pages (R3, R11 placeholder, R14)
+- [x] Home, Contact and 404 pages (R3, R11 placeholder, R14)
 - [ ] Playwright smoke test and Lighthouse baseline (N1, N3, N6)
 - [ ] Turn on Cloudflare Web Analytics; add PostHog in cookieless mode and `src/analytics.js` with `outbound_click` (R15)
 
 ### M2: Content model and topics
 
-- [ ] Collection schemas for `pages`, `learn`, `spark`; `tags.yaml` (section 4)
-- [ ] `/learn` index and `/topics`, `/topics/<tag>` (R4, R10)
+- [x] Collection schemas for `pages`, `learn`, `spark`; `tags.yaml` (section 4)
+- [x] `/learn` index and `/topics`, `/topics/<tag>` (R4, R10)
 
 ### M3: Spark gallery and pipeline
 
-- [ ] Three sample entries, one per category
-- [ ] `/spark`, permalinks, category pages, RSS (R6, R7, R12)
-- [ ] `scripts/validate_spark.py` with tests; a broken sample proves the build fails (R9)
+- [x] Three sample entries, one per category
+- [x] `/spark`, permalinks, category pages, RSS (R6, R7, R12)
+- [ ] `scripts/validate_spark.py` with tests; a broken sample proves the build fails (R9) (validator and pytest done; build failure verified by hand, automated check pending)
 - [ ] Spark publisher with its tests and systemd unit; installed on the DGX Spark against the glue code's clone; one real image published end to end (R8)
 - [ ] Fire `spark_filter` from gallery filters (R15)
 
@@ -526,6 +538,10 @@ Seven milestones, each ending in a deployed, working site; hand Claude Code one 
 | Visual identity | Existing Indigo Wire Networks logo and its colors (section 9) |
 | Analytics | Maximum free and cookieless: Cloudflare metrics + Cloudflare Web Analytics + PostHog cookieless (section 9) |
 | Cookie banner | None for now; session replay and PostHog geography stay off. Revisit only if those become worth a banner. |
+| Repo and Worker names | Repo `claudia-iwn/indigowire_website`; the Worker stays `indigowire-site` because Worker names cannot contain underscores (section 8) |
+| Local-only files | `main.py`, the Spark ops addendum, the root copy of this spec and `images/` are gitignored; `docs/SPEC.md` is canonical |
+| Spark date format | ISO 8601 with offset or `Z`, `T` separator; checked on the raw text by both the validator and the build (section 4) |
+| Locale dates on permalinks | Allowed as a < 1 KB inline script, the one exception to 0 KB JS on content pages (N2) |
 
 ### Still open
 

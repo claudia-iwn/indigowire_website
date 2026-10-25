@@ -73,3 +73,28 @@ def test_non_webp_image_fails(tmp_path):
     result = run(dst_dir / src.name)
     assert result.returncode == 1
     assert "image: must be WebP, got PNG" in result.stdout
+
+
+@pytest.mark.parametrize(
+    ("date", "ok"),
+    [
+        ("2026-10-25T14:05:00-07:00", True),
+        ("2026-10-25T21:05:00Z", True),
+        ("'2026-10-25T14:05:00+02:00'", True),
+        ("2026-10-25T14:05:00", False),
+        ("2026-10-25 14:05:00-07:00", False),
+        ("2026-10-25", False),
+    ],
+)
+def test_date_format_matches_build_rule(tmp_path, date, ok):
+    src = next(SAMPLES.rglob("*.md"))
+    dst_dir = tmp_path / "2026" / "10"
+    dst_dir.mkdir(parents=True)
+    shutil.copy(src.with_suffix(".webp"), dst_dir)
+    text = "\n".join(
+        f"date: {date}" if line.startswith("date:") else line
+        for line in src.read_text(encoding="utf-8").splitlines()
+    )
+    (dst_dir / src.name).write_text(text + "\n", encoding="utf-8")
+    result = run(dst_dir / src.name)
+    assert (result.returncode == 0) is ok, result.stdout

@@ -14,7 +14,6 @@ The Astro schema in src/content.config.js enforces the same rules at build time
 from __future__ import annotations
 
 import argparse
-import datetime as dt
 import re
 import sys
 from pathlib import Path
@@ -30,6 +29,10 @@ REQUIRED = ("title", "date", "category", "image", "alt")
 KNOWN = set(REQUIRED) | {"caption", "tags", "model", "draft", "prompt"}
 NAME_RE = re.compile(r"^(\d{4})-(\d{2})-\d{2}-\d{4}-[a-z0-9]+(?:-[a-z0-9]+)*$")
 KEBAB_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+DATE_WITH_OFFSET_RE = re.compile(
+    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$"
+)
+DATE_NO_OFFSET_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?$")
 MAX_EDGE_PX = 2048
 MAX_BYTES = 25 * 1024 * 1024  # Workers per-file limit
 TARGET_BYTES = int(1.5 * 1024 * 1024)  # glue-code target; over it is a warning only
@@ -52,20 +55,20 @@ def read_frontmatter(md: Path) -> dict:
     return data
 
 
-def check_date(value: object) -> str | None:
-    """Return an error message, or None if value is an ISO 8601 datetime with an offset."""
-    if isinstance(value, dt.datetime):
-        parsed = value
-    elif isinstance(value, str):
-        try:
-            parsed = dt.datetime.fromisoformat(value)
-        except ValueError:
-            return f"not an ISO 8601 datetime: {value!r}"
-    else:
-        return "must be an ISO 8601 datetime with offset, e.g. 2026-10-25T14:05:00-07:00"
-    if parsed.tzinfo is None:
+def check_date(text: str) -> str | None:
+    """Check the raw `date:` line, before YAML turns it into a datetime.
+
+    Return an error message, or None if it is ISO 8601 with a UTC offset or Z.
+    src/content.config.js applies the same patterns at build time.
+    """
+    line = re.search(r"^date:[ \t]*['\"]?([^'\"\s#]*)", text, re.M)
+    if not line:
+        return None  # a missing date is reported as a missing required field
+    if DATE_WITH_OFFSET_RE.match(line.group(1)):
+        return None
+    if DATE_NO_OFFSET_RE.match(line.group(1)):
         return "needs a UTC offset, e.g. 2026-10-25T14:05:00-07:00"
-    return None
+    return f"not an ISO 8601 datetime: {line.group(1)!r}"
 
 
 def check_image(path: Path) -> tuple[list[str], list[str]]:
@@ -118,7 +121,7 @@ def validate(md: Path, allowed_tags: set[str]) -> tuple[list[str], list[str]]:
     if title is not None and (not isinstance(title, str) or len(title) > 80):
         errors.append("title: must be a string of at most 80 characters")
 
-    if data.get("date") is not None and (msg := check_date(data["date"])):
+    if data.get("date") is not None and (msg := check_date(md.read_text(encoding="utf-8"))):
         errors.append(f"date: {msg}")
 
     category = data.get("category")

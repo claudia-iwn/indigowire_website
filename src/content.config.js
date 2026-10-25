@@ -19,6 +19,23 @@ export const LEARN_CATEGORIES = /** @type {const} */ (['layer-2', 'layer-3', 'au
  */
 const TAG_IDS = [...readFileSync('src/content/tags.yaml', 'utf8').matchAll(/^([a-z0-9-]+):/gm)].map((m) => m[1]);
 
+/** ISO 8601 datetime with a UTC offset or Z. validate_spark.py uses the same pattern. */
+const DATE_WITH_OFFSET = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
+const DATE_NO_OFFSET = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/;
+
+/**
+ * Check the raw `date:` line of a sidecar, before YAML turns it into a Date.
+ * @param {string} text Whole Markdown file.
+ * @returns {string | null} Error message, or null when the date is valid.
+ */
+function checkRawDate(text) {
+  const line = text.match(/^date:[ \t]*['"]?([^'"\s#]*)/m);
+  if (!line) return null; // a missing date is reported by the schema
+  if (DATE_WITH_OFFSET.test(line[1])) return null;
+  if (DATE_NO_OFFSET.test(line[1])) return 'needs a UTC offset, e.g. 2026-10-25T14:05:00-07:00';
+  return `is not an ISO 8601 datetime: ${line[1]}`;
+}
+
 const tagList = z.array(z.enum(/** @type {[string, ...string[]]} */ (TAG_IDS))).optional();
 
 const tags = defineCollection({
@@ -57,22 +74,24 @@ const spark = defineCollection({
     pattern: '**/*.md',
     base: './src/content/spark',
     // Permalink is /spark/<basename>, so ids drop the YYYY/MM/ folders.
-    // This is also the one place that sees both the file name and the data,
-    // so it enforces "image has the same basename as the .md".
-    generateId: ({ entry, data }) => {
+    // This is also the one place that sees the file name, the data and the file
+    // itself, so it enforces the same-basename image rule and the date format.
+    generateId: ({ entry, base, data }) => {
       const name = path.basename(entry, '.md');
       const image = typeof data.image === 'string' ? path.basename(data.image) : '';
       if (image !== `${name}.webp`) {
         throw new Error(`spark/${entry}: image must be ./${name}.webp (got "${data.image}")`);
       }
+      const dateError = checkRawDate(readFileSync(new URL(entry, base), 'utf8'));
+      if (dateError) throw new Error(`spark/${entry}: date ${dateError}`);
       return name;
     },
   }),
   schema: ({ image }) =>
     z.object({
       title: z.string().max(80),
-      // YAML turns an unquoted ISO timestamp into a Date; the offset requirement
-      // is checked on the raw text by validate_spark.py.
+      // YAML has already turned the timestamp into a Date (dropping the offset);
+      // generateId checked the raw text above.
       date: z.coerce.date(),
       category: z.enum(SPARK_CATEGORIES),
       image: image(),
