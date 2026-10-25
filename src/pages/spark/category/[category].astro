@@ -1,0 +1,23 @@
+---
+/** One Spark category (R6). */
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import SparkGrid from '../../../components/SparkGrid.astro';
+import { SPARK_CATEGORIES } from '../../../content.config.js';
+import { getSpark, categoryLabel } from '../../../lib/content.js';
+
+export function getStaticPaths() {
+  return SPARK_CATEGORIES.map((category) => ({ params: { category } }));
+}
+
+const { category } = Astro.params;
+const entries = (await getSpark()).filter((entry) => entry.data.category === category);
+const label = categoryLabel(category);
+---
+
+<BaseLayout title={`Spark: ${label}`}>
+  <h1>{label}</h1>
+  <p>
+    <a href="/spark">← All Spark images</a>
+  </p>
+  <SparkGrid entries={entries} />
+</BaseLayout>

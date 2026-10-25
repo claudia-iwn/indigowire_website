@@ -1,0 +1,23 @@
+---
+/**
+ * Learn entries with title, summary and tags (R4).
+ * @typedef {object} Props
+ * @property {import('astro:content').CollectionEntry<'learn'>[]} entries
+ */
+import TagList from './TagList.astro';
+import { learnHref } from '../lib/content.js';
+
+const { entries } = Astro.props;
+---
+
+<ul class="card-list">
+  {entries.map((entry) => (
+    <li>
+      <h3>
+        <a href={learnHref(entry)}>{entry.data.title}</a> <small>({entry.data.kind})</small>
+      </h3>
+      <p>{entry.data.summary}</p>
+      <TagList tags={entry.data.tags} />
+    </li>
+  ))}
+</ul>

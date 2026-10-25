@@ -1,0 +1,29 @@
+---
+/**
+ * Other games and articles (R4). Games with a `component` have their own page
+ * (e.g. learn/arp.astro), so they are skipped here.
+ */
+import { render } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import TagList from '../../components/TagList.astro';
+import BackHome from '../../components/BackHome.astro';
+import { getLearn } from '../../lib/content.js';
+
+export async function getStaticPaths() {
+  const entries = await getLearn();
+  return entries
+    .filter((entry) => !entry.data.component)
+    .map((entry) => ({ params: { slug: entry.id }, props: { entry } }));
+}
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+---
+
+<BaseLayout title={entry.data.title} description={entry.data.summary}>
+  <h1>{entry.data.title}</h1>
+  <p class="lede">{entry.data.summary}</p>
+  <TagList tags={entry.data.tags} />
+  <Content />
+  <BackHome />
+</BaseLayout>

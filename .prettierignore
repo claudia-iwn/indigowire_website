@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.astro/
+.wrangler/
+.venv/
+package-lock.json
+uv.lock
+src/assets/brand/
+# Specs and content are hand-written Markdown; leave their formatting alone.
+**/*.md

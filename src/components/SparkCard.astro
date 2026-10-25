@@ -1,0 +1,57 @@
+---
+/**
+ * One gallery tile: fixed-aspect, lazy-loaded image linking to its permalink.
+ * @typedef {object} Props
+ * @property {import('astro:content').CollectionEntry<'spark'>} entry
+ * @property {boolean} [eager] Load immediately (for the first, above-the-fold image).
+ */
+import { Image } from 'astro:assets';
+import { categoryLabel } from '../lib/content.js';
+
+const { entry, eager = false } = Astro.props;
+const { title, image, alt, date, category } = entry.data;
+---
+
+<article class="spark-card">
+  <a href={`/spark/${entry.id}`}>
+    <Image
+      src={image}
+      alt={alt}
+      widths={[400, 800]}
+      sizes="(min-width: 48rem) 20rem, 100vw"
+      loading={eager ? 'eager' : 'lazy'}
+    />
+    <h3>{title}</h3>
+  </a>
+  <p class="meta">
+    <a href={`/spark/category/${category}`}>{categoryLabel(category)}</a> ·
+    <time datetime={date.toISOString()}>{date.toISOString().slice(0, 10)}</time>
+  </p>
+</article>
+
+<style>
+  .spark-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .spark-card :global(img) {
+    display: block;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+  }
+  h3 {
+    margin: var(--space-2) var(--space-3) 0;
+    font-size: var(--text-base);
+  }
+  .spark-card > a {
+    text-decoration: none;
+  }
+  .meta {
+    margin: 0 var(--space-3) var(--space-3);
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+  }
+</style>

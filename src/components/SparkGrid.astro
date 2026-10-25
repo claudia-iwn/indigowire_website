@@ -1,0 +1,28 @@
+---
+/**
+ * Responsive grid of Spark cards.
+ * @typedef {object} Props
+ * @property {import('astro:content').CollectionEntry<'spark'>[]} entries
+ */
+import SparkCard from './SparkCard.astro';
+
+const { entries } = Astro.props;
+---
+
+{entries.length === 0 ? (
+  <p>No images yet.</p>
+) : (
+  <div class="spark-grid">
+    {entries.map((entry, i) => (
+      <SparkCard entry={entry} eager={i === 0} />
+    ))}
+  </div>
+)}
+
+<style>
+  .spark-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+    gap: var(--space-3);
+  }
+</style>

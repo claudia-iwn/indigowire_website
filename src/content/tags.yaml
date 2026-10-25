@@ -1,0 +1,21 @@
+# The shared tag list (spec section 4). Every tag used in learn or spark
+# entries must be a top-level key here, or the build and validate_spark.py fail.
+# Keys are lowercase kebab-case; `name` is the display name.
+arp:
+  name: ARP
+layer-2:
+  name: Layer 2
+layer-3:
+  name: Layer 3
+bgp:
+  name: BGP
+ethernet:
+  name: Ethernet
+security:
+  name: Security
+automation:
+  name: Automation
+ai-art:
+  name: AI art
+data-center:
+  name: Data center

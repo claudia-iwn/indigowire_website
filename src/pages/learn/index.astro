@@ -1,0 +1,27 @@
+---
+/** Learn index: every game and topic grouped by category (R4). */
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import LearnList from '../../components/LearnList.astro';
+import BackHome from '../../components/BackHome.astro';
+import { LEARN_CATEGORIES } from '../../content.config.js';
+import { getLearn } from '../../lib/content.js';
+
+const entries = await getLearn();
+// Group by category, keeping the schema's category order. Like itertools.groupby over a fixed key list.
+const groups = LEARN_CATEGORIES.map((category) => ({
+  category,
+  entries: entries.filter((entry) => entry.data.category === category),
+})).filter((group) => group.entries.length > 0);
+---
+
+<BaseLayout title="Learn" description="Interactive networking games and short articles.">
+  <h1>Learn</h1>
+  <p class="lede">Interactive networking games and short articles.</p>
+  {groups.map((group) => (
+    <section>
+      <h2>{group.category}</h2>
+      <LearnList entries={group.entries} />
+    </section>
+  ))}
+  <BackHome />
+</BaseLayout>

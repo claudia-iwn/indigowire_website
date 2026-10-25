@@ -1,0 +1,33 @@
+# Node / Astro
+node_modules/
+dist/
+.astro/
+.wrangler/
+npm-debug.log*
+
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+wheels/
+*.egg-info
+.pytest_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+
+# Secrets and local config
+.env
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
+.idea/
+
+# Local Claude Code permissions
+.claude/settings.local.json
+
+# Original logo archive; the tracked copy lives in src/assets/brand/
+images/

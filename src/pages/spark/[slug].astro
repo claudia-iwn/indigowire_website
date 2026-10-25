@@ -1,0 +1,102 @@
+---
+/** Spark permalink: image, caption, date, category, tags, model, optional prompt, prev/next (R7). */
+import { Image, getImage } from 'astro:assets';
+import { render } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import TagList from '../../components/TagList.astro';
+import { getSpark, categoryLabel } from '../../lib/content.js';
+
+export async function getStaticPaths() {
+  const entries = await getSpark();
+  // Newest first, so "previous" (older) is the next index.
+  return entries.map((entry, i) => ({
+    params: { slug: entry.id },
+    props: { entry, newer: entries[i - 1], older: entries[i + 1] },
+  }));
+}
+
+const { entry, newer, older } = Astro.props;
+const { title, image, alt, date, category, caption, tags, model, prompt } = entry.data;
+const { Content } = await render(entry);
+const og = await getImage({ src: image, width: 1200, format: 'jpeg' });
+---
+
+<BaseLayout title={title} description={caption ?? alt} ogImage={og.src}>
+  <article>
+    <h1>{title}</h1>
+    <Image src={image} alt={alt} widths={[800, 1600]} sizes="(min-width: 64rem) 64rem, 100vw" loading="eager" />
+    {caption && <p class="lede">{caption}</p>}
+    <Content />
+    <dl>
+      <dt>Date</dt>
+      <dd>
+        <time class="local-date" datetime={date.toISOString()}>
+          {date.toISOString().slice(0, 16).replace('T', ' ')} UTC
+        </time>
+      </dd>
+      <dt>Category</dt>
+      <dd>
+        <a href={`/spark/category/${category}`}>{categoryLabel(category)}</a>
+      </dd>
+      {model && (
+        <>
+          <dt>Model</dt>
+          <dd>{model}</dd>
+        </>
+      )}
+      {prompt && (
+        <>
+          <dt>Prompt</dt>
+          <dd>{prompt}</dd>
+        </>
+      )}
+    </dl>
+    <TagList tags={tags} />
+  </article>
+  <nav class="prev-next" aria-label="More images">
+    {older ? (
+      <a href={`/spark/${older.id}`} rel="prev">
+        ← {older.data.title}
+      </a>
+    ) : (
+      <span />
+    )}
+    <a href="/spark">Gallery</a>
+    {newer ? (
+      <a href={`/spark/${newer.id}`} rel="next">
+        {newer.data.title} →
+      </a>
+    ) : (
+      <span />
+    )}
+  </nav>
+</BaseLayout>
+
+<script>
+  // Show the date in the viewer's locale (spec section 7); the UTC text above is the no-JS fallback.
+  for (const el of document.querySelectorAll('time.local-date')) {
+    const iso = el.getAttribute('datetime');
+    if (iso) el.textContent = new Date(iso).toLocaleString(undefined, { dateStyle: 'long', timeStyle: 'short' });
+  }
+</script>
+
+<style>
+  dl {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: var(--space-1) var(--space-3);
+  }
+  dt {
+    font-weight: 600;
+  }
+  dd {
+    margin: 0;
+  }
+  .prev-next {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin-top: var(--space-5);
+  }
+</style>

@@ -1,0 +1,18 @@
+---
+/**
+ * Tags as links to /topics/<tag> (R10).
+ * @typedef {object} Props
+ * @property {string[]} [tags]
+ */
+const { tags = [] } = Astro.props;
+---
+
+{tags.length > 0 && (
+  <ul class="tags" aria-label="Tags">
+    {tags.map((tag) => (
+      <li>
+        <a href={`/topics/${tag}`}>#{tag}</a>
+      </li>
+    ))}
+  </ul>
+)}

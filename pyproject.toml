@@ -1,0 +1,26 @@
+[project]
+name = "indigowire-website"
+version = "0.1.0"
+description = "Content scripts for indigowire.net: Spark sidecar validation and publishing"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "pillow>=13.0.0",
+    "pyyaml>=6.0.3",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.17.2",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+extend-exclude = ["node_modules", "dist", ".astro"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

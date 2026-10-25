@@ -1,0 +1,12 @@
+---
+/** Not-found page; Workers serves it with HTTP 404 via not_found_handling (R14). */
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Page not found">
+  <h1>404: no ARP reply</h1>
+  <p class="lede">We broadcast for that page, but nobody answered.</p>
+  <p>
+    <a href="/">Back home</a> or try <a href="/learn">Learn</a> and <a href="/spark">Spark</a>.
+  </p>
+</BaseLayout>

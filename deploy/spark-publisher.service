@@ -1,0 +1,17 @@
+# STUB (M3): systemd user unit for the Spark publisher on the DGX Spark (spec section 7).
+# Install: copy to ~/.config/systemd/user/, set WorkingDirectory to the clone,
+# then `systemctl --user enable --now spark-publisher` and `loginctl enable-linger $USER`.
+# Logs: journalctl --user -u spark-publisher -f
+[Unit]
+Description=indigowire.net Spark publisher
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/indigowire-site
+ExecStart=%h/.local/bin/uv run scripts/spark_publisher.py
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,20 @@
+---
+/** Contact: LinkedIn only, no form (R3). */
+import BaseLayout from '../layouts/BaseLayout.astro';
+import BackHome from '../components/BackHome.astro';
+import { linkById } from '../site.config.js';
+
+const linkedin = linkById('linkedin');
+---
+
+<BaseLayout title="Contact" description="Contact Claudia de Luna through LinkedIn.">
+  <h1>Contact</h1>
+  <p class="lede">
+    Contact me through{' '}
+    <a href={linkedin?.url} target="_blank" rel="noopener" data-outbound="linkedin">
+      LinkedIn
+    </a>
+    .
+  </p>
+  <BackHome />
+</BaseLayout>

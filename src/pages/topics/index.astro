@@ -1,0 +1,28 @@
+---
+/** All tags with counts across learn and spark (R10). */
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import BackHome from '../../components/BackHome.astro';
+import { getSpark, getLearn, getTagNames } from '../../lib/content.js';
+
+const names = await getTagNames();
+const tagged = [...(await getLearn()), ...(await getSpark())];
+const topics = Object.entries(names).map(([id, name]) => ({
+  id,
+  name,
+  count: tagged.filter((entry) => entry.data.tags?.includes(id)).length,
+}));
+---
+
+<BaseLayout title="Topics" description="Every tag across games, articles and images.">
+  <h1>Topics</h1>
+  <ul class="tags">
+    {topics.map((topic) => (
+      <li>
+        <a href={`/topics/${topic.id}`}>
+          {topic.name} ({topic.count})
+        </a>
+      </li>
+    ))}
+  </ul>
+  <BackHome />
+</BaseLayout>

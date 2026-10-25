@@ -1,0 +1,39 @@
+---
+/** Everything carrying one tag: games, articles and images (R10). */
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import LearnList from '../../components/LearnList.astro';
+import SparkGrid from '../../components/SparkGrid.astro';
+import { getSpark, getLearn, getTagNames } from '../../lib/content.js';
+
+export async function getStaticPaths() {
+  const names = await getTagNames();
+  return Object.entries(names).map(([tag, name]) => ({ params: { tag }, props: { name } }));
+}
+
+const { tag } = Astro.params;
+const { name } = Astro.props;
+const learn = (await getLearn()).filter((entry) => entry.data.tags?.includes(tag));
+const spark = (await getSpark()).filter((entry) => entry.data.tags?.includes(tag));
+---
+
+<BaseLayout title={`Topic: ${name}`}>
+  <h1>
+    #{tag} <small>{name}</small>
+  </h1>
+  <p>
+    <a href="/topics">← All topics</a>
+  </p>
+  {learn.length > 0 && (
+    <section>
+      <h2>Learn</h2>
+      <LearnList entries={learn} />
+    </section>
+  )}
+  {spark.length > 0 && (
+    <section>
+      <h2>Spark</h2>
+      <SparkGrid entries={spark} />
+    </section>
+  )}
+  {learn.length + spark.length === 0 && <p>Nothing tagged {name} yet.</p>}
+</BaseLayout>

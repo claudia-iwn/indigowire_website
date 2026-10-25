@@ -1,0 +1,37 @@
+---
+/**
+ * Spark gallery, newest first (R6). Category filters are real routes so they work
+ * without JavaScript. TODO(M3): tag filter as progressive enhancement + spark_filter event.
+ */
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import SparkGrid from '../../components/SparkGrid.astro';
+import BackHome from '../../components/BackHome.astro';
+import { SPARK_CATEGORIES } from '../../content.config.js';
+import { getSpark, categoryLabel } from '../../lib/content.js';
+
+const entries = await getSpark();
+---
+
+<BaseLayout title="Spark" description="AI images from a DGX Spark.">
+  <h1>Spark</h1>
+  <p class="lede">Images from a DGX Spark: what I'm working on, something I saw, how I feel right now.</p>
+  <nav aria-label="Spark categories">
+    <ul class="tags">
+      <li>
+        <a href="/spark" aria-current="page">
+          All
+        </a>
+      </li>
+      {SPARK_CATEGORIES.map((category) => (
+        <li>
+          <a href={`/spark/category/${category}`}>{categoryLabel(category)}</a>
+        </li>
+      ))}
+    </ul>
+  </nav>
+  <SparkGrid entries={entries} />
+  <p>
+    <a href="/spark/rss.xml">RSS feed</a>
+  </p>
+  <BackHome />
+</BaseLayout>

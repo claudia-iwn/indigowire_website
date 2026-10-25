@@ -1,0 +1,142 @@
+---
+/**
+ * ARP simulator (R5). M0 stub: the section 6 topology as static inline SVG,
+ * drawn at build time from the engine's TOPOLOGY so addresses live in one place.
+ * TODO(M5): mount src/games/arp/renderer.js and add controls, panels and inspector.
+ */
+import { getEntry } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import TagList from '../../components/TagList.astro';
+import BackHome from '../../components/BackHome.astro';
+import { TOPOLOGY } from '../../games/arp/engine.js';
+
+const entry = await getEntry('learn', 'arp');
+if (!entry) throw new Error('src/content/learn/arp.md is missing');
+
+const SWITCH = { x: 400, y: 240 };
+/** Node positions on the 800 x 480 canvas. */
+const POSITIONS = /** @type {Record<string, { x: number, y: number }>} */ ({
+  H1: { x: 130, y: 90 },
+  H2: { x: 670, y: 90 },
+  H3: { x: 130, y: 390 },
+  R1: { x: 670, y: 390 },
+  M: { x: 400, y: 430 },
+});
+const nodes = TOPOLOGY.nodes.map((node) => ({ ...node, ...POSITIONS[node.name] }));
+---
+
+<BaseLayout title={entry.data.title} description={entry.data.summary}>
+  <h1>{entry.data.title}</h1>
+  <p class="lede">{entry.data.summary}</p>
+  <TagList tags={entry.data.tags} />
+  <p>
+    <strong>Coming in M4–M6:</strong> send traffic, watch frames move, inspect bytes. For now, here is the LAN.
+  </p>
+
+  <figure class="topology">
+    <svg viewBox="0 0 800 480" role="img" aria-labelledby="topo-title topo-desc">
+      <title id="topo-title">ARP simulator topology</title>
+      <desc id="topo-desc">
+        Switch SW1 connects H1 10.0.0.11 on Gi0/1, H2 10.0.0.12 on Gi0/2, H3 10.0.0.13 on Gi0/3 and gateway R1 10.0.0.1
+        on Gi0/4. Attacker M 10.0.0.66 on Gi0/5 appears only in Break-it mode.
+      </desc>
+
+      {nodes.map((node) => (
+        <g class:list={['link', { attacker: node.role === 'attacker' }]}>
+          <line x1={SWITCH.x} y1={SWITCH.y} x2={node.x} y2={node.y} />
+          <text
+            class="port"
+            x={SWITCH.x + (node.x - SWITCH.x) * 0.38}
+            y={SWITCH.y + (node.y - SWITCH.y) * 0.38 - 8}
+            text-anchor="middle"
+          >
+            {node.port}
+          </text>
+        </g>
+      ))}
+
+      <g class="switch">
+        <rect x={SWITCH.x - 70} y={SWITCH.y - 32} width="140" height="64" rx="10" />
+        <text x={SWITCH.x} y={SWITCH.y + 7} text-anchor="middle">
+          {TOPOLOGY.switch.name}
+        </text>
+      </g>
+
+      {nodes.map((node) => (
+        <g class:list={['node', node.role]}>
+          <rect x={node.x - 90} y={node.y - 40} width="180" height="80" rx="10" />
+          <text class="name" x={node.x} y={node.y - 12} text-anchor="middle">
+            {node.name}
+            {node.role === 'gateway' ? ' (gateway)' : node.role === 'attacker' ? ' (Break-it only)' : ''}
+          </text>
+          <text class="addr" x={node.x} y={node.y + 8} text-anchor="middle">
+            {node.ip}/{node.prefix}
+          </text>
+          <text class="addr" x={node.x} y={node.y + 26} text-anchor="middle">
+            {node.mac}
+          </text>
+        </g>
+      ))}
+    </svg>
+  </figure>
+  <BackHome />
+</BaseLayout>
+
+<style>
+  .topology {
+    margin: var(--space-4) 0;
+  }
+  svg {
+    width: 100%;
+    height: auto;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    font-family: var(--font-mono);
+  }
+  .link line {
+    stroke: var(--iw-copper);
+    stroke-width: 4;
+  }
+  .link.attacker line {
+    stroke-dasharray: 8 6;
+    opacity: 0.6;
+  }
+  .port {
+    fill: var(--color-text-muted);
+    font-size: 14px;
+  }
+  .switch rect {
+    fill: var(--iw-indigo);
+  }
+  .switch text {
+    fill: #ffffff;
+    font-size: 22px;
+    font-weight: 700;
+  }
+  .node rect {
+    fill: var(--color-bg);
+    stroke: var(--color-text);
+    stroke-width: 2;
+  }
+  .node.gateway rect {
+    stroke: var(--color-accent);
+    stroke-width: 3;
+  }
+  .node.attacker {
+    opacity: 0.55;
+  }
+  .node.attacker rect {
+    stroke-dasharray: 6 4;
+  }
+  .node text {
+    fill: var(--color-text);
+  }
+  .name {
+    font-size: 17px;
+    font-weight: 700;
+  }
+  .addr {
+    font-size: 13px;
+  }
+</style>

@@ -1,0 +1,63 @@
+---
+/** Home: intro, latest Spark image, featured game, external links (R11). */
+import { getEntry, render } from 'astro:content';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import SparkCard from '../components/SparkCard.astro';
+import { externalLinks } from '../site.config.js';
+import { getSpark, getLearn, learnHref } from '../lib/content.js';
+
+const home = await getEntry('pages', 'home');
+if (!home) throw new Error('src/content/pages/home.md is missing');
+const { Content } = await render(home);
+const [latest] = await getSpark();
+const featured = (await getLearn()).find((entry) => entry.data.featured);
+---
+
+<BaseLayout title={home.data.title} description={home.data.description}>
+  <h1>{home.data.title}</h1>
+  <div class="lede">
+    <Content />
+  </div>
+
+  <div class="home-grid">
+    {featured && (
+      <section>
+        <h2>Featured game</h2>
+        <h3>
+          <a href={learnHref(featured)}>{featured.data.title}</a>
+        </h3>
+        <p>{featured.data.summary}</p>
+      </section>
+    )}
+    {latest && (
+      <section>
+        <h2>Latest from the Spark</h2>
+        <SparkCard entry={latest} eager />
+        <p>
+          <a href="/spark">All images →</a>
+        </p>
+      </section>
+    )}
+  </div>
+
+  <section>
+    <h2>Elsewhere</h2>
+    <ul>
+      {externalLinks.map((link) => (
+        <li>
+          <a href={link.url} target="_blank" rel="noopener" data-outbound={link.id}>
+            {link.label}
+          </a>
+        </li>
+      ))}
+    </ul>
+  </section>
+</BaseLayout>
+
+<style>
+  .home-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+    gap: var(--space-5);
+  }
+</style>
