@@ -31,3 +31,8 @@ wheels/
 
 # Original logo archive; the tracked copy lives in src/assets/brand/
 images/
+
+# Local-only files kept out of the public repo
+main.py
+spark-art-github-publishing-and-operations-addendum.md
+indigowire.net Site Specification_SPEC.md
