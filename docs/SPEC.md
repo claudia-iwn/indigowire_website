@@ -62,9 +62,9 @@ A failed build deploys nothing, so the live site stays as it was until the next 
 
 | Area | Choice | Notes |
 | --- | --- | --- |
-| Framework | Astro, static output | No adapter needed in v1; pages ship zero JavaScript unless they hold a game (one small exception: N2). |
+| Framework | Astro, static output | No adapter needed in v1; pages ship zero JavaScript unless they hold a game (small inline exceptions: N2). |
 | Language | JavaScript (ES modules) with JSDoc type comments | Matches the owner's goal of learning JS; TypeScript can come later. |
-| Styling | Plain CSS with custom properties (design tokens) | Light and dark themes from one token set. No CSS framework. |
+| Styling | Plain CSS with custom properties (design tokens) | Light and dark themes from one token set: each color token is `light-dark(light, dark)`, chosen by `color-scheme`. No CSS framework. |
 | Animation | GSAP | Free for commercial use, including all plugins. |
 | Game rendering | Inline SVG | Clickable, crisp at any size, styled by the same tokens. |
 | Content | Astro content collections, Markdown + YAML frontmatter | Schemas validated at build time. |
@@ -416,10 +416,10 @@ The site should be fast, accessible and private by default, with targets Claude 
 | ID | Area | Target | How it is checked |
 | --- | --- | --- | --- |
 | N1 | Performance | Lighthouse Performance ≥ 95 on Home, `/spark` and `/learn/arp` (mobile) | Lighthouse run before each milestone closes |
-| N2 | JavaScript budget | 0 KB on content pages, except a < 1 KB inline script on Spark permalinks that shows the date in the viewer's locale (section 7; UTC text is the no-JS fallback); ≤ 150 KB gzipped on a game page | Build output size check |
+| N2 | JavaScript budget | 0 KB of loaded scripts on content pages. Allowed inline exceptions: the theme scripts on every page (N5; about 1.5 KB raw, under 1 KB gzipped) and the locale-date script on Spark permalinks (section 7; UTC text is the no-JS fallback). ≤ 150 KB gzipped on a game page | Build output size check |
 | N3 | Accessibility | WCAG 2.2 AA; Lighthouse Accessibility = 100 | Lighthouse + keyboard walk-through |
 | N4 | Motion | All animation respects `prefers-reduced-motion` | Manual check with the OS setting on |
-| N5 | Theming | Light and dark themes from `prefers-color-scheme`, plus a manual toggle | Visual check in both themes |
+| N5 | Theming | Light and dark themes from `prefers-color-scheme`, plus a manual toggle in the header. A manual choice is stored in `localStorage` and applied by an inline `<head>` script before first paint; choosing the OS theme again clears it. Without JavaScript the toggle is hidden and the OS setting applies | Visual check in both themes; toggle, persistence and no-JS checked in headless Chrome |
 | N6 | Responsive | Works from 360 px to 1920 px with no horizontal scroll | Playwright at 360 and 1280 widths |
 | N7 | Privacy | No cookies or browser storage for tracking; the only third-party scripts are Cloudflare Web Analytics and PostHog in cookieless mode | Network tab shows only the site's origin, Cloudflare Web Analytics and PostHog; Application tab shows no cookies |
 | N8 | SEO and sharing | Title, description and Open Graph image on every page; Spark permalinks use the image as the OG image | View source |
@@ -486,7 +486,7 @@ Seven milestones, each ending in a deployed, working site; hand Claude Code one 
 ### M1: Site shell
 
 - [x] Convert the logo's PDF master to `public/logo.svg` (plus a dark-theme version); make the favicon from the circular mark
-- [x] Design tokens from the logo palette in `tokens.css`, light and dark (section 9, N5); the N5 manual toggle is still to do
+- [x] Design tokens from the logo palette in `tokens.css`, light and dark, with the manual toggle (section 9, N5)
 - [x] `BaseLayout`, Header, Footer, `site.config.js` with the external links (R1)
 - [ ] Draft `pages/about.md` from the tailored-resume skill's career facts and the master CV; owner reviews before publishing (R2)
 - [x] Home, Contact and 404 pages (R3, R11 placeholder, R14)
@@ -541,7 +541,8 @@ Seven milestones, each ending in a deployed, working site; hand Claude Code one 
 | Repo and Worker names | Repo `claudia-iwn/indigowire_website`; the Worker stays `indigowire-site` because Worker names cannot contain underscores (section 8) |
 | Local-only files | `main.py`, the Spark ops addendum, the root copy of this spec and `images/` are gitignored; `docs/SPEC.md` is canonical |
 | Spark date format | ISO 8601 with offset or `Z`, `T` separator; checked on the raw text by both the validator and the build (section 4) |
-| Locale dates on permalinks | Allowed as a < 1 KB inline script, the one exception to 0 KB JS on content pages (N2) |
+| Inline scripts on content pages | Allowed only for the theme toggle (N5) and locale dates on permalinks, each under 1 KB gzipped (N2) |
+| Theme toggle | Two-state button (light/dark); picking the OS theme clears the stored choice so the site follows the OS again. Theme-specific images use `.theme-light-only` / `.theme-dark-only`, lazy-loaded so the hidden one is not downloaded |
 
 ### Still open
 

@@ -29,7 +29,7 @@ M0 skeleton: every route renders from the collections, but the ARP engine, frame
 
 - **Astro, static output.** No adapter, no server code in v1. Content pages ship zero JavaScript; only game pages load scripts.
 - **JavaScript with JSDoc type comments**, not TypeScript, for every file you write.
-- **Plain CSS** with custom properties from `src/styles/tokens.css`. No CSS frameworks. Never hard-code a color; use a token.
+- **Plain CSS** with custom properties from `src/styles/tokens.css`. No CSS frameworks. Never hard-code a color; use a token. Color tokens are `light-dark(light, dark)`, so one token covers both themes; the manual toggle sets `data-theme` on `<html>`. For theme-specific images use the `.theme-light-only` / `.theme-dark-only` classes (with `loading="lazy"`), never a `prefers-color-scheme` media query, which ignores the toggle.
 - **Python only through uv.** Use `uv add` / `uv add --dev` and `uv run`. Never use pip, `python -m venv`, or a bare `python`.
 - **No new runtime dependency** unless it is in the spec's tech stack table (section 3). If one is needed, update that table first.
 - **Comments for a Python developer learning JS:** when JavaScript does something non-obvious, add a one-line comparison to Python (for example, "like a Python dict").

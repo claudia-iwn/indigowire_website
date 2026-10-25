@@ -1,8 +1,15 @@
 /*
  * Design tokens from the Indigo Wire Networks logo (spec section 9).
- * Brand colors are fixed; the semantic tokens below them swap for dark mode.
+ * Brand colors are fixed. Each semantic token holds its light and dark value in
+ * light-dark(); `color-scheme` picks one, so there is a single token set (N5).
+ *
+ * Theme choice: no data-theme attribute follows the OS (prefers-color-scheme);
+ * data-theme="light" or "dark" on <html> is the visitor's manual choice, set by
+ * the inline script in BaseLayout and the toggle in Header.
  */
 :root {
+  color-scheme: light dark;
+
   /* Brand palette */
   --iw-navy: #233067;
   --iw-indigo: #091f92;
@@ -11,16 +18,18 @@
   --iw-copper-light: #f6b88c;
   --iw-copper-gradient: linear-gradient(90deg, var(--iw-copper-dark), var(--iw-copper), var(--iw-copper-light));
 
-  /* Semantic tokens: light theme */
-  --color-bg: #ffffff;
-  --color-surface: #f4f5fa;
-  --color-text: var(--iw-navy);
-  --color-text-muted: #4a5280;
-  --color-heading: var(--iw-navy);
-  --color-link: var(--iw-indigo);
-  --color-accent: var(--iw-copper);
-  --color-border: #d6d9e8;
-  --color-focus: var(--iw-indigo);
+  /* Semantic tokens: light-dark(light value, dark value) */
+  --color-bg: light-dark(#ffffff, #10152e);
+  --color-surface: light-dark(#f4f5fa, #1a2148);
+  --color-text: light-dark(var(--iw-navy), #e6e8f2);
+  --color-text-muted: light-dark(#4a5280, #a9aecb);
+  --color-heading: light-dark(var(--iw-navy), #ffffff);
+  --color-link: light-dark(var(--iw-indigo), #9fb0ff);
+  --color-accent: light-dark(var(--iw-copper), var(--iw-copper-light));
+  --color-border: light-dark(#d6d9e8, #2e3766);
+  --color-focus: light-dark(var(--iw-indigo), var(--iw-copper-light));
+  /* Text on a solid brand-color fill (e.g. the switch in the ARP diagram) */
+  --color-on-brand: #ffffff;
 
   /* Type */
   --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -41,22 +50,12 @@
 
   --radius: 0.5rem;
   --content-width: 64rem;
+}
 
+:root[data-theme='light'] {
   color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-bg: #10152e;
-    --color-surface: #1a2148;
-    --color-text: #e6e8f2;
-    --color-text-muted: #a9aecb;
-    --color-heading: #ffffff;
-    --color-link: #9fb0ff;
-    --color-accent: var(--iw-copper-light);
-    --color-border: #2e3766;
-    --color-focus: var(--iw-copper-light);
-
-    color-scheme: dark;
-  }
+:root[data-theme='dark'] {
+  color-scheme: dark;
 }
