@@ -1,5 +1,5 @@
 {
-  "name": "indigowire-site",
+  "name": "indigowire-site", // Worker names allow only a-z, 0-9 and dashes, so this differs from the repo name
   "compatibility_date": "2026-10-25",
   "assets": {
     "directory": "./dist",

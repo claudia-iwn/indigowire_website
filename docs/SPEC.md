@@ -88,7 +88,7 @@ All content is files under `src/content/`, validated by schemas in `src/content.
 ### Directory layout
 
 ```
-indigowire-site/
+indigowire_website/
 ├── CLAUDE.md                  # points Claude Code to docs/SPEC.md
 ├── docs/SPEC.md               # this document, exported as Markdown
 ├── astro.config.mjs
@@ -348,7 +348,8 @@ The site deploys as a Cloudflare Worker with static assets, built and deployed b
 
 | Setting | Value |
 | --- | --- |
-| Repository | GitHub, `claudia-iwn/indigowire-site` (public) |
+| Repository | GitHub, `claudia-iwn/indigowire_website` (public) |
+| Worker name | `indigowire-site` (Worker names allow only lowercase letters, digits and dashes, so it differs from the repo name) |
 | Production branch | `main` |
 | Build command | `npx astro build` |
 | Deploy command | `npx wrangler deploy` |
@@ -462,10 +463,10 @@ Seven milestones, each ending in a deployed, working site; hand Claude Code one 
 ### M0: Repo and deploy skeleton
 
 - [ ] Add `indigowire.net` to Cloudflare, verify imported records (mail records especially), switch GoDaddy nameservers, confirm email still works (section 8, step 1)
-- [ ] Create the public repo `claudia-iwn/indigowire-site` with `LICENSE` (MIT) and `CONTENT-LICENSE.md`
-- [ ] Initialize an Astro project (static output, JavaScript)
-- [ ] Add `wrangler.jsonc`, Prettier, ESLint, Vitest and the `npm run check` script
-- [ ] Add `CLAUDE.md` and `docs/SPEC.md`
+- [x] Create the public repo `claudia-iwn/indigowire_website` with `LICENSE` (MIT) and `CONTENT-LICENSE.md`
+- [x] Initialize an Astro project (static output, JavaScript)
+- [x] Add `wrangler.jsonc`, Prettier, ESLint, Vitest and the `npm run check` script
+- [x] Add `CLAUDE.md` and `docs/SPEC.md`
 - [ ] Connect Workers Builds; confirm a "hello" page deploys to the workers.dev URL on push
 - [ ] Attach `indigowire.net` as a custom domain and redirect `www` (R13)
 - [ ] Add a deploy key for Hermes with write access to this repo only

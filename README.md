@@ -5,6 +5,8 @@ Static [Astro](https://astro.build) site for Indigo Wire Networks: consultancy p
 The full specification is [`docs/SPEC.md`](docs/SPEC.md).
 
 ```sh
+git clone https://github.com/claudia-iwn/indigowire_website.git
+cd indigowire_website
 npm install        # Node LTS
 uv sync            # Python content scripts
 npm run dev        # http://localhost:4321
