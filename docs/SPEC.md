@@ -354,7 +354,7 @@ A Python service on the DGX Spark, run with uv under systemd, that turns new fil
 
 ### Capacity
 
-- Each push is one build. At 1–2 minutes per build, the 3,000 free build minutes a month allow roughly 1,500–3,000 pushes.
+- Each push is one build. Measured builds on Workers Builds take about 3 to 4 minutes (October 2026), not the 1 to 2 minutes first assumed, so the 3,000 free build minutes a month allow roughly 750 to 1,000 pushes. Spark publishing should batch images (the publisher's quiet period) rather than push one image per commit, and trimming the build (for example, not installing test-only dev dependencies) is worth doing before volume grows.
 - If build time grows with the gallery, move originals to Cloudflare R2 and keep only the sidecars in git (deferred; not v1).
 
 ## 8. Deployment
@@ -365,7 +365,7 @@ The site deploys as a Cloudflare Worker with static assets, built and deployed b
 
 ```
 {
-  "name": "indigowire-site",
+  "name": "indigowire-website",
   "compatibility_date": "2026-10-25",
   "assets": {
     "directory": "./dist",
@@ -379,7 +379,8 @@ The site deploys as a Cloudflare Worker with static assets, built and deployed b
 | Setting | Value |
 | --- | --- |
 | Repository | GitHub, `claudia-iwn/indigowire_website` (public) |
-| Worker name | `indigowire-site` (Worker names allow only lowercase letters, digits and dashes, so it differs from the repo name) |
+| Worker name | `indigowire-website`, matching `wrangler.jsonc`. Worker names allow only lowercase letters, digits and dashes, so it uses a dash where the repo name has an underscore |
+| workers.dev URL | https://indigowire-website.claudia-b4a.workers.dev/ |
 | Production branch | `main` |
 | Build command | `npx astro build` |
 | Deploy command | `npx wrangler deploy` |
@@ -416,7 +417,7 @@ The repo is public under `claudia-iwn`, because the games and the image pipeline
 
 | Limit | Workers Free | Impact |
 | --- | --- | --- |
-| Build minutes | 3,000 per month | \~1,500–3,000 pushes |
+| Build minutes | 3,000 per month | \~750–1,000 pushes at the measured 3 to 4 minutes per build |
 | Concurrent builds | 1 | Rapid pushes queue |
 | Static asset files | 20,000 per version | Thousands of images |
 | File size | 25 MiB | WebP images far below |
@@ -497,7 +498,7 @@ Seven milestones, each ending in a deployed, working site; hand Claude Code one 
 - [x] Initialize an Astro project (static output, JavaScript)
 - [x] Add `wrangler.jsonc`, Prettier, ESLint, Vitest and the `npm run check` script
 - [x] Add `CLAUDE.md` and `docs/SPEC.md`
-- [ ] Connect Workers Builds; confirm a "hello" page deploys to the workers.dev URL on push
+- [x] Connect Workers Builds; confirm a "hello" page deploys to the workers.dev URL on push (live at https://indigowire-website.claudia-b4a.workers.dev/)
 - [ ] Attach `indigowire.net` as a custom domain and redirect `www` (R13)
 - [ ] Add a deploy key for Hermes with write access to this repo only
 
@@ -508,7 +509,7 @@ Seven milestones, each ending in a deployed, working site; hand Claude Code one 
 - [x] `BaseLayout`, Header, Footer, `site.config.js` with the external links (R1)
 - [x] Draft `pages/about.md` from the tailored-resume skill's career facts and the master CV; owner reviews before publishing (R2)
 - [x] Home, Contact and 404 pages (R3, R11 placeholder, R14)
-- [x] Playwright smoke test and Lighthouse baseline (N1, N3, N6). Baseline 2026-10-25, mobile, Lighthouse 13.5.0 on `astro preview`: all 10 scorable routes 100/100/100/100 (performance, accessibility, best practices, SEO), LCP 1.2 to 1.3 s, CLS 0. The 404 page cannot be scored because Lighthouse rejects non-200 responses. Fixes made for it: Spark card headings follow page heading order, and the LCP image gets `fetchpriority="high"`
+- [x] Playwright smoke test and Lighthouse baseline (N1, N3, N6). Baseline 2026-10-25, mobile, Lighthouse 13.5.0 on `astro preview`: all 10 scorable routes 100/100/100/100 (performance, accessibility, best practices, SEO), LCP 1.2 to 1.3 s, CLS 0. The 404 page cannot be scored because Lighthouse rejects non-200 responses. Fixes made for it: Spark card headings follow page heading order, and the LCP image gets `fetchpriority="high"`. Live check on workers.dev the same day: smoke tests 34/34, Lighthouse 100 on every route except 98 performance on `/spark/category/mood`, LCP 1.1 to 1.7 s. It also found every page except Home redirecting `/page` to `/page/`, fixed with `build.format: 'file'` and `trailingSlash: 'never'` in `astro.config.mjs`
 - [ ] Turn on Cloudflare Web Analytics; add PostHog in cookieless mode and `src/analytics.js` with `outbound_click` (R15)
 
 ### M2: Content model and topics
@@ -556,7 +557,7 @@ Seven milestones, each ending in a deployed, working site; hand Claude Code one 
 | Visual identity | Existing Indigo Wire Networks logo and its colors (section 9) |
 | Analytics | Maximum free and cookieless: Cloudflare metrics + Cloudflare Web Analytics + PostHog cookieless (section 9) |
 | Cookie banner | None for now; session replay and PostHog geography stay off. Revisit only if those become worth a banner. |
-| Repo and Worker names | Repo `claudia-iwn/indigowire_website`; the Worker stays `indigowire-site` because Worker names cannot contain underscores (section 8) |
+| Repo and Worker names | Repo `claudia-iwn/indigowire_website`; Worker `indigowire-website`, because Worker names cannot contain underscores (section 8) |
 | Local-only files | `main.py`, the Spark ops addendum, the root copy of this spec and `images/` are gitignored; `docs/SPEC.md` is canonical |
 | Spark date format | ISO 8601 with offset or `Z`, `T` separator; checked on the raw text by both the validator and the build (section 4) |
 | Inline scripts on content pages | Allowed only for the theme toggle (N5) and locale dates on permalinks, each under 1 KB gzipped (N2) |

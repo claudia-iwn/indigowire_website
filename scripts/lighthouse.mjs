@@ -2,12 +2,14 @@
 // Run `npm run build` first; `npm run lighthouse` does both. Uses the installed Google Chrome
 // and fetches Lighthouse with npx, so it is not a project dependency.
 // Reports (HTML + JSON) go to lighthouse-reports/, which is gitignored.
+// Set BASE_URL to audit a deployed site instead of a local preview:
+//   BASE_URL=https://indigowire-website.claudia-b4a.workers.dev node scripts/lighthouse.mjs
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync } from 'node:fs';
 
 const LIGHTHOUSE = 'lighthouse@13.5.0';
 const PORT = 4324;
-const BASE = `http://localhost:${PORT}`;
+const BASE = (process.env.BASE_URL ?? `http://localhost:${PORT}`).replace(/\/$/, '');
 const OUT = 'lighthouse-reports';
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 
@@ -27,7 +29,9 @@ const PAGES = [
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const server = spawn('npx', ['astro', 'preview', '--port', String(PORT), '--ignore-lock'], { stdio: 'ignore' });
+const server = process.env.BASE_URL
+  ? null
+  : spawn('npx', ['astro', 'preview', '--port', String(PORT), '--ignore-lock'], { stdio: 'ignore' });
 // Wait for the server, like a Python retry loop around requests.get.
 for (let i = 0; i < 40; i++) {
   try {
@@ -74,6 +78,6 @@ for (const page of PAGES) {
   );
 }
 
-server.kill();
+server?.kill();
 console.log(`\nReports: ${OUT}/<page>.report.html`);
 process.exit(failed ? 1 : 0);
