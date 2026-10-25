@@ -8,7 +8,6 @@ const ROUTES = [
   '/contact',
   '/learn',
   '/learn/arp',
-  '/learn/arp-explained',
   '/spark',
   '/spark/2026-10-25-1405-bgp-weather',
   '/spark/category/working-on',

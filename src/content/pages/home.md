@@ -1,6 +1,8 @@
 ---
 title: Indigo Wire Networks
-description: Network engineering and automation consulting, interactive networking games, and AI images from a DGX Spark.
+description: Network architecture and automation consulting from Claudia de Luna, plus interactive networking games and images from a DGX Spark.
 ---
 
-**Placeholder intro.** Network engineering and automation consulting from Indigo Wire Networks, plus interactive games that teach networking and a stream of images from a DGX Spark.
+I am Claudia de Luna, and Indigo Wire Networks is my network architecture and automation consultancy. I design, automate, and modernize enterprise, data center, and campus networks, starting with the problem and the requirements so that every change becomes a standard, repeatable workflow. [More about me](/about).
+
+This site is also where I play, with interactive games that show how networks really work, starting with ARP, and a stream of images from my DGX Spark.

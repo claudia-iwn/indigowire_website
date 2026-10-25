@@ -488,7 +488,7 @@ Seven milestones, each ending in a deployed, working site; hand Claude Code one 
 - [x] Convert the logo's PDF master to `public/logo.svg` (plus a dark-theme version); make the favicon from the circular mark
 - [x] Design tokens from the logo palette in `tokens.css`, light and dark, with the manual toggle (section 9, N5)
 - [x] `BaseLayout`, Header, Footer, `site.config.js` with the external links (R1)
-- [ ] Draft `pages/about.md` from the tailored-resume skill's career facts and the master CV; owner reviews before publishing (R2)
+- [x] Draft `pages/about.md` from the tailored-resume skill's career facts and the master CV; owner reviews before publishing (R2)
 - [x] Home, Contact and 404 pages (R3, R11 placeholder, R14)
 - [ ] Playwright smoke test and Lighthouse baseline (N1, N3, N6) (smoke tests done, covering N6; Lighthouse baseline pending)
 - [ ] Turn on Cloudflare Web Analytics; add PostHog in cookieless mode and `src/analytics.js` with `outbound_click` (R15)
