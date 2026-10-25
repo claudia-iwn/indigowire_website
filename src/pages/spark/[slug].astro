@@ -24,7 +24,14 @@ const og = await getImage({ src: image, width: 1200, format: 'jpeg' });
 <BaseLayout title={title} description={caption ?? alt} ogImage={og.src}>
   <article>
     <h1>{title}</h1>
-    <Image src={image} alt={alt} widths={[800, 1600]} sizes="(min-width: 64rem) 64rem, 100vw" loading="eager" />
+    <Image
+      src={image}
+      alt={alt}
+      widths={[800, 1600]}
+      sizes="(min-width: 64rem) 64rem, 100vw"
+      loading="eager"
+      fetchpriority="high"
+    />
     {caption && <p class="lede">{caption}</p>}
     <Content />
     <dl>

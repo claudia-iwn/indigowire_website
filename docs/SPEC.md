@@ -96,6 +96,7 @@ indigowire_website/
 ├── package.json
 ├── public/                    # logo.svg, logo-dark.svg, favicons, site.webmanifest, robots.txt
 ├── scripts/
+│   ├── lighthouse.mjs         # N1/N3 run: `npm run lighthouse`, reports in lighthouse-reports/
 │   ├── validate_spark.py      # checks one image + sidecar pair
 │   └── spark_publisher.py     # watches the clone, commits and pushes
 ├── deploy/
@@ -415,7 +416,7 @@ The site should be fast, accessible and private by default, with targets Claude 
 
 | ID | Area | Target | How it is checked |
 | --- | --- | --- | --- |
-| N1 | Performance | Lighthouse Performance ≥ 95 on Home, `/spark` and `/learn/arp` (mobile) | Lighthouse run before each milestone closes |
+| N1 | Performance | Lighthouse Performance ≥ 95 on Home, `/spark` and `/learn/arp` (mobile) | `npm run lighthouse` (`scripts/lighthouse.mjs`) before each milestone closes; exits non-zero if N1 or N3 is missed |
 | N2 | JavaScript budget | 0 KB of loaded scripts on content pages. Allowed inline exceptions: the theme scripts on every page (N5; about 1.5 KB raw, under 1 KB gzipped) and the locale-date script on Spark permalinks (section 7; UTC text is the no-JS fallback). ≤ 150 KB gzipped on a game page | Build output size check |
 | N3 | Accessibility | WCAG 2.2 AA; Lighthouse Accessibility = 100 | Lighthouse + keyboard walk-through |
 | N4 | Motion | All animation respects `prefers-reduced-motion` | Manual check with the OS setting on |
@@ -490,7 +491,7 @@ Seven milestones, each ending in a deployed, working site; hand Claude Code one 
 - [x] `BaseLayout`, Header, Footer, `site.config.js` with the external links (R1)
 - [x] Draft `pages/about.md` from the tailored-resume skill's career facts and the master CV; owner reviews before publishing (R2)
 - [x] Home, Contact and 404 pages (R3, R11 placeholder, R14)
-- [ ] Playwright smoke test and Lighthouse baseline (N1, N3, N6) (smoke tests done, covering N6; Lighthouse baseline pending)
+- [x] Playwright smoke test and Lighthouse baseline (N1, N3, N6). Baseline 2026-10-25, mobile, Lighthouse 13.5.0 on `astro preview`: all 10 scorable routes 100/100/100/100 (performance, accessibility, best practices, SEO), LCP 1.2 to 1.3 s, CLS 0. The 404 page cannot be scored because Lighthouse rejects non-200 responses. Fixes made for it: Spark card headings follow page heading order, and the LCP image gets `fetchpriority="high"`
 - [ ] Turn on Cloudflare Web Analytics; add PostHog in cookieless mode and `src/analytics.js` with `outbound_click` (R15)
 
 ### M2: Content model and topics

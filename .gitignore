@@ -40,3 +40,6 @@ indigowire.net Site Specification_SPEC.md
 # Playwright
 test-results/
 playwright-report/
+
+# Lighthouse reports (npm run lighthouse)
+lighthouse-reports/

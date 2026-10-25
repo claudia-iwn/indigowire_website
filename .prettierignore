@@ -8,3 +8,4 @@ uv.lock
 src/assets/brand/
 # Specs and content are hand-written Markdown; leave their formatting alone.
 **/*.md
+lighthouse-reports/

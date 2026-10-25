@@ -17,6 +17,7 @@ Static Astro site for Indigo Wire Networks (Claudia de Luna, network engineer/ar
 | Smoke tests (Playwright) | `npm run build && npm run test:e2e`; one test: `npx playwright test -g "/learn/arp"` |
 | Lint (ESLint, Prettier, ruff) | `npm run lint`; auto-fix with `npm run format` |
 | Everything (lint + Vitest + pytest + build + Playwright) | `npm run check` — must pass before any commit |
+| Lighthouse (N1/N3, mobile) | `npm run lighthouse` — run before closing a milestone; reports in `lighthouse-reports/` |
 | Validate a Spark entry | `uv run scripts/validate_spark.py <entry.md \| image.webp \| dir>` |
 | One publisher pass (no push) | `uv run scripts/spark_publisher.py --once --dry-run` (stub until M3) |
 
