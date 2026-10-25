@@ -23,7 +23,7 @@ Prettier ignores all Markdown (`**/*.md`) so the spec and content keep their han
 
 ## Current state
 
-M0 skeleton: every route renders from the collections, but the ARP engine, frame encoding, renderer and Spark publisher are stubs (marked `STUB`/`TODO(Mn)`). The header logo is `public/logo.svg` / `logo-dark.svg`, converted from the PDF master with `pdftocairo -svg`, cropped to the artwork, and recolored for dark mode (navy → white, indigo → `#B8C4FF`, copper unchanged). The favicon is still Astro's default. `docs/SPEC.md` is canonical; the root `indigowire.net Site Specification_SPEC.md` is an untracked local copy; never edit it. Where `spark-art-github-publishing-and-operations-addendum.md` conflicts with the spec (Cloudflare Pages, a `site/` + `gallery.json` layout), the spec wins.
+M0 skeleton: every route renders from the collections, but the ARP engine, frame encoding, renderer and Spark publisher are stubs (marked `STUB`/`TODO(Mn)`). The header logo is `public/logo.svg` / `logo-dark.svg`, converted from the PDF master with `pdftocairo -svg`, cropped to the artwork, and recolored for dark mode (navy → white, indigo → `#B8C4FF`, copper unchanged). Favicons and app icons (`public/favicon.svg`, `favicon.ico`, `apple-touch-icon.png`, `icon-192/512.png`) come from the logo's circular mark. `docs/SPEC.md` is canonical; the root `indigowire.net Site Specification_SPEC.md` is an untracked local copy; never edit it. Where `spark-art-github-publishing-and-operations-addendum.md` conflicts with the spec (Cloudflare Pages, a `site/` + `gallery.json` layout), the spec wins.
 
 ## Stack and conventions
 

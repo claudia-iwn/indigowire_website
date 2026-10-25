@@ -94,7 +94,7 @@ indigowire_website/
 ├── astro.config.mjs
 ├── wrangler.jsonc
 ├── package.json
-├── public/                    # favicon, robots.txt, logo.svg, logo-dark.svg
+├── public/                    # logo.svg, logo-dark.svg, favicons, site.webmanifest, robots.txt
 ├── scripts/
 │   ├── validate_spark.py      # checks one image + sidecar pair
 │   └── spark_publisher.py     # watches the clone, commits and pushes
@@ -440,7 +440,7 @@ The site uses the existing Indigo Wire Networks logo (2018): a circular wire mar
 **Logo assets** are tracked in `src/assets/brand/`: `.ai`, `.eps`, `.pdf` (vector masters) and `.png`, `.jpg` exports. (The original `images/logos/logo-archive/` folder on the owner's computer is gitignored.) For the web:
 
 - Convert the PDF master to an SVG for the header (`public/logo.svg`), plus a light version for the dark theme. Done with `pdftocairo -svg` (poppler), cropped to the artwork. `public/logo-dark.svg` recolors navy to `#FFFFFF` and indigo to `#B8C4FF`, keeping the copper gradient; the header switches between them with `<picture>` and `prefers-color-scheme`.
-- Make a favicon and app icon from the circular mark alone.
+- Make a favicon and app icon from the circular mark alone. Done: `favicon.svg` holds only the mark's 60 dots and switches to the dark-logo colors under `prefers-color-scheme: dark`; `favicon.ico` (16/32/48) puts the mark on a white rounded tile so it shows on dark tab bars; `apple-touch-icon.png` (180) and `icon-192.png`/`icon-512.png` (in `site.webmanifest`) are on white. Rasters are rendered from the PDF master with `pdftocairo`.
 - Check contrast: navy and indigo on white pass WCAG AA for text; copper is for accents and large text only, unless a contrast check shows it passes.
 
 The tone stays technical and playful rather than corporate, with network-diagram motifs and copper "wire" lines as the recurring decoration.
@@ -485,7 +485,7 @@ Seven milestones, each ending in a deployed, working site; hand Claude Code one 
 
 ### M1: Site shell
 
-- [ ] Convert the logo's PDF master to `public/logo.svg` (plus a dark-theme version); make the favicon from the circular mark (SVGs done; favicon pending)
+- [x] Convert the logo's PDF master to `public/logo.svg` (plus a dark-theme version); make the favicon from the circular mark
 - [x] Design tokens from the logo palette in `tokens.css`, light and dark (section 9, N5); the N5 manual toggle is still to do
 - [x] `BaseLayout`, Header, Footer, `site.config.js` with the external links (R1)
 - [ ] Draft `pages/about.md` from the tailored-resume skill's career facts and the master CV; owner reviews before publishing (R2)
