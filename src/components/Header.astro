@@ -1,11 +1,8 @@
 ---
 /**
  * Site header: logo, internal nav and the header external links (R1).
- * TODO(M1): swap the PNG for public/logo.svg (plus a dark-theme version) once the
- * PDF master is converted (needs `brew install poppler` for pdftocairo).
+ * public/logo.svg and logo-dark.svg come from the PDF master via pdftocairo.
  */
-import { Image } from 'astro:assets';
-import logo from '../assets/brand/Indigo Wire Networks_Final.png';
 import { nav, externalLinks } from '../site.config.js';
 
 const current = Astro.url.pathname;
@@ -16,7 +13,10 @@ const isActive = (href) => (href === '/' ? current === '/' : current.startsWith(
 <header class="site-header">
   <div class="inner">
     <a class="brand" href="/" aria-label="Indigo Wire Networks home">
-      <Image src={logo} alt="Indigo Wire Networks" width={190} loading="eager" />
+      <picture>
+        <source srcset="/logo-dark.svg" media="(prefers-color-scheme: dark)" />
+        <img src="/logo.svg" alt="Indigo Wire Networks" width="190" height="50" />
+      </picture>
     </a>
     <nav aria-label="Main">
       <ul>
@@ -60,14 +60,11 @@ const isActive = (href) => (href === '/' ? current === '/' : current.startsWith(
   }
   .brand {
     display: inline-flex;
-    /* The PNG logo is dark-on-transparent, so give it a light plate in dark mode. */
-    background: #ffffff;
-    border-radius: var(--radius);
-    padding: var(--space-1) var(--space-2);
   }
-  .brand :global(img) {
-    height: auto;
+  .brand img {
     display: block;
+    width: 190px;
+    height: auto;
   }
   nav {
     display: flex;
