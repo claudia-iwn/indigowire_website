@@ -1,0 +1,213 @@
+# Speaking engagements for /speaking (R16). One entry per engagement.
+# Only confirmed items: each `source` is where it was verified (2026-10-25).
+#
+# Fields:
+#   id      unique kebab-case key
+#   kind    keynote | talk | panel | podcast | workshop | course | delegate
+#   date    YYYY-MM-DD, YYYY-MM or YYYY (as precise as is known)
+#   title   exact session or episode title
+#   event   conference, show or programme name
+#   location  optional; city, or "Online"
+#   role    optional; shown after the event (e.g. "Proctor", "Opening keynote")
+#   url     optional; event, session or episode page
+#   video   optional; recording
+#   code    optional; companion repository
+#   source  where this entry was confirmed (not shown on the page)
+
+- id: autocon6-lets-rewind
+  kind: talk
+  date: 2026-11-21
+  title: "Let's Rewind: A Network Automation Do-Over with the NAF Framework"
+  event: AutoCon 6
+  location: Tucson
+  url: https://networkautomation.forum/autocon6
+  source: AutoCon 6 programme, Day Two 16:15
+
+- id: aifd9-delegate
+  kind: delegate
+  date: 2026-10-14
+  title: AI Field Day 9
+  event: Tech Field Day
+  location: Silicon Valley
+  role: Delegate, and panelist on the closing Utilizing AI roundtable
+  url: https://techfieldday.com/event/aifd9/
+  source: AI Field Day 9 delegate panel; techfieldday.com event write-up
+
+- id: autocon5-naf-use-case-1
+  kind: talk
+  date: 2026-06-11
+  title: 'NAF Framework Use Case #1'
+  event: AutoCon 5
+  location: Munich
+  url: https://ac5-guide.pages.dev/
+  source: AutoCon 5 programme guide, Thursday 11:05
+
+- id: autocon5-naf-framework-update
+  kind: talk
+  date: 2026-06-10
+  title: NAF Network Automation Framework Update
+  event: AutoCon 5
+  location: Munich
+  url: https://ac5-guide.pages.dev/
+  source: AutoCon 5 programme guide, Wednesday 17:15
+
+- id: autocon1-consumable-bits
+  kind: talk
+  date: 2024-05-30
+  title: Consumable Bits of Automation to Get You Started, Minimizing the Knobs
+  event: AutoCon 1
+  location: Amsterdam
+  url: https://networkautomation.forum/autocon1
+  video: https://www.youtube.com/watch?v=7wHZed__aJ8
+  source: AutoCon 1 programme, Thursday 30 May 16:15; recording on the Network Automation Forum YouTube channel (published 2024-06-27)
+
+- id: autocon3-keynote
+  kind: keynote
+  date: 2025-05-28
+  title: 'Start at the Beginning: Automating Network Design'
+  event: AutoCon 3
+  location: Prague
+  role: Opening keynote
+  url: https://networkautomation.forum/autocon3
+  video: https://www.youtube.com/watch?v=PoQUA3dgmkQ
+  source: AutoCon 3 programme; "AC3 Opening Keynote" video
+
+- id: autocon3-jinja2-workshop
+  kind: workshop
+  date: 2025-05-27
+  title: 'Jinja2 in Action: 10 Real-World Python Template Patterns'
+  event: AutoCon 3
+  location: Prague
+  role: Proctor
+  url: https://networkautomation.forum/autocon3
+  source: AutoCon 3 programme, workshop WS:C4
+
+- id: autocon2-jinja2-workshop
+  kind: workshop
+  date: 2024-11-18
+  title: A day in the life of a Network Engineer using Jinja2 Templates
+  event: AutoCon 2
+  location: Denver
+  role: Proctor
+  url: https://networkautomation.forum/autocon2
+  source: AutoCon 2 programme, workshop WS:B4
+
+- id: hn717-sources-of-truth
+  kind: podcast
+  date: 2024-01-19
+  title: 'HN717: Network Source(s) Of Truth, A Roundtable Discussion'
+  event: Packet Pushers Heavy Networking
+  role: Roundtable with Dinesh Dutt, Ivan Pepelnjak and David Sinn
+  url: https://packetpushers.net/podcasts/heavy-networking/hn717-network-sources-of-truth-a-roundtable-discussion/
+  source: Packet Pushers episode page
+
+- id: hn713-where-are-we
+  kind: podcast
+  date: 2023-12-08
+  title: 'HN713: Network Automation: Where Are We, And Where Can We Go?'
+  event: Packet Pushers Heavy Networking
+  url: https://packetpushers.net/podcasts/heavy-networking/hn713-network-automation-where-are-we-and-where-can-we-go/
+  source: Packet Pushers episode page
+
+- id: devnet-create-2021-no-visio
+  kind: talk
+  date: '2021'
+  title: Just say No to Visio!
+  event: Cisco DevNet Create 2021
+  location: Online
+  url: https://developer.cisco.com/devnetcreate/2021/home
+  video: https://www.youtube.com/watch?v=6qDTF-rdnI0
+  code: https://github.com/cldeluna/devnet_create2021_no2visio
+  source: DevNet Create 2021 listing; YouTube; companion repo
+
+- id: runasradio-649
+  kind: podcast
+  date: 2019-08-14
+  title: 'Software Defined Networking with Claudia de Luna'
+  event: RunAs Radio
+  role: 'Show #649'
+  url: https://runasradio.com/Shows/Show/649
+  source: RunAs Radio show page
+
+- id: interop-2019-just-enough
+  kind: talk
+  date: 2019-05-21
+  title: Just Enough Network Automation to Get You Started
+  event: Interop 2019, Networking Summit
+  location: Las Vegas
+  url: https://networktocode.com/blog/network-to-code-at-interop-2019/
+  source: Interop schedule (Tuesday, May 21); Network to Code recap
+
+- id: interop-2020-pyats
+  kind: talk
+  date: '2020'
+  title: Getting Started with pyATS
+  event: Interop Digital 2020, Network to Code Automation Workshop
+  location: Online
+  code: https://github.com/cldeluna/interop2020_pyats_intro
+  source: Confirmed by Claudia; companion repo "Getting Started with pyATS for Network to Code Automation Workshop at Interop Digital 2020"
+
+- id: ec-council-network-automation-python
+  kind: course
+  date: '2021'
+  title: Network Automation with Python
+  event: EC-Council CodeRed
+  role: Course author and instructor, 9 hours of video
+  url: https://coderedpro.com/products/network-automation-with-python
+  code: https://github.com/ec-council-learning/Network-Automation-in-Python
+  source: Confirmed by Claudia; CodeRed course page with her bio; year from the companion repo (created September 2021)
+
+- id: netdevops-live-s2-becoming-netdevops-engineer
+  kind: panel
+  date: 2019-06-11
+  title: Becoming a NetDevOps Engineer, A Discussion with the Community
+  event: 'NetDevOps Live! Season 2, live from Cisco Live US'
+  location: San Diego
+  role: Panelist with Jathan McCollum and Jeremy Schulman
+  url: https://developer.cisco.com/netdevops/live/
+  video: https://www.youtube.com/watch?v=Bk_4KX7ABKg
+  source: Cisco DevNet NetDevOps Live page (Season 2, Talk 11, panelists listed); Cisco blog and Hank Preston announcement for June 11, 2019 at Cisco Live San Diego; YouTube recording
+
+- id: between-0x2-nerds-naf-framework
+  kind: podcast
+  date: '2026'
+  title: The NAF Framework in practice
+  event: Between 0x2 Nerds
+  role: With host Jeff Doyle and guest host Eric Chou
+  url: https://www.youtube.com/channel/UCz4EVApbsKyrgYeoQT-39nQ
+  source: Jeff Doyle's LinkedIn post (follow-up to the Wim Henderickx NAF episode). Exact episode title, date and link not found; title here is descriptive
+
+# JPL era. Source: Claudia's CV, via the tailored-resume career-facts file; no online record found.
+
+- id: gartner-2005-network-integrity
+  kind: panel
+  date: '2005'
+  title: Best Practices Approach to Ensure Network Integrity
+  event: Gartner CSO Breakfast Seminar Series
+  location: Los Angeles
+  role: Panelist
+  source: Claudia's CV (career-facts file), Wilshire Grand Hotel, Los Angeles
+
+- id: gbet-2003-securing-the-perimeter
+  kind: talk
+  date: '2003'
+  title: "Securing the Perimeter: Protecting Your Agency's Data"
+  event: GBET (Government, Business and Education Tech Event)
+  location: Los Angeles
+  source: Claudia's CV (career-facts file), Los Angeles Convention Center
+
+- id: gbet-2003-network-management
+  kind: talk
+  date: '2003'
+  title: Network Management
+  event: GBET (Government, Business and Education Tech Event)
+  location: Los Angeles
+  source: Claudia's CV (career-facts file), Los Angeles Convention Center
+
+- id: smc-it-2003-it-security
+  kind: talk
+  date: '2003'
+  title: IT Security Challenges for Space Mission
+  event: SMC-IT 2003, International Conference on Space Mission Challenges for Information Technology
+  location: Pasadena
+  source: Claudia's CV (career-facts file)

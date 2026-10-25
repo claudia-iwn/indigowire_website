@@ -1,0 +1,119 @@
+---
+/**
+ * Speaking: talks, keynotes, podcasts, workshops, courses and Tech Field Day (R16).
+ * Data lives in src/content/speaking.yaml. Links only, no embedded players (N7).
+ * "Upcoming" compares against the build date, so entries move once the site rebuilds.
+ */
+import BaseLayout from '../layouts/BaseLayout.astro';
+import BackHome from '../components/BackHome.astro';
+import { getSpeaking, formatPartialDate } from '../lib/content.js';
+
+const today = new Date().toISOString().slice(0, 10);
+const entries = await getSpeaking();
+// An entry is upcoming when its date sorts after today ("2026-11-21" > "2026-10-25").
+const upcoming = entries.filter((entry) => entry.data.date > today).reverse(); // soonest first
+const past = entries.filter((entry) => entry.data.date <= today);
+
+const GROUPS = [
+  { heading: 'Talks and keynotes', kinds: ['keynote', 'talk', 'panel'] },
+  { heading: 'Podcasts', kinds: ['podcast'] },
+  { heading: 'Workshops', kinds: ['workshop'] },
+  { heading: 'Courses', kinds: ['course'] },
+  { heading: 'Tech Field Day', kinds: ['delegate'] },
+];
+const sections = [
+  { heading: 'Upcoming', entries: upcoming },
+  ...GROUPS.map((group) => ({
+    heading: group.heading,
+    entries: past.filter((entry) => group.kinds.includes(entry.data.kind)),
+  })),
+].filter((section) => section.entries.length > 0);
+---
+
+<BaseLayout
+  title="Speaking"
+  description="Talks, keynotes, podcasts, workshops and courses by Claudia de Luna on network automation and design."
+>
+  <h1>Speaking</h1>
+  <p class="lede">Talks, podcasts, workshops and courses on network automation, design and the NAF Framework.</p>
+
+  {sections.map((section) => (
+    <section>
+      <h2>{section.heading}</h2>
+      <ul class="talks">
+        {section.entries.map(({ data }) => (
+          <li>
+            <p class="when">
+              <time datetime={data.date}>{formatPartialDate(data.date)}</time>
+              {data.location && <span> · {data.location}</span>}
+            </p>
+            <h3>
+              {data.url ? (
+                <a href={data.url} target="_blank" rel="noopener">
+                  {data.title}
+                </a>
+              ) : (
+                data.title
+              )}
+            </h3>
+            <p class="event">
+              {data.event}
+              {data.role && <span> · {data.role}</span>}
+            </p>
+            {(data.video || data.code) && (
+              <p class="links">
+                {data.video && (
+                  <a href={data.video} target="_blank" rel="noopener">
+                    Video
+                  </a>
+                )}
+                {data.code && (
+                  <a href={data.code} target="_blank" rel="noopener">
+                    Code
+                  </a>
+                )}
+              </p>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  ))}
+  <BackHome />
+</BaseLayout>
+
+<style>
+  .talks {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: var(--space-4);
+  }
+  .talks li {
+    border-left: 3px solid var(--color-accent);
+    padding-left: var(--space-3);
+  }
+  .talks p,
+  .talks h3 {
+    margin: 0;
+  }
+  .talks h3 {
+    font-size: var(--text-base);
+    margin-block: var(--space-1);
+  }
+  .when,
+  .event {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+  }
+  .links {
+    display: flex;
+    gap: var(--space-3);
+    font-size: var(--text-sm);
+    margin-top: var(--space-1) !important;
+  }
+  .links a::after {
+    content: ' ↗';
+  }
+</style>

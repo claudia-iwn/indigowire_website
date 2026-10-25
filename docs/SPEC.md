@@ -34,7 +34,7 @@ Each requirement has an ID that tasks, commits and tests can reference. Acceptan
 
 | ID | Requirement | Acceptance criteria |
 | --- | --- | --- |
-| R1 | Site shell with persistent navigation | Every page shows header nav (Home, Learn, Spark, About, Contact) and external links (Blog, LinkedIn, Bluesky, GitHub) that open in a new tab with `rel="noopener"`. |
+| R1 | Site shell with persistent navigation | Every page shows header nav (Home, Learn, Spark, About, Speaking, Contact) and external links (Blog, LinkedIn, Bluesky, GitHub) that open in a new tab with `rel="noopener"`. |
 | R2 | About page | `/about` renders bio content from a Markdown file. |
 | R3 | Contact page | `/contact` says to make contact through LinkedIn and links to the LinkedIn profile. No form. |
 | R4 | Learn index | `/learn` lists every game and topic, grouped by category, each with title, one-line summary and tags. |
@@ -49,6 +49,7 @@ Each requirement has an ID that tasks, commits and tests can reference. Acceptan
 | R13 | Auto deploy | When a commit lands on `main`, then Workers Builds builds and deploys it; other branches get preview deploys. |
 | R14 | Custom 404 | Unknown routes return the site's 404 page with HTTP status 404. |
 | R15 | Analytics | When a page loads, then Cloudflare Web Analytics records it; when a visitor does any action in the section 9 event table, then PostHog records that event with its properties; no cookies are set. |
+| R16 | Speaking page | `/speaking` lists talks, keynotes, podcasts, workshops, courses and Tech Field Day appearances from `src/content/speaking.yaml`, upcoming first, then past by type, newest first. Links only, no embedded players. |
 
 ## 3. Architecture
 
@@ -107,6 +108,7 @@ indigowire_website/
 │   ├── content.config.js      # collection schemas
 │   ├── content/
 │   │   ├── tags.yaml          # shared tag list
+│   │   ├── speaking.yaml      # talks, podcasts, workshops (R16)
 │   │   ├── pages/             # about.md, home.md
 │   │   ├── learn/             # one .md per game or topic
 │   │   └── spark/YYYY/MM/     # <slug>.webp + <slug>.md pairs
@@ -159,6 +161,20 @@ Rules are enforced twice: by `validate_spark.py` before a push, and at build tim
 | `component` | string | games only | Name of the game module in `src/games/` |
 | `featured` | boolean | no | One featured item appears on Home |
 
+### Collection: `speaking`
+
+One YAML list in `src/content/speaking.yaml`. Only confirmed engagements go in; `source` records where each was verified and is not shown on the page.
+
+| Field | Type | Required | Rule |
+| --- | --- | --- | --- |
+| `id` | string | yes | Unique kebab-case key |
+| `kind` | enum | yes | `keynote` \| `talk` \| `panel` \| `podcast` \| `workshop` \| `course` \| `delegate` |
+| `date` | string | yes | `YYYY-MM-DD`, `YYYY-MM` or `YYYY`, as precise as is known; later than the build date means upcoming |
+| `title`, `event` | string | yes | Exact session or episode title, and the event or show |
+| `location`, `role` | string | no | City (or "Online"); role such as "Proctor" or "Opening keynote" |
+| `url`, `video`, `code` | URL | no | Event or episode page, recording, companion repository |
+| `source` | string | yes | Where the entry was confirmed |
+
 ### Shared tags
 
 Tags are lowercase kebab-case (`arp`, `layer-2`, `ai-art`, `automation`). Keep the allowed list in `src/content/tags.yaml` with a display name per tag, so a typo fails validation instead of creating a new tag. The build reads the top-level keys of `tags.yaml` into the schemas' tag enum; the file is also loaded as a `tags` collection for display names.
@@ -171,6 +187,7 @@ Every route is generated at build time; nothing renders on request.
 | --- | --- | --- | --- |
 | `/` | Intro, latest Spark image, featured game, external links | `pages/home.md`, newest `spark`, `learn` with `featured: true` | R11 |
 | `/about` | Bio | `pages/about.md` | R2 |
+| `/speaking` | Talks, podcasts, workshops, courses, Tech Field Day | `speaking` collection | R16 |
 | `/contact` | "Contact me through LinkedIn" + link | Hard-coded component | R3 |
 | `/learn` | All games and topics by category | `learn` collection | R4 |
 | `/learn/arp` | ARP simulator | `learn/arp.md` + `src/games/arp/` | R5 |

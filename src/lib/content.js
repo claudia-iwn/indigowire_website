@@ -37,6 +37,30 @@ export async function getTagNames() {
   return Object.fromEntries(tags.map((tag) => [tag.id, tag.data.name]));
 }
 
+/**
+ * Speaking engagements, newest first. Dates are YYYY[-MM[-DD]] text, so a string
+ * comparison sorts them (like Python's sorted(..., key=lambda e: e.data.date, reverse=True)).
+ * @returns {Promise<import('astro:content').CollectionEntry<'speaking'>[]>}
+ */
+export async function getSpeaking() {
+  const entries = await getCollection('speaking');
+  return entries.sort((a, b) => b.data.date.localeCompare(a.data.date));
+}
+
+/**
+ * Format a YYYY[-MM[-DD]] date at its own precision, e.g. "May 28, 2025", "Oct 2020", "2021".
+ * @param {string} date
+ */
+export function formatPartialDate(date) {
+  const [year, month, day] = date.split('-').map(Number);
+  if (!month) return String(year);
+  const utc = new Date(Date.UTC(year, month - 1, day ?? 1));
+  const options = day
+    ? { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' }
+    : { year: 'numeric', month: 'short', timeZone: 'UTC' };
+  return new Intl.DateTimeFormat('en-US', /** @type {Intl.DateTimeFormatOptions} */ (options)).format(utc);
+}
+
 /** @param {string} category */
 export function categoryLabel(category) {
   return (

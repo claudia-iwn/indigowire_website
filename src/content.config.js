@@ -104,4 +104,34 @@ const spark = defineCollection({
     }),
 });
 
-export const collections = { tags, pages, learn, spark };
+export const SPEAKING_KINDS = /** @type {const} */ ([
+  'keynote',
+  'talk',
+  'panel',
+  'podcast',
+  'workshop',
+  'course',
+  'delegate',
+]);
+
+const speaking = defineCollection({
+  loader: file('src/content/speaking.yaml'),
+  schema: z.object({
+    kind: z.enum(SPEAKING_KINDS),
+    // YYYY-MM-DD, YYYY-MM or YYYY. YAML turns a full date into a Date, so normalize back to text.
+    date: z
+      .union([z.date(), z.string(), z.number()])
+      .transform((v) => (v instanceof Date ? v.toISOString().slice(0, 10) : String(v)))
+      .pipe(z.string().regex(/^\d{4}(-\d{2}(-\d{2})?)?$/, 'use YYYY-MM-DD, YYYY-MM or YYYY')),
+    title: z.string(),
+    event: z.string(),
+    location: z.string().optional(),
+    role: z.string().optional(),
+    url: z.url().optional(),
+    video: z.url().optional(),
+    code: z.url().optional(),
+    source: z.string(),
+  }),
+});
+
+export const collections = { tags, pages, learn, spark, speaking };

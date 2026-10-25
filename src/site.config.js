@@ -24,6 +24,7 @@ export const nav = [
   { label: 'Learn', href: '/learn' },
   { label: 'Spark', href: '/spark' },
   { label: 'About', href: '/about' },
+  { label: 'Speaking', href: '/speaking' },
   { label: 'Contact', href: '/contact' },
 ];
 

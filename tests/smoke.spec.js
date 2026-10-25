@@ -7,6 +7,7 @@ const ROUTES = [
   '/about',
   '/contact',
   '/learn',
+  '/speaking',
   '/learn/arp',
   '/spark',
   '/spark/2026-10-25-1405-bgp-weather',
@@ -49,7 +50,7 @@ test('every header link reaches a page', async ({ page }) => {
   const hrefs = await page
     .locator('nav[aria-label="Main"] ul:first-child a')
     .evaluateAll((links) => links.map((a) => a.getAttribute('href')));
-  expect(hrefs).toEqual(['/', '/learn', '/spark', '/about', '/contact']);
+  expect(hrefs).toEqual(['/', '/learn', '/spark', '/about', '/speaking', '/contact']);
   for (const href of hrefs) {
     expect((await page.request.get(href ?? '')).status()).toBe(200);
   }

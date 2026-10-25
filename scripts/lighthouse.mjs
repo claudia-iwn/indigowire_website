@@ -16,6 +16,7 @@ const KEY_PAGES = ['/', '/spark', '/learn/arp'];
 const PAGES = [
   ...KEY_PAGES,
   '/about',
+  '/speaking',
   '/contact',
   '/learn',
   '/spark/2026-10-25-1405-bgp-weather',
