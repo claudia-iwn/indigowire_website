@@ -354,10 +354,39 @@ A Python service on the DGX Spark, run with uv under systemd, that turns new fil
 
 ### Capacity
 
-- Each push is one build. A build log from 26 October 2026 showed about 3.5 minutes of work. Most of it (about 2 minutes 45 seconds) was the build image installing Python 3.13.18 because the repo had a `.python-version` file, and then running `uv sync`, though the site build never uses Python. Next came npm install (5 s), `astro build` (3 s) and `wrangler deploy` (15 s, about 8 s of it `npx` downloading Wrangler). Waiting for a build machine added another 4 minutes before any of that.
-- So the repo has no `.python-version`. The Python version comes from `requires-python` in `pyproject.toml`, which uv honours locally and on the Spark. Don't add one back, or Python will be installed on every build again. Skipping npm dev dependencies would save only about 2 seconds, so it isn't worth doing.
-- The 3,000 free build minutes a month allow roughly 750 to 1,000 pushes at the old build time. Spark publishing should batch images (the publisher's quiet period) rather than push one image per commit, since a queued build also delays the next push's deploy.
+- Each push is one build. Builds take about **40 seconds** (measured 26 October 2026), so a change is live within about a minute of a push, and the 3,000 free build minutes a month allow roughly 4,500 pushes.
+- Spark publishing should still batch images (the publisher's quiet period) rather than push one image per commit. Only one build runs at a time (see Free-tier limits), so rapid pushes queue behind each other.
 - If build time grows with the gallery, move originals to Cloudflare R2 and keep only the sidecars in git (deferred; not v1).
+
+#### How the build time was measured and cut
+
+Builds were taking 4 to 8 minutes. The fix came from reading the build log, not from guessing.
+
+1. **Get the log.** In the Cloudflare dashboard, open Workers & Pages → `indigowire-website` → Deployments, then open a build to see its log. Every line has a timestamp. Workers Observability is not needed: it records runtime requests, not builds, and this site has no Worker script for it to log.
+2. **Time each step.** Subtract the timestamps where one step starts and the next begins. Look for long gaps with no log lines.
+3. **Find the cause and fix it, then compare the next build's log.**
+
+| Step | Before (39120c5) | After (b96b5cd) |
+| --- | --- | --- |
+| Waiting for a build machine | 4 min 18 s | none this time |
+| Setup, clone and cache restore | 6 s | 19 s |
+| Installing Python 3.13.18 | about 2 min 45 s | skipped |
+| `npm clean-install` (327 packages) | 5 s | 4 s |
+| `uv sync` | 1 s | under 1 s |
+| `astro build` | 3 s | 2 s |
+| `wrangler deploy` (about 6 to 8 s is `npx` downloading Wrangler) | 15 s | 12 s |
+| **Total** | **about 7 min 45 s** | **40 s** |
+
+What the log showed and what was done about it:
+
+- **Python was the cost.** The build image installed Python 3.13.18 because the repo had a `.python-version` file. That version isn't preinstalled, so it took almost 3 minutes, though the site build never uses Python.
+  - The file was removed (b96b5cd). uv now takes the version from `requires-python` in `pyproject.toml`, locally and on the Spark. Cloudflare's build image uses its preinstalled Python (3.14.8) for its automatic `uv sync`, in under a second.
+  - **Don't add `.python-version` back**, or every build will install Python again.
+- **The queue is Cloudflare's.** The wait for a build machine is outside the repo's control, and it varies from build to build.
+- **Not worth changing:**
+  - Skipping npm dev dependencies would save about 2 seconds (checked by building a clean copy with `npm ci --omit=dev`, which also confirmed the build needs only Astro).
+  - Adding Wrangler to `package.json` would save a few seconds, but it would add a dependency the spec doesn't list.
+- **If builds slow down again,** repeat steps 1–3 with a fresh log.
 
 ## 8. Deployment
 
@@ -419,7 +448,7 @@ The repo is public under `claudia-iwn`, because the games and the image pipeline
 
 | Limit | Workers Free | Impact |
 | --- | --- | --- |
-| Build minutes | 3,000 per month | \~750–1,000 pushes at the measured 3 to 4 minutes per build |
+| Build minutes | 3,000 per month | \~4,500 pushes at the measured 40 seconds per build (section 7, Capacity) |
 | Concurrent builds | 1 | Rapid pushes queue |
 | Static asset files | 20,000 per version | Thousands of images |
 | File size | 25 MiB | WebP images far below |
