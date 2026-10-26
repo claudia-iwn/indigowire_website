@@ -354,7 +354,9 @@ A Python service on the DGX Spark, run with uv under systemd, that turns new fil
 
 ### Capacity
 
-- Each push is one build. Measured builds on Workers Builds take about 3 to 4 minutes (October 2026), not the 1 to 2 minutes first assumed, so the 3,000 free build minutes a month allow roughly 750 to 1,000 pushes. Spark publishing should batch images (the publisher's quiet period) rather than push one image per commit, and trimming the build (for example, not installing test-only dev dependencies) is worth doing before volume grows.
+- Each push is one build. A build log from 26 October 2026 showed about 3.5 minutes of work. Most of it (about 2 minutes 45 seconds) was the build image installing Python 3.13.18 because the repo had a `.python-version` file, and then running `uv sync`, though the site build never uses Python. Next came npm install (5 s), `astro build` (3 s) and `wrangler deploy` (15 s, about 8 s of it `npx` downloading Wrangler). Waiting for a build machine added another 4 minutes before any of that.
+- So the repo has no `.python-version`. The Python version comes from `requires-python` in `pyproject.toml`, which uv honours locally and on the Spark. Don't add one back, or Python will be installed on every build again. Skipping npm dev dependencies would save only about 2 seconds, so it isn't worth doing.
+- The 3,000 free build minutes a month allow roughly 750 to 1,000 pushes at the old build time. Spark publishing should batch images (the publisher's quiet period) rather than push one image per commit, since a queued build also delays the next push's deploy.
 - If build time grows with the gallery, move originals to Cloudflare R2 and keep only the sidecars in git (deferred; not v1).
 
 ## 8. Deployment
@@ -382,7 +384,7 @@ The site deploys as a Cloudflare Worker with static assets, built and deployed b
 | Worker name | `indigowire-website`, matching `wrangler.jsonc`. Worker names allow only lowercase letters, digits and dashes, so it uses a dash where the repo name has an underscore |
 | workers.dev URL | https://indigowire-website.claudia-b4a.workers.dev/ |
 | Production branch | `main` |
-| Build command | `npx astro build` |
+| Build command | `npm run build` (runs `astro build`). Workers Builds runs `npm clean-install` first, and installs Python as well if it finds a `.python-version` file; see Capacity in section 7 |
 | Deploy command | `npx wrangler deploy` |
 | Non-production branches | Builds enabled, for preview URLs (R13) |
 
