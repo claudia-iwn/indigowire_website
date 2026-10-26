@@ -28,7 +28,7 @@ const featured = (await getLearn()).find((entry) => entry.data.featured);
   <div class="home-grid">
     {featured && (
       <section>
-        <h2 data-decrypt="mac">Featured game</h2>
+        <h2 data-decrypt="mac">How networking works</h2>
         <h3>
           <a href={learnHref(featured)}>{featured.data.title}</a>
         </h3>
