@@ -44,6 +44,7 @@ M0 skeleton: every route renders from the collections, but the ARP engine, frame
 - **Tags:** only values listed in `src/content/tags.yaml` (lowercase kebab-case).
 - **External links:** defined once in `src/site.config.js`. Never hard-code profile URLs in components.
 - **Decrypt effects:** `src/components/Decrypt.astro`, opted into with `data-decrypt*` attributes. The timings are the constants at the top of its script (`DEFAULT_MS`, `HOVER_MS`, `PARAGRAPH_MS`, `PAUSE_MS`, `FIRST_HOLD_MS`) plus `data-decrypt-ms` on each page title. The attributes, tuning table and rules are in spec section 9, "Decrypt effects"; keep that table in step when timings change. Every effect must keep the real text in place (no layout shift) and respect both `prefers-reduced-motion` and the header `>_` switch (`data-effects="off"` on `<html>`).
+- **Home hero band:** `src/components/HeroBand.astro`, in `BaseLayout`'s `hero` slot (`<main>` is full width; the page column is `.page-body`). The video files in `public/video/` come from `scripts/make_hero_video.sh`. It plays once, and shows only a still with reduced motion, the `>_` switch off, data saver or no JS. Spec section 9, "Home hero band".
 - **Spark images:** the Hermes glue code writes `<name>.webp` + `<name>.md` pairs into `src/content/spark/YYYY/MM/`; `scripts/spark_publisher.py` commits and pushes them (spec section 7). The publisher adds only validated pairs by explicit path, never with `git add -A`.
 
 ## Quality bars (spec section 9)

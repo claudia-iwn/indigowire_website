@@ -466,7 +466,7 @@ The site should be fast, accessible and private by default, with targets Claude 
 | ID | Area | Target | How it is checked |
 | --- | --- | --- | --- |
 | N1 | Performance | Lighthouse Performance ≥ 95 on Home, `/spark` and `/learn/arp` (mobile) | `npm run lighthouse` (`scripts/lighthouse.mjs`) before each milestone closes; exits non-zero if N1 or N3 is missed |
-| N2 | JavaScript budget | 0 KB of loaded scripts on content pages. Allowed inline exceptions: the theme and text-effects scripts on every page (N5; about 2.9 KB raw, about 1 KB gzipped) and the locale-date script on Spark permalinks (section 7; UTC text is the no-JS fallback), and, as the one non-inline exception, the decorative "decrypt" script shared by Home, About and Speaking (`src/components/Decrypt.astro`; one cached file, about 2.5 KB gzipped, skipped with reduced motion or the header switch, no layout shift; section 9). ≤ 150 KB gzipped on a game page | Build output size check |
+| N2 | JavaScript budget | 0 KB of loaded scripts on content pages. Allowed inline exceptions: the theme and text-effects scripts on every page (N5; about 2.9 KB raw, about 1 KB gzipped) and the locale-date script on Spark permalinks (section 7; UTC text is the no-JS fallback), and, as the one non-inline exception, the decorative "decrypt" script shared by Home, About and Speaking (`src/components/Decrypt.astro`; one cached file, about 2.5 KB gzipped, skipped with reduced motion or the header switch, no layout shift; section 9), and the Home hero band script (`src/components/HeroBand.astro`; one cached file, about 1 KB gzipped; section 9, "Home hero band"). ≤ 150 KB gzipped on a game page | Build output size check |
 | N3 | Accessibility | WCAG 2.2 AA; Lighthouse Accessibility = 100 | Lighthouse + keyboard walk-through |
 | N4 | Motion | All animation respects `prefers-reduced-motion`; decorative text effects also have an on-site off switch (header) | Manual check with the OS setting on |
 | N5 | Theming | Light and dark themes from `prefers-color-scheme`, plus a manual toggle in the header. A manual choice is stored in `localStorage` and applied by an inline `<head>` script before first paint; choosing the OS theme again clears it. Without JavaScript the toggle is hidden and the OS setting applies | Visual check in both themes; toggle, persistence and no-JS checked in headless Chrome |
@@ -536,6 +536,62 @@ To give one heading its own speed, add `data-decrypt-ms` to it. If you change th
 - **Only plain text.** Headings and links that contain other elements are left alone. A link that wraps onto two lines is skipped.
 - **Budget.** The script is one shared, cached file (about 5.3 KB, 2.5 KB gzipped), loaded only on pages that render `<Decrypt />` (N2).
 - **Tests.** `tests/smoke.spec.js` ("decrypt effects") checks that About's paragraphs decrypt and are left unchanged (using Playwright's fake clock), that the switch works and is remembered, and that nothing animates with reduced motion.
+
+### Home hero band
+
+A full-width band at the top of Home shows a short "how indigo is made" video behind the page title. The light theme gets indigo dye bleeding into wet white linen; the dark theme gets indigo pigment swirling in a dark vat. Decided 26 October 2026.
+
+**Files.** The source videos are the owner's 5-second, 24 fps clips (`web_background_light.mp4`, `web_background_dark.mp4`), kept outside the repo. From each one, ffmpeg (on the owner's Mac, not a project dependency) makes these files in `public/video/`:
+
+| File | What |
+| --- | --- |
+| `home-hero-<theme>.webm` | VP9, 1280×720, no audio |
+| `home-hero-<theme>.mp4` | H.264 fallback, 1280×720, no audio, `+faststart` |
+| `home-hero-<theme>-first.webp` | First frame, shown while the video loads, so playback starts without a jump |
+| `home-hero-<theme>-last.webp` | Last frame, where playback stops, and the still shown when motion is off |
+
+`<theme>` is `light` or `dark`. Budget: about 1 MB or less per video and about 100 KB or less per still. The current files are 215 KB (light) and about 450 KB (dark) per video, and 41 to 57 KB per still.
+
+**Remaking the files.** Run `scripts/make_hero_video.sh <light.mp4> <dark.mp4>`. It needs ffmpeg and cwebp (`brew install ffmpeg webp`) and overwrites the files in `public/video/`. The originals are kept outside the repo.
+
+**Layout.**
+
+- The band sits directly under the header, outside the content column. It spans the full width with no horizontal scroll at 360 px; `BaseLayout` has a named slot above `<main>` for it.
+- Its height is `clamp(14rem, 45vh, 28rem)`. The video and stills fill it with `object-fit: cover`, cropping the frame to the band.
+- `--hero-focus` in `HeroBand.astro` sets which part of the frame stays in view: `center 40%` for light, and `center 75%` for dark, which keeps the glowing pigment at the bottom of the vat in view.
+- The page `<h1>` ("Indigo Wire Networks", from `home.md`) sits at the bottom left of the band, inside the content column's width, at `clamp(2.25rem, 6vw, 3.5rem)`. Its padding is on a wrapper, not the `<h1>`, so the decrypt overlay lines up with the text.
+- A gradient from `--color-bg` at the bottom to transparent about halfway up blends the band into the page and gives the title near-solid colour behind it. The title must meet WCAG AA contrast against the stills in both themes.
+- The title keeps its decrypt effect and hover replay. Everything below the band (intro packets, featured game, latest image, Elsewhere) is unchanged.
+
+**Behaviour.**
+
+- **Plays once, then holds.** The first-frame still shows at once. The video starts downloading only after the page's `load` event, so it doesn't affect LCP. It plays once (no `loop`, `muted`, `playsinline`) and stays on its last frame, so no pause control is needed under WCAG 2.2.2.
+- **Replay.** Hovering over the band with a mouse replays it, but not while it is already playing.
+- **Theme toggle.** The band shows the current theme's last-frame still, without replaying.
+- **Motion off.** With `prefers-reduced-motion`, the `>_` effects switch off (`data-effects="off"`), or the browser's data saver on (`navigator.connection.saveData`), no video is downloaded and the last-frame still shows. Turning the switch off during playback jumps to the still; turning it back on replays the video.
+- **No JavaScript.** The last-frame still shows.
+- **Decoration only.** The video and stills are `aria-hidden` with empty `alt`. The title stays a real `<h1>`.
+
+**Code.**
+
+- `src/components/HeroBand.astro` holds the markup, styles and script. Only `src/pages/index.astro` uses it.
+- The stills are CSS backgrounds chosen by theme and state, so only the one shown is downloaded.
+- `<main>` is full width. The page column is `.page-body` inside it, below `BaseLayout`'s `hero` slot.
+- The script is one cached file, about 1 KB gzipped (N2). No new dependencies.
+
+**Tests.** Playwright checks four things:
+
+- The band and title show.
+- The video plays and ends on its last frame.
+- With reduced motion or the switch off, no video is requested.
+- There is no horizontal scroll at 360 px.
+
+Lighthouse on Home must still meet N1 and N3.
+
+Measured 26 October 2026:
+
+- **Lighthouse:** Home scored 100 in every category, with LCP 1.5 s and CLS 0.
+- **Title contrast:** the worst single background pixel behind the title gave 5.6:1 (light theme at 360 px), against AA's 3:1 for large text. Recheck it if the clips change.
 
 ### Analytics
 
@@ -636,6 +692,7 @@ Seven milestones, each ending in a deployed, working site; hand Claude Code one 
 | Inline scripts on content pages | Allowed only for the theme toggle (N5) and locale dates on permalinks, each under 1 KB gzipped, plus the decrypt script on Home, About and Speaking (one shared file, about 2.5 KB gzipped; N2) |
 | Mobile menu | Below 64rem (where the one-row header would wrap) the nav and external links collapse behind a menu button beside the effects and theme toggles, opening as a sheet across the top with a close button. Built on the HTML `popover` attribute, so it needs no JavaScript: the browser handles Escape, tapping outside and focus. Browsers without popover support (`@supports selector(:popover-open)`) show the full nav instead. The logo shrinks to `min(190px, 44vw)` so logo and buttons share one row at 360 px. The JS-only toggles are shown by `<html class="js">`, set in the `<head>` script before first paint, so nothing shifts (CLS 0) |
 | Decrypt effects | Hex and MAC-address "decryption" of titles and headings on Home, About and Speaking; the Home intro and About paragraphs start as packet hex dumps and decrypt one at a time. Off with reduced motion or the `>_` header switch. Behavior and how to tune the timing: section 9, "Decrypt effects" |
+| Home hero band | A "how indigo is made" video (light: dye on wet linen; dark: pigment in a vat) in a full-width band behind the Home title only, not the intro. Plays once and holds its last frame rather than looping, so it needs no pause button; a still with reduced motion, the `>_` switch off or data saver. Chosen over a full-page background (readability, weight) and a header strip. Details: section 9, "Home hero band" |
 | Theme toggle | Two-state button (light/dark); picking the OS theme clears the stored choice so the site follows the OS again. Theme-specific images use `.theme-light-only` / `.theme-dark-only`, lazy-loaded so the hidden one is not downloaded |
 
 ### Still open

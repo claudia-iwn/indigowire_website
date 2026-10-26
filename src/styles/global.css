@@ -14,7 +14,8 @@ body {
   line-height: 1.6;
 }
 
-main {
+/* The page column. <main> itself is full width, so a hero band can span the screen. */
+.page-body {
   max-width: var(--content-width);
   margin: 0 auto;
   padding: var(--space-4) var(--space-3);

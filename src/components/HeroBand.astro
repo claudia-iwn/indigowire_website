@@ -1,0 +1,172 @@
+---
+/**
+ * Home hero band (spec section 9, "Home hero band"): a full-width "how indigo is made"
+ * video behind the page title. It plays once after the page has loaded and holds its
+ * last frame. With reduced motion, the >_ effects switch off, data saver or no
+ * JavaScript, it is a still of that last frame and no video is downloaded.
+ * Render it in BaseLayout's "hero" slot with the page <h1> inside:
+ *   <HeroBand slot="hero"><h1>…</h1></HeroBand>
+ * The files in public/video/ come from scripts/make_hero_video.sh.
+ */
+---
+
+<div class="hero-band">
+  <!-- Decoration only: the stills are CSS backgrounds and the video has no sound or controls. -->
+  <div class="media" aria-hidden="true">
+    <div class="still"></div>
+    <video muted playsinline preload="none" disablepictureinpicture></video>
+  </div>
+  <div class="title">
+    <div class="column">
+      <slot />
+    </div>
+  </div>
+</div>
+
+<script>
+  const band = /** @type {HTMLElement} */ (document.querySelector('.hero-band'));
+  const video = /** @type {HTMLVideoElement} */ (band?.querySelector('video'));
+  const root = document.documentElement;
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)');
+  const osDark = matchMedia('(prefers-color-scheme: dark)');
+  // Safari before VP9 support gets the MP4. canPlayType returns '', 'maybe' or 'probably'.
+  const ext = video?.canPlayType('video/webm; codecs="vp9"') ? 'webm' : 'mp4';
+  let playing = false;
+
+  /** The theme on screen: the manual choice, else the OS setting (as in Header.astro). */
+  const theme = () => root.dataset.theme ?? (osDark.matches ? 'dark' : 'light');
+
+  /** Motion is allowed unless the OS, the >_ switch or data saver says no. */
+  function motionAllowed() {
+    // navigator.connection is Chromium-only, so `?.` (like Python's getattr with a default).
+    const saveData = /** @type {any} */ (navigator).connection?.saveData === true;
+    return !reduce.matches && root.dataset.effects !== 'off' && !saveData;
+  }
+
+  /** Stop and show the last-frame still for the current theme (CSS picks the file). */
+  function still() {
+    playing = false;
+    video.pause();
+    video.classList.remove('shown');
+    band.dataset.still = '';
+  }
+
+  /** Play the current theme's video once from the start. It stays on its last frame. */
+  function play() {
+    if (playing || !motionAllowed()) return;
+    playing = true;
+    const src = `/video/home-hero-${theme()}.${ext}`;
+    // Only set src when it changes, so a replay reuses the downloaded file.
+    if (!video.src.endsWith(src)) video.src = src;
+    video.currentTime = 0;
+    // play() returns a Promise (like an awaitable); autoplay can still be refused.
+    video.play().catch(still);
+  }
+
+  if (band && video) {
+    // Show the video once frames are actually painting, so the still never blinks.
+    video.addEventListener('playing', () => {
+      video.classList.add('shown');
+      delete band.dataset.still; // like Python's `del d["still"]`
+    });
+    video.addEventListener('ended', () => (playing = false));
+
+    if (!motionAllowed()) still();
+    else if (document.readyState === 'complete') play();
+    else addEventListener('load', play, { once: true });
+
+    // Mouse hover replays it; touch would replay on every tap, so only mice.
+    band.addEventListener('pointerenter', (event) => {
+      if (event.pointerType === 'mouse') play();
+    });
+    // The >_ switch (Header.astro) fires this on <html>'s document.
+    document.addEventListener('effects-change', () => (motionAllowed() ? play() : still()));
+    reduce.addEventListener('change', () => reduce.matches && still());
+    // A theme change shows the other theme's still; hover replays the new video.
+    new MutationObserver(still).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+    osDark.addEventListener('change', still);
+  }
+</script>
+
+<style>
+  .hero-band {
+    --hero-first: url('/video/home-hero-light-first.webp');
+    --hero-last: url('/video/home-hero-light-last.webp');
+    /* Which part of the frame stays in view when the band crops it. */
+    --hero-focus: center 40%;
+    position: relative;
+    height: clamp(14rem, 45vh, 28rem);
+    overflow: hidden;
+  }
+  /* The dark theme's files: the manual choice, or the OS when there is none. */
+  :global(:root[data-theme='dark']) .hero-band {
+    --hero-first: url('/video/home-hero-dark-first.webp');
+    --hero-last: url('/video/home-hero-dark-last.webp');
+    --hero-focus: center 75%;
+  }
+  @media (prefers-color-scheme: dark) {
+    :global(:root:not([data-theme='light'])) .hero-band {
+      --hero-first: url('/video/home-hero-dark-first.webp');
+      --hero-last: url('/video/home-hero-dark-last.webp');
+      --hero-focus: center 75%;
+    }
+  }
+
+  .media,
+  .still,
+  video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+  /* Only the file a rule picks is downloaded, so each visit fetches one still. Without
+     JavaScript, or with motion off, that is the last frame. */
+  .still {
+    background: var(--hero-focus) / cover no-repeat var(--hero-last);
+  }
+  /* About to play: the first frame, so playback starts without a jump. */
+  @media (prefers-reduced-motion: no-preference) {
+    :global(html.js:not([data-effects='off'])) .hero-band:not([data-still]) .still {
+      background-image: var(--hero-first);
+    }
+  }
+  video {
+    object-fit: cover;
+    object-position: var(--hero-focus);
+    opacity: 0;
+  }
+  video.shown {
+    opacity: 1;
+  }
+
+  /* Blend the band into the page and give the title near-solid colour behind it. */
+  .media::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      to top,
+      var(--color-bg) 0%,
+      color-mix(in srgb, var(--color-bg) 75%, transparent) 25%,
+      transparent 60%
+    );
+  }
+
+  .title {
+    position: absolute;
+    inset: auto 0 0;
+  }
+  /* The <h1> comes from the page, so it isn't scoped to this component. */
+  /* Padding lives on this wrapper, not the <h1>, so the decrypt overlay lines up with the text. */
+  .column {
+    max-width: var(--content-width);
+    margin: 0 auto;
+    padding: 0 var(--space-3) var(--space-3);
+  }
+  /* The <h1> comes from the page, so it isn't scoped to this component. */
+  .title :global(h1) {
+    margin: 0;
+    font-size: clamp(var(--text-2xl), 6vw, 3.5rem);
+  }
+</style>

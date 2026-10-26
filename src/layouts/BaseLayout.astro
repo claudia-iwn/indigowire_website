@@ -56,7 +56,11 @@ const canonical = new URL(Astro.url.pathname, site.url);
     </a>
     <Header />
     <main id="main">
-      <slot />
+      <!-- Full-width content above the page column, such as the Home hero band. -->
+      <slot name="hero" />
+      <div class="page-body">
+        <slot />
+      </div>
     </main>
     <Footer />
   </body>

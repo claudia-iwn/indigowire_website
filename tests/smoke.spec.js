@@ -134,6 +134,52 @@ test.describe('theme toggle (N5)', () => {
   });
 });
 
+test.describe('Home hero band (section 9)', () => {
+  /**
+   * Record the hero video files a page requests.
+   * @param {import('@playwright/test').Page} page
+   */
+  function trackVideos(page) {
+    /** @type {string[]} */
+    const files = [];
+    page.on('request', (req) => {
+      if (/\/video\/.*\.(webm|mp4)$/.test(req.url())) files.push(req.url());
+    });
+    return files;
+  }
+
+  test('plays once and holds its last frame', async ({ page }) => {
+    const files = trackVideos(page);
+    await page.goto('/');
+    await expect(page.locator('.hero-band h1')).toHaveText('Indigo Wire Networks');
+    const video = page.locator('.hero-band video');
+    await expect(video).toHaveClass(/shown/, { timeout: 10_000 });
+    // Like Python's assert ... is True, polled until the 5-second clip finishes.
+    await expect
+      .poll(() => video.evaluate((v) => /** @type {HTMLVideoElement} */ (v).ended), { timeout: 15_000 })
+      .toBe(true);
+    expect(await video.evaluate((v) => /** @type {HTMLVideoElement} */ (v).loop)).toBe(false);
+    expect(files).toHaveLength(1);
+  });
+
+  for (const [name, setup] of /** @type {const} */ ([
+    ['reduced motion', 'reduce'],
+    ['the effects switch off', 'switch'],
+  ])) {
+    test(`shows the last-frame still and downloads no video with ${name}`, async ({ page }) => {
+      if (setup === 'reduce') await page.emulateMedia({ reducedMotion: 'reduce' });
+      else await page.addInitScript(() => localStorage.setItem('effects', 'off'));
+      const files = trackVideos(page);
+      await page.goto('/');
+      await page.waitForLoadState('load');
+      await page.waitForTimeout(300);
+      const still = await page.locator('.hero-band .still').evaluate((el) => getComputedStyle(el).backgroundImage);
+      expect(still).toContain('-last.webp');
+      expect(files).toEqual([]);
+    });
+  }
+});
+
 test.describe('decrypt effects (N4)', () => {
   for (const route of ['/', '/about']) {
     test(`${route} packet paragraphs decrypt and leave the page as it was`, async ({ page }) => {
