@@ -34,7 +34,7 @@ Each requirement has an ID that tasks, commits and tests can reference. Acceptan
 
 | ID | Requirement | Acceptance criteria |
 | --- | --- | --- |
-| R1 | Site shell with persistent navigation | Every page shows header nav (Home, Learn, Spark, About, Speaking, Contact) and external links (Blog, LinkedIn, Bluesky, GitHub) that open in a new tab with `rel="noopener"`. |
+| R1 | Site shell with persistent navigation | Every page shows header nav (Home, Learn, Spark, About, Speaking, Contact) and external links (Blog, LinkedIn, Bluesky, GitHub) that open in a new tab with `rel="noopener"`. Below 64rem the nav collapses into a menu button that opens it as a sheet across the top (section 11, "Mobile menu"). |
 | R2 | About page | `/about` renders bio content from a Markdown file. |
 | R3 | Contact page | `/contact` says to make contact through LinkedIn and links to the LinkedIn profile. No form. |
 | R4 | Learn index | `/learn` lists every game and topic, grouped by category, each with title, one-line summary and tags. |
@@ -474,14 +474,16 @@ Decorative "decryption" of headings and text, in `src/components/Decrypt.astro`.
 | `data-decrypt="mac"` | A plain-text element | The same, but the noise is a MAC address (`3f:a2:9c:…`) |
 | `data-decrypt-ms="900"` | With `data-decrypt` | Duration for this element, overriding the default |
 | `data-decrypt-hover` | With `data-decrypt` | Replays the effect on hover |
-| `data-decrypt-links="hex"` | A container | Every plain link inside decrypts and replays on hover (for links written in Markdown, which can't carry attributes) |
+| `data-decrypt-links="hex"` | A container | Every plain link inside decrypts and replays on hover (for links written in Markdown, which can't carry attributes). Inside a packet paragraph the link only replays on hover, because the paragraph's own decrypt reveals it |
 | `data-decrypt-packets` | A container | Each child `<p>` starts as a hex dump of a packet carrying its own text, then decrypts (below) |
 
 **Where it is used:**
 
-- **Home:** the title is hex (900 ms, replays on hover). "Featured game" and "Elsewhere" are MAC addresses, and "Latest from the Spark" is hex. The "More about me" link is hex and replays on hover.
+- **Home:** the title is hex (900 ms, replays on hover). The two intro paragraphs get the packet treatment described under About (IPv4/TCP, then IPv6/UDP). "Featured game" and "Elsewhere" are MAC addresses, and "Latest from the Spark" is hex. The "More about me" link is hex and replays on hover.
 - **About:** the title is hex (900 ms, replays on hover). Each paragraph starts as a Wireshark-style hex dump with a tcpdump-style summary line. The packet types rotate through IPv4/TCP, IPv6/UDP and ICMP echo request. The packets use documentation addresses (192.0.2.10, 198.51.100.7, 2001:db8::) and correct IPv4 and ICMP checksums, and each payload is the paragraph's own text, so the ASCII column shows it. One paragraph at a time, top to bottom, the dump turns into the paragraph in hex noise, which resolves left to right like the headings. Then there is a pause before the next paragraph.
 - **Speaking:** the title "Workshops, Talks & Takes" is hex (900 ms, replays on hover).
+
+**Editing the text.** The packet paragraphs come from Markdown: the Home intro from `src/content/pages/home.md` and the About text from `src/content/pages/about.md` (the body below the frontmatter). Edit them freely; nothing in the effect needs to change. The script reads each paragraph's text in the browser, so the payload, the length in the summary line, the checksums and the scrambled text always match what is on the page. Each paragraph (separated by a blank line) becomes one packet, and the packet types keep rotating if you add more. Only plain paragraphs get the effect; a heading or list in the Markdown appears normally. Links inside paragraphs work as usual. The Home and About titles are the `title` in each file's frontmatter; the Speaking title is in `src/pages/speaking.astro`.
 
 **Tuning the timing.** All times are in milliseconds. Edit, then reload `npm run dev`; no other file needs to change.
 
@@ -490,8 +492,9 @@ Decorative "decryption" of headings and text, in `src/components/Decrypt.astro`.
 | Page titles (Home, About, Speaking) | `data-decrypt-ms` on each `<h1>` in `src/pages/index.astro`, `about.astro`, `speaking.astro` | 900 |
 | Headings and links without `data-decrypt-ms` | `DEFAULT_MS` at the top of the script in `Decrypt.astro` | 650 |
 | Hover replay | `HOVER_MS` in `Decrypt.astro` | 600 |
-| Each About paragraph's decrypt | `PARAGRAPH_MS` in `Decrypt.astro` | 1800 |
-| Gap before the next About paragraph starts | `PAUSE_MS` in `Decrypt.astro` | 1000 |
+| Each packet paragraph's decrypt (Home intro, About) | `PARAGRAPH_MS` in `Decrypt.astro` | 1800 |
+| Gap before the next packet paragraph starts | `PAUSE_MS` in `Decrypt.astro` | 1000 |
+| Hold before the first paragraph decrypts (the packet stays up) | `FIRST_HOLD_MS` in `Decrypt.astro` | 750 |
 
 To give one heading its own speed, add `data-decrypt-ms` to it. If you change these values, update the "Now" column.
 
@@ -600,7 +603,8 @@ Seven milestones, each ending in a deployed, working site; hand Claude Code one 
 | Local-only files | `main.py`, the Spark ops addendum, the root copy of this spec and `images/` are gitignored; `docs/SPEC.md` is canonical |
 | Spark date format | ISO 8601 with offset or `Z`, `T` separator; checked on the raw text by both the validator and the build (section 4) |
 | Inline scripts on content pages | Allowed only for the theme toggle (N5) and locale dates on permalinks, each under 1 KB gzipped, plus the decrypt script on Home, About and Speaking (one shared file, about 2.5 KB gzipped; N2) |
-| Decrypt effects | Hex and MAC-address "decryption" of titles and headings on Home, About and Speaking; About paragraphs start as packet hex dumps and decrypt one at a time. Off with reduced motion or the `>_` header switch. Behavior and how to tune the timing: section 9, "Decrypt effects" |
+| Mobile menu | Below 64rem (where the one-row header would wrap) the nav and external links collapse behind a menu button beside the effects and theme toggles, opening as a sheet across the top with a close button. Built on the HTML `popover` attribute, so it needs no JavaScript: the browser handles Escape, tapping outside and focus. Browsers without popover support (`@supports selector(:popover-open)`) show the full nav instead. The logo shrinks to `min(190px, 44vw)` so logo and buttons share one row at 360 px. The JS-only toggles are shown by `<html class="js">`, set in the `<head>` script before first paint, so nothing shifts (CLS 0) |
+| Decrypt effects | Hex and MAC-address "decryption" of titles and headings on Home, About and Speaking; the Home intro and About paragraphs start as packet hex dumps and decrypt one at a time. Off with reduced motion or the `>_` header switch. Behavior and how to tune the timing: section 9, "Decrypt effects" |
 | Theme toggle | Two-state button (light/dark); picking the OS theme clears the stored choice so the site follows the OS again. Theme-specific images use `.theme-light-only` / `.theme-dark-only`, lazy-loaded so the hidden one is not downloaded |
 
 ### Still open

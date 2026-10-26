@@ -23,6 +23,8 @@ const canonical = new URL(Astro.url.pathname, site.url);
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <script is:inline>
+      // Mark that JavaScript runs, so the header can show its JS-only buttons before first paint.
+      document.documentElement.classList.add('js');
       // Apply a saved light/dark choice (and text effects off) before first paint so the page never flashes (N5).
       try {
         const theme = localStorage.getItem('theme');

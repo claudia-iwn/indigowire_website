@@ -4,6 +4,9 @@
  * light/dark toggle (N5). public/logo.svg and logo-dark.svg come from the PDF
  * master via pdftocairo; CSS shows the one matching the theme, and both are
  * lazy so the hidden one is never downloaded.
+ * Below 64rem the nav collapses into a menu sheet opened by the menu button. It uses the
+ * HTML popover attribute, so it needs no script: the browser handles opening, Escape,
+ * tapping outside and focus. Browsers without popover support show the full nav instead.
  */
 import { nav, externalLinks } from '../site.config.js';
 
@@ -25,7 +28,16 @@ const isActive = (href) => (href === '/' ? current === '/' : current.startsWith(
         loading="lazy"
       />
     </a>
-    <nav aria-label="Main">
+    <nav id="site-nav" aria-label="Main" popover>
+      <div class="menu-head">
+        <span class="menu-title">Menu</span>
+        <button class="toggle" type="button" popovertarget="site-nav" popovertargetaction="hide">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18"></path>
+          </svg>
+          <span class="visually-hidden">Close menu</span>
+        </button>
+      </div>
       <ul>
         {nav.map((item) => (
           <li>
@@ -48,16 +60,16 @@ const isActive = (href) => (href === '/' ? current === '/' : current.startsWith(
       </ul>
     </nav>
     <div class="toggles">
-      <!-- Hidden until the script runs; without JS there are no effects to turn off. -->
-      <button id="effects-toggle" class="toggle" type="button" aria-pressed="true" title="Text effects" hidden>
+      <!-- Shown once the <head> script marks <html class="js">; without JS there are no effects to turn off. -->
+      <button id="effects-toggle" class="toggle" type="button" aria-pressed="true" title="Text effects" data-needs-js>
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M5 7l5 5-5 5M12 18h7"></path>
           <path class="off-slash" d="M4 4l16 16"></path>
         </svg>
         <span class="visually-hidden">Text effects</span>
       </button>
-      <!-- Hidden until the script runs; without JS the site simply follows the OS theme. -->
-      <button id="theme-toggle" class="toggle" type="button" aria-pressed="false" hidden>
+      <!-- Shown once the <head> script marks <html class="js">; without JS the site follows the OS theme. -->
+      <button id="theme-toggle" class="toggle" type="button" aria-pressed="false" data-needs-js>
         <svg class="theme-light-only" viewBox="0 0 24 24" aria-hidden="true">
           <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path>
         </svg>
@@ -66,6 +78,12 @@ const isActive = (href) => (href === '/' ? current === '/' : current.startsWith(
           <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path>
         </svg>
         <span class="visually-hidden">Dark theme</span>
+      </button>
+      <button class="toggle menu-button" type="button" popovertarget="site-nav">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 7h16M4 12h16M4 17h16"></path>
+        </svg>
+        <span class="visually-hidden">Menu</span>
       </button>
     </div>
   </div>
@@ -98,7 +116,6 @@ const isActive = (href) => (href === '/' ? current === '/' : current.startsWith(
       sync();
     });
     osDark.addEventListener('change', sync);
-    button.hidden = false;
     sync();
   })();
 
@@ -125,7 +142,6 @@ const isActive = (href) => (href === '/' ? current === '/' : current.startsWith(
       // Tell running effects (Decrypt.astro) to stop or start. Like emitting a signal.
       document.dispatchEvent(new CustomEvent('effects-change'));
     });
-    button.hidden = false;
     sync();
   })();
 </script>
@@ -150,7 +166,8 @@ const isActive = (href) => (href === '/' ? current === '/' : current.startsWith(
   }
   .brand img {
     display: block;
-    width: 190px;
+    /* A little smaller on the narrowest phones, so the logo and buttons share one row. */
+    width: min(190px, 44vw);
     height: auto;
   }
   .toggle {
@@ -170,8 +187,19 @@ const isActive = (href) => (href === '/' ? current === '/' : current.startsWith(
     display: flex;
     gap: var(--space-2);
   }
-  .toggle[hidden] {
+  /* Buttons that need JavaScript show only once the <head> script has added
+     <html class="js">, before first paint, so they never pop in and shift the header. */
+  .toggle[data-needs-js] {
     display: none;
+  }
+  :global(html.js) .toggle[data-needs-js] {
+    display: inline-flex;
+  }
+  /* The OS already turns the effects off, so there is nothing to switch. */
+  @media (prefers-reduced-motion: reduce) {
+    :global(html.js) #effects-toggle {
+      display: none;
+    }
   }
   .toggle:hover {
     border-color: var(--color-accent);
@@ -220,5 +248,73 @@ const isActive = (href) => (href === '/' ? current === '/' : current.startsWith(
   }
   .external a::after {
     content: ' ↗';
+  }
+
+  /* Wide screens (and browsers without popover): undo the browser's popover styles so
+     the nav is an ordinary row in the header. */
+  nav[popover] {
+    position: static;
+    inset: auto;
+    width: auto;
+    height: auto;
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+    border: 0;
+    background: none;
+    color: inherit;
+  }
+  .menu-button,
+  .menu-head {
+    display: none;
+  }
+
+  /* Narrow screens: the nav becomes a sheet across the top, opened by the menu button. */
+  @media (width < 64rem) {
+    @supports selector(:popover-open) {
+      .menu-button {
+        display: inline-flex;
+      }
+      nav[popover]:not(:popover-open) {
+        display: none;
+      }
+      nav[popover]:popover-open {
+        position: fixed;
+        inset: 0 0 auto;
+        max-height: 100dvh;
+        overflow: auto;
+        flex-direction: column;
+        gap: var(--space-2);
+        padding: var(--space-3);
+        background: var(--color-bg);
+        border-bottom: 3px solid transparent;
+        border-image: var(--iw-copper-gradient) 1;
+      }
+      nav::backdrop {
+        background: color-mix(in srgb, var(--color-heading) 35%, transparent);
+      }
+      .menu-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .menu-title {
+        font-weight: 600;
+        color: var(--color-text-muted);
+      }
+      nav ul {
+        flex-direction: column;
+        gap: 0;
+      }
+      nav a {
+        display: block;
+        padding: var(--space-2) 0;
+        font-size: var(--text-lg);
+      }
+      .external {
+        border-top: 1px solid var(--color-border);
+        padding-top: var(--space-2);
+      }
+    }
   }
 </style>

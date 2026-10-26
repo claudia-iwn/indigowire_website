@@ -48,12 +48,34 @@ for (const route of ROUTES) {
 test('every header link reaches a page', async ({ page }) => {
   await page.goto('/');
   const hrefs = await page
-    .locator('nav[aria-label="Main"] ul:first-child a')
+    .locator('nav[aria-label="Main"] ul:first-of-type a')
     .evaluateAll((links) => links.map((a) => a.getAttribute('href')));
   expect(hrefs).toEqual(['/', '/learn', '/spark', '/about', '/speaking', '/contact']);
   for (const href of hrefs) {
     expect((await page.request.get(href ?? '')).status()).toBe(200);
   }
+});
+
+test('below 64rem the nav is a menu that opens and closes (R1)', async ({ page }) => {
+  await page.goto('/');
+  const button = page.locator('.menu-button');
+  const about = page.locator('#site-nav').getByRole('link', { name: 'About', exact: true });
+  if ((page.viewportSize()?.width ?? 0) >= 1024) {
+    await expect(button).toBeHidden();
+    await expect(about).toBeVisible();
+    return;
+  }
+  await expect(about).toBeHidden();
+  await button.click();
+  await expect(about).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(about).toBeHidden();
+  await button.click();
+  await page.getByRole('button', { name: 'Close menu' }).click();
+  await expect(about).toBeHidden();
+  await button.click();
+  await about.click();
+  await expect(page).toHaveURL(/\/about$/);
 });
 
 test('external links open in a new tab with rel=noopener (R1)', async ({ page }) => {
@@ -113,28 +135,31 @@ test.describe('theme toggle (N5)', () => {
 });
 
 test.describe('decrypt effects (N4)', () => {
-  test('About paragraphs decode and leave the page as it was', async ({ page }) => {
-    const paragraphs = page.locator('main [data-decrypt-packets] > p');
-    // The real text, read with the effect off.
-    await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.goto('/about');
-    const text = await paragraphs.allTextContents();
-    await page.emulateMedia({ reducedMotion: 'no-preference' });
-    // Paragraphs decrypt one after another (several seconds in all), so fake the clock.
-    await page.clock.install();
-    await page.goto('/about');
-    await expect(page.locator('[data-decrypt-overlay]').first()).toBeAttached();
-    // Scroll each paragraph into view, then fast-forward past its reading time.
-    for (const p of await paragraphs.all()) {
-      await p.scrollIntoViewIfNeeded();
-      await page.clock.runFor(30_000);
-    }
-    // The last paragraph may report itself visible late, under load.
-    await page.waitForTimeout(200);
-    await page.clock.runFor(30_000);
-    await expect(page.locator('[data-decrypt-overlay]')).toHaveCount(0);
-    expect(await paragraphs.allTextContents()).toEqual(text);
-  });
+  for (const route of ['/', '/about']) {
+    test(`${route} packet paragraphs decrypt and leave the page as it was`, async ({ page }) => {
+      const paragraphs = page.locator('main [data-decrypt-packets] > p');
+      // The real text, read with the effect off.
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      await page.goto(route);
+      const text = await paragraphs.allTextContents();
+      expect(text.length).toBeGreaterThan(1);
+      await page.emulateMedia({ reducedMotion: 'no-preference' });
+      // Paragraphs decrypt one after another (several seconds in all), so fake the clock.
+      await page.clock.install();
+      await page.goto(route);
+      await expect(page.locator('[data-decrypt-covered]').first()).toBeAttached();
+      // Scroll each paragraph into view, then fast-forward past its decrypt and pause.
+      for (const p of await paragraphs.all()) {
+        await p.scrollIntoViewIfNeeded();
+        await page.clock.runFor(5_000);
+      }
+      // The last paragraph may report itself visible late, under load.
+      await page.waitForTimeout(200);
+      await page.clock.runFor(5_000);
+      await expect(page.locator('[data-decrypt-overlay]')).toHaveCount(0);
+      expect(await paragraphs.allTextContents()).toEqual(text);
+    });
+  }
 
   test('the header switch turns effects off and remembers it', async ({ page }) => {
     await page.goto('/about');

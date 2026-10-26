@@ -38,9 +38,11 @@
   const DEFAULT_MS = 650;
   // Replay when the pointer moves over an element with data-decrypt-hover.
   const HOVER_MS = 600;
-  // About paragraphs: each decrypts in PARAGRAPH_MS, then the next starts PAUSE_MS later.
+  // Packet paragraphs (Home intro, About): each decrypts in PARAGRAPH_MS, then the next starts PAUSE_MS later.
   const PARAGRAPH_MS = 1800;
   const PAUSE_MS = 1000;
+  // How long the first packet paragraph shows its packet before decrypting.
+  const FIRST_HOLD_MS = 750;
 
   /**
    * Make an element a positioned host for an overlay; returns a function that undoes it.
@@ -64,7 +66,8 @@
    * @param {number} duration
    */
   function decrypt(el, kind, duration) {
-    if (el.dataset.decrypting || effectsOff()) return;
+    // Skip while a packet still covers the paragraph this element is in.
+    if (el.dataset.decrypting || effectsOff() || el.closest('[data-decrypt-covered]')) return;
     const text = el.textContent ?? '';
     // An inline element that wraps onto two lines has no single box to overlay.
     if (!text.trim() || el.getClientRects().length > 1) return;
@@ -206,6 +209,7 @@
   function cover(p, index) {
     const text = p.textContent ?? ''; // read before the overlay adds its own text
     const style = getComputedStyle(p);
+    const textColor = style.color; // the decrypt matches the paragraph (the home intro is muted)
     const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.6;
     const overlay = document.createElement('div');
     overlay.setAttribute('aria-hidden', 'true');
@@ -216,6 +220,7 @@
     const dump = document.createElement('div');
     overlay.append(summary, dump);
     const restore = host(p, false);
+    p.dataset.decryptCovered = '';
     p.append(overlay);
 
     // Measure the monospace character width to size the rows.
@@ -239,7 +244,7 @@
       overlay.replaceChildren();
       overlay.style.font = 'inherit';
       overlay.style.whiteSpace = 'normal';
-      overlay.style.color = 'var(--color-text)';
+      overlay.style.color = textColor;
       const start = performance.now();
       /** @param {number} now */
       function frame(now) {
@@ -252,6 +257,7 @@
         if (done < 1) return requestAnimationFrame(frame);
         overlay.remove();
         restore();
+        delete p.dataset.decryptCovered;
       }
       requestAnimationFrame(frame);
     };
@@ -297,7 +303,8 @@
     const setUp = (el, kind) => {
       if (el.children.length) return; // only plain text, so nested links are untouched
       const ms = Number(el.dataset.decryptMs) || DEFAULT_MS;
-      whenVisible(el, () => decrypt(el, kind, ms));
+      // Inside a packet paragraph, the paragraph's own decrypt reveals it; just replay on hover.
+      if (!el.closest('[data-decrypt-packets]')) whenVisible(el, () => decrypt(el, kind, ms));
       if ('decryptHover' in el.dataset && !el.dataset.decryptBound) {
         el.dataset.decryptBound = '1'; // add the listener once, even if start() runs again
         el.addEventListener('pointerenter', () => decrypt(el, kind, HOVER_MS));
@@ -316,7 +323,7 @@
     });
 
     // Paragraphs decrypt one at a time, top to bottom: each waits for the one above.
-    let nextStart = 0;
+    let nextStart = performance.now() + FIRST_HOLD_MS;
     document.querySelectorAll('[data-decrypt-packets] > p').forEach((p, i) => {
       if (!(p instanceof HTMLElement)) return;
       const decode = cover(p, i);
