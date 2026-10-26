@@ -228,6 +228,8 @@ One switch (SW1) and four ports in use; an attacker appears only in Break-it mod
 | R1 | Default gateway | 10.0.0.1/24 | 02:00:00:00:00:01 | Gi0/4 |
 | M | Attacker (Break-it only) | 10.0.0.66/24 | 02:00:00:00:00:66 | Gi0/5 |
 
+**Users and infrastructure.** H1, H2 and H3 are user devices (laptops and desktops, where applications run). SW1 and R1 are network infrastructure. The view draws the two groups differently (shape, icon and a labelled legend) so a visitor can tell at a glance which boxes are people's computers and which are the network. The visitor's own host (H1 by default) is marked "You". Beyond R1, an upstream link leads off the diagram to a "next hop" (toward the internet), used for off-subnet traffic.
+
 ### Engine (`engine.js`, no DOM)
 
 State:
@@ -239,12 +241,15 @@ State:
 
 Behavior (RFC 826 semantics):
 
-1. `send(src, dstIp)`: if `dstIp` is off-subnet, resolve the gateway instead. On a cache hit, emit a unicast data frame. On a miss, emit an ARP request: Ethernet dst `ff:ff:ff:ff:ff:ff`, opcode 1, target MAC all zeros.
+1. `send(src, dstIp, app)`: an application on host `src` wants to reach `dstIp`. `app` names it and labels the data frame: `ping` (ICMP echo, the default), `web` (HTTP over TCP) or `dns` (DNS over UDP). The engine first logs **why ARP is needed**: the application knows only an IP address, but Ethernet delivers frames by MAC address, so the host must find the MAC to put in the frame. If `dstIp` is off-subnet, the host resolves its gateway's MAC instead, and the log says so. On a cache hit, emit a unicast data frame at once. On a miss, queue the data and emit an ARP request: Ethernet dst `ff:ff:ff:ff:ff:ff`, opcode 1, target MAC all zeros.
 2. The switch learns the source MAC on the ingress port, floods broadcasts and unknown unicasts out every other port, and forwards known unicasts out one port.
 3. Each receiving host whose IP is not the target drops the request. The target caches the sender's mapping, then sends a unicast reply (opcode 2).
 4. The requester caches the reply and sends its queued data frame.
+   - **Data frames are not decoded.** A data frame is an envelope labelled with its application (for example "ICMP echo request (ping)"). The inspector shows its Ethernet header (destination, source, EtherType `0x0800`) and its IP source and destination, but not the payload, which is not the point of the game.
+   - **Off-subnet.** The data frame's Ethernet destination is R1's MAC, but its IP destination is still the far address (for example 8.8.8.8). R1 receives it, removes the Ethernet header, looks up its route and forwards the packet out its upstream link toward the next hop (`frame:forward`). The log and a caption spell out that the MAC address changes at each hop while the IP address stays the same end to end.
+   - **No reply.** If nobody answers (for example 10.0.0.99), the request times out after 1 s of simulated time (`arp:timeout`). The view shows a speech bubble at the requester: "No reply. A real host typically retries about 3 times, a second apart, then reports the destination unreachable." The engine does not actually send the retries, so the visitor never waits. The queued data is dropped.
 5. Cache and MAC-table entries expire after a TTL (default 60 s simulated, adjustable 10–300 s).
-6. The engine emits events (`frame:emit`, `frame:arrive`, `frame:drop`, `cache:update`, `cache:expire`, `mactable:update`) that the renderer subscribes to.
+6. The engine emits events (`frame:emit`, `frame:arrive`, `frame:drop`, `frame:forward`, `cache:update`, `cache:expire`, `mactable:update`, `arp:timeout`, `ip:conflict`) that the renderer subscribes to.
 
 ### Frame model (`frames.js`)
 
@@ -256,7 +261,7 @@ Every frame can be encoded to bytes for the inspector: Ethernet header (14 bytes
 | --- | --- | --- |
 | Learn | Guided steps with a caption per step; Next/Back | The request/reply exchange, step by step |
 | Sandbox | Pick any source host, type any IP, press Send | Cache hits vs. misses, gateway resolution, aging |
-| Gratuitous ARP | Make a host announce itself (sender IP = target IP, broadcast) | Cache refresh on other hosts; duplicate IP detection when two hosts claim one IP |
+| Gratuitous ARP | Make a host announce itself (sender IP = target IP, broadcast), as hosts do after getting an address from DHCP or coming up. A button, "Meanwhile, on another host…", plays a scenario: someone on H3 mistypes a static IP as 10.0.0.12 and H3 announces it. H2 sees its own address claimed and reports a duplicate IP (`ip:conflict`), and the other hosts' caches flip to H3's MAC | Cache refresh on other hosts; duplicate IP detection when two hosts claim one IP |
 | Break it | Enable attacker M, which sends unsolicited replies claiming 10.0.0.1 | Cache poisoning: victims' traffic to the gateway goes to M; a note names the defense (Dynamic ARP Inspection) |
 
 ### View (`renderer.js`)
@@ -272,14 +277,17 @@ Every frame can be encoded to bytes for the inspector: Ethernet header (14 bytes
 
 - [ ] Sending from H1 to 10.0.0.12 with an empty cache shows a broadcast request reaching H2, H3 and R1, drops at H3 and R1, a unicast reply to H1, then the data frame.
 - [ ] Sending again before the TTL expires skips ARP entirely.
-- [ ] Sending to 10.0.0.99 (unused) shows a request with no reply and a log line explaining the timeout.
-- [ ] Sending to an off-subnet IP (e.g. 8.8.8.8) resolves R1's MAC, not the destination's.
+- [ ] Every send logs why ARP is needed (the app knows the IP; Ethernet needs the MAC) before any ARP frame.
+- [ ] Sending to 10.0.0.99 (unused) shows a request with no reply, an `arp:timeout` after 1 s simulated, and the "retries about 3 times" bubble and log line, without simulating the retries.
+- [ ] Sending to an off-subnet IP (e.g. 8.8.8.8) resolves R1's MAC, not the destination's; the data frame is addressed to R1's MAC with IP destination 8.8.8.8, and R1 forwards it toward the next hop.
+- [ ] "Meanwhile, on another host…" makes H3 claim 10.0.0.12: H2 reports a duplicate IP and the other hosts' caches map 10.0.0.12 to H3's MAC.
 - [ ] The switch MAC table learns H1 on Gi0/1 after the first frame.
 - [ ] The inspector's hex dump for a request is exactly 60 bytes and matches the decoded fields.
 - [ ] Break-it mode shows H1's cache entry for 10.0.0.1 changing to M's MAC.
 - [ ] Everything works by keyboard; with `prefers-reduced-motion`, frames jump between nodes instead of gliding.
 - [ ] Engine unit tests cover every bullet above without a browser.
 - [ ] Usable at 360 px wide (panels stack under the topology).
+- [ ] User devices and infrastructure look different and a legend names both; the visitor's host is marked "You".
 
 ## 7. Feature spec: Spark image pipeline
 
