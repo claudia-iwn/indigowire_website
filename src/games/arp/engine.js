@@ -28,8 +28,10 @@ import { BROADCAST_MAC, ZERO_MAC, ETHERTYPE_ARP, ETHERTYPE_IPV4, ARP_REQUEST, AR
  * @property {string} src   Ethernet source MAC.
  * @property {number} type  EtherType: 0x0806 ARP or 0x0800 IPv4.
  * @property {import('./frames.js').ArpPayload} [arp]
- * @property {{ src: string, dst: string }} [ip]
+ * @property {{ src: string, dst: string, ttl: number }} [ip]
  * @property {App} [app]
+ * @property {number} flow     Groups every frame of one send (request, reply, data), for the hop table.
+ * @property {number} [parent] For a frame a router rebuilt: the id of the frame it came from.
  */
 
 /**
@@ -37,17 +39,24 @@ import { BROADCAST_MAC, ZERO_MAC, ETHERTYPE_ARP, ETHERTYPE_IPV4, ARP_REQUEST, AR
  *   | 'mactable:update' | 'mactable:expire' | 'arp:timeout' | 'ip:conflict' | 'log'} EngineEvent
  */
 
-/** One switch, four ports in use, attacker only in Break-it mode. Locally administered MACs. */
+/** One switch, four ports in use, attacker only in Break-it mode. MACs from the RFC 7042 documentation range. */
 export const TOPOLOGY = /** @type {const} */ ({
   switch: { name: 'SW1' },
   /** @type {Node[]} */
   nodes: [
-    { name: 'H1', role: 'host', ip: '10.0.0.11', prefix: 24, mac: '02:00:00:00:00:11', port: 'Gi0/1' },
-    { name: 'H2', role: 'host', ip: '10.0.0.12', prefix: 24, mac: '02:00:00:00:00:12', port: 'Gi0/2' },
-    { name: 'H3', role: 'host', ip: '10.0.0.13', prefix: 24, mac: '02:00:00:00:00:13', port: 'Gi0/3' },
-    { name: 'R1', role: 'gateway', ip: '10.0.0.1', prefix: 24, mac: '02:00:00:00:00:01', port: 'Gi0/4' },
-    { name: 'M', role: 'attacker', ip: '10.0.0.66', prefix: 24, mac: '02:00:00:00:00:66', port: 'Gi0/5' },
+    { name: 'H1', role: 'host', ip: '192.0.2.11', prefix: 24, mac: '00:00:5e:00:53:11', port: 'Gi0/1' },
+    { name: 'H2', role: 'host', ip: '192.0.2.12', prefix: 24, mac: '00:00:5e:00:53:12', port: 'Gi0/2' },
+    { name: 'H3', role: 'host', ip: '192.0.2.13', prefix: 24, mac: '00:00:5e:00:53:13', port: 'Gi0/3' },
+    { name: 'R1', role: 'gateway', ip: '192.0.2.1', prefix: 24, mac: '00:00:5e:00:53:01', port: 'Gi0/4' },
+    { name: 'M', role: 'attacker', ip: '192.0.2.66', prefix: 24, mac: '00:00:5e:00:53:66', port: 'Gi0/5' },
   ],
+  // R1's other interface, toward the internet (RFC 5737 TEST-NET-2), and the router at the
+  // far end of that link. R1 already knows the next hop's MAC; the game doesn't simulate that link's ARP.
+  upstream: {
+    ip: '198.51.100.1',
+    mac: '00:00:5e:00:53:a1',
+    nextHop: { name: 'next hop', ip: '198.51.100.254', mac: '00:00:5e:00:53:fe' },
+  },
 });
 
 export const DEFAULT_TTL_MS = 60_000;
@@ -57,6 +66,8 @@ export const MAX_TTL_MS = 300_000;
 export const HOP_MS = 600;
 /** How long a host waits for a reply once its request has reached every host. */
 export const ARP_TIMEOUT_MS = 1_000;
+/** IP time-to-live a host puts on a new packet; each router lowers it by one. */
+export const IP_TTL = 64;
 
 const SWITCH = TOPOLOGY.switch.name;
 const GATEWAY = TOPOLOGY.nodes.find((node) => node.role === 'gateway');
@@ -103,7 +114,7 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
           ...node,
           /** @type {Map<string, { mac: string, expiresAt: number }>} */
           arpCache: new Map(),
-          /** @type {Map<string, { dstIp: string, app: App }[]>} */
+          /** @type {Map<string, { dstIp: string, app: App, flow: number }[]>} */
           pending: new Map(),
         },
       ]),
@@ -123,6 +134,7 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
   let queue = [];
   let seq = 0;
   let nextFrameId = 1;
+  let nextFlow = 1;
   /** ARP requests being flooded, by frame id: who asked, and how many copies are still on the wire. */
   /** @type {Map<number, { host: string, ip: string, remaining: number, answered: boolean }>} */
   const floods = new Map();
@@ -192,10 +204,14 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
     const entry = state.switch.macTable.get(frame.dst);
     /** @type {Host[]} */
     let outs;
+    // Either way the frame leaves exactly as it arrived: a switch never rewrites it.
+    let how = 'forward';
     if (frame.dst === BROADCAST_MAC) {
+      how = 'flood';
       outs = Object.values(state.hosts).filter((host) => host.port !== ingress);
       log(`${SWITCH} floods the broadcast out every other port.`);
     } else if (!entry) {
+      how = 'flood';
       outs = Object.values(state.hosts).filter((host) => host.port !== ingress);
       log(`${SWITCH} has no entry for ${frame.dst}, so it floods the frame out every other port.`);
     } else {
@@ -207,7 +223,7 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
     const flood = floods.get(frame.id);
     if (flood) flood.remaining = outs.length;
     for (const host of outs) {
-      emit('frame:emit', { frame, from: SWITCH, to: host.name, at: state.clock, arrivesAt: state.clock + HOP_MS });
+      emit('frame:emit', { frame, from: SWITCH, to: host.name, how, at: state.clock, arrivesAt: state.clock + HOP_MS });
       schedule(HOP_MS, () => hostReceive(host, frame));
     }
   }
@@ -285,13 +301,14 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
         src: host.mac,
         type: ETHERTYPE_ARP,
         arp: { oper: ARP_REPLY, sha: host.mac, spa: host.ip, tha: sha, tpa: spa },
+        flow: frame.flow,
       });
     } else if (oper === ARP_REPLY && tpa === host.ip) {
       if (!had) cache(host, spa, sha);
       log(`${host.name} learns that ${spa} is at ${sha}.`);
       const waiting = host.pending.get(spa) ?? [];
       host.pending.delete(spa);
-      for (const { dstIp, app } of waiting) sendData(host, sha, dstIp, app);
+      for (const { dstIp, app, flow } of waiting) sendData(host, sha, dstIp, app, flow);
     } else if (!had) {
       drop(host, frame, 'not for me');
     }
@@ -307,11 +324,24 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
     if (ip.dst === host.ip) {
       log(`${host.name} receives ${APP_LABEL[app]} from ${ip.src}.`);
     } else if (host.role === 'gateway') {
-      emit('frame:forward', { frame, node: host.name, to: 'next hop', time: state.clock });
+      const { upstream } = TOPOLOGY;
+      const out = /** @type {Frame} */ ({
+        id: nextFrameId++,
+        dst: upstream.nextHop.mac,
+        src: upstream.mac,
+        type: ETHERTYPE_IPV4,
+        ip: { ...ip, ttl: ip.ttl - 1 },
+        app,
+        flow: frame.flow,
+        parent: frame.id,
+      });
+      emit('frame:forward', { frame, out, node: host.name, to: upstream.nextHop.name, time: state.clock });
       log(
-        `${host.name} removes the Ethernet header, looks up a route to ${ip.dst} and forwards the packet out its ` +
-          `upstream link to the next hop. The MAC addresses change at every hop; the IP addresses stay ${ip.src} → ${ip.dst}.`,
+        `${host.name} removes the Ethernet header, looks up a route to ${ip.dst}, lowers the TTL from ${ip.ttl} to ` +
+          `${ip.ttl - 1} and builds a new frame for its upstream link: from its own MAC ${upstream.mac} to the next ` +
+          `hop's ${upstream.nextHop.mac}. The MAC addresses change at every hop; the IP addresses stay ${ip.src} → ${ip.dst}.`,
       );
+      routeOut(host, out);
     } else {
       drop(host, frame, 'not for me');
     }
@@ -322,10 +352,29 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
    * @param {string} mac   Next hop's MAC.
    * @param {string} dstIp Final IP destination.
    * @param {App} app
+   * @param {number} flow
    */
-  function sendData(host, mac, dstIp, app) {
+  function sendData(host, mac, dstIp, app, flow) {
     log(`${host.name} sends ${APP_LABEL[app]} to ${dstIp} in a frame addressed to ${mac}.`);
-    transmit(host, { dst: mac, src: host.mac, type: ETHERTYPE_IPV4, ip: { src: host.ip, dst: dstIp }, app });
+    transmit(host, {
+      dst: mac,
+      src: host.mac,
+      type: ETHERTYPE_IPV4,
+      ip: { src: host.ip, dst: dstIp, ttl: IP_TTL },
+      app,
+      flow,
+    });
+  }
+
+  /**
+   * Send a frame out R1's upstream link; it arrives at the next hop and leaves the game.
+   * @param {Host} router
+   * @param {Frame} frame
+   */
+  function routeOut(router, frame) {
+    const to = TOPOLOGY.upstream.nextHop.name;
+    emit('frame:emit', { frame, from: router.name, to, at: state.clock, arrivesAt: state.clock + HOP_MS });
+    schedule(HOP_MS, () => emit('frame:arrive', { frame, node: to, time: state.clock }));
   }
 
   /**
@@ -373,9 +422,19 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
     if (!host) throw new Error(`No host named ${src}`);
     const local = sameSubnet(host.ip, dstIp, host.prefix);
 
+    const flow = nextFlow++;
     if (!local && host.role === 'gateway') {
+      const { upstream } = TOPOLOGY;
       log(`${src} routes ${APP_LABEL[app]} for ${dstIp} straight out its upstream link to the next hop.`);
-      emit('frame:forward', { frame: null, node: src, to: 'next hop', time: state.clock });
+      routeOut(host, {
+        id: nextFrameId++,
+        dst: upstream.nextHop.mac,
+        src: upstream.mac,
+        type: ETHERTYPE_IPV4,
+        ip: { src: upstream.ip, dst: dstIp, ttl: IP_TTL },
+        app,
+        flow,
+      });
       return;
     }
     if (!local && !GATEWAY) throw new Error('No gateway in the topology');
@@ -384,7 +443,7 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
     const cached = host.arpCache.get(nextHop);
     if (cached) {
       log(`${src} already has ${nextHop} in its ARP cache (${cached.mac}), so no ARP is needed.`);
-      sendData(host, cached.mac, dstIp, app);
+      sendData(host, cached.mac, dstIp, app, flow);
       return;
     }
 
@@ -400,16 +459,17 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
 
     const waiting = host.pending.get(nextHop);
     if (waiting) {
-      waiting.push({ dstIp, app });
+      waiting.push({ dstIp, app, flow });
       log(`${src} is already asking for ${nextHop}; this packet waits for the same reply.`);
       return;
     }
-    host.pending.set(nextHop, [{ dstIp, app }]);
+    host.pending.set(nextHop, [{ dstIp, app, flow }]);
     const request = transmit(host, {
       dst: BROADCAST_MAC,
       src: host.mac,
       type: ETHERTYPE_ARP,
       arp: { oper: ARP_REQUEST, sha: host.mac, spa: host.ip, tha: ZERO_MAC, tpa: nextHop },
+      flow,
     });
     floods.set(request.id, { host: src, ip: nextHop, remaining: Infinity, answered: false });
     log(`${src} broadcasts an ARP request: who has ${nextHop}? Tell ${host.ip}.`);
@@ -428,6 +488,7 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
       src: host.mac,
       type: ETHERTYPE_ARP,
       arp: { oper: ARP_REQUEST, sha: host.mac, spa: host.ip, tha: ZERO_MAC, tpa: host.ip },
+      flow: nextFlow++,
     });
   }
 
@@ -460,6 +521,7 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
       src: attackerHost.mac,
       type: ETHERTYPE_ARP,
       arp: { oper: ARP_REPLY, sha: attackerHost.mac, spa: claimIp, tha: victim.mac, tpa: victim.ip },
+      flow: nextFlow++,
     });
   }
 
@@ -493,8 +555,11 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
     while (queue.length > 0) tick(Math.min(...queue.map((item) => item.at)) - state.clock);
   }
 
+  /** Simulated time of the next queued action, or null when idle. The Step control ticks to it. */
+  const nextEventAt = () => (queue.length ? Math.min(...queue.map((item) => item.at)) : null);
+
   /** True when no frame or timer is pending. */
   const isIdle = () => queue.length === 0;
 
-  return { state, on, emit, send, announce, claimIp, spoof, setTtl, tick, runUntilIdle, isIdle };
+  return { state, on, emit, send, announce, claimIp, spoof, setTtl, tick, runUntilIdle, isIdle, nextEventAt };
 }

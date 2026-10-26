@@ -1,6 +1,6 @@
 # indigowire.net
 
-Static Astro site for Indigo Wire Networks (Claudia de Luna, network engineer/architect and network automation consultant). It combines a few consultancy pages, interactive networking games (starting with an ARP simulator), and a gallery of AI images from a DGX Spark. It deploys to Cloudflare Workers through Workers Builds on every push to `main`.
+Static Astro site for Indigo Wire Networks (Claudia de Luna, network engineer/architect and network automation consultant). It combines a few consultancy pages, interactive networking games (starting with an ARP simulator, "How IPv4 ARP works"), and a gallery of AI images from a DGX Spark. It deploys to Cloudflare Workers through Workers Builds on every push to `main`.
 
 **The spec is the source of truth: `docs/SPEC.md`.** Read the relevant section before starting any task. If a decision changes, update the spec in the same change.
 
@@ -35,11 +35,12 @@ M0 skeleton: every route renders from the collections, but the ARP engine, frame
 - **Plain CSS** with custom properties from `src/styles/tokens.css`. No CSS frameworks. Never hard-code a color; use a token. Color tokens are `light-dark(light, dark)`, so one token covers both themes; the manual toggle sets `data-theme` on `<html>`. For theme-specific images use the `.theme-light-only` / `.theme-dark-only` classes (with `loading="lazy"`), never a `prefers-color-scheme` media query, which ignores the toggle.
 - **Python only through uv.** Use `uv add` / `uv add --dev` and `uv run`. Never use pip, `python -m venv`, or a bare `python`.
 - **No new runtime dependency** unless it is in the spec's tech stack table (section 3). If one is needed, update that table first.
+- **Example addresses:** IPv4 only from RFC 5737 (192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24), IPv6 only from RFC 3849 (2001:db8::/32), MACs only from RFC 7042 (00:00:5e:00:53:xx), in code, tests, games and docs. Never real public or RFC 1918 addresses, except 8.8.8.8 as "the internet" (spec section 3).
 - **Comments for a Python developer learning JS:** when JavaScript does something non-obvious, add a one-line comparison to Python (for example, "like a Python dict").
 
 ## Architecture rules
 
-- **Games:** logic lives in a DOM-free engine module (`src/games/<game>/engine.js`) with Vitest tests. Rendering (`renderer.js`, SVG + GSAP) only subscribes to engine events. Never mix the two.
+- **Games:** logic lives in a DOM-free engine module (`src/games/<game>/engine.js`) with Vitest tests. Rendering (`renderer.js`, SVG, positioned from the engine clock) only subscribes to engine events. Never mix the two.
 - **Content:** everything is files under `src/content/`, validated by the schemas in `src/content.config.js`. A bad file must fail the build, not publish.
 - **Tags:** only values listed in `src/content/tags.yaml` (lowercase kebab-case).
 - **External links:** defined once in `src/site.config.js`. Never hard-code profile URLs in components.

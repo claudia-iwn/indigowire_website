@@ -99,3 +99,150 @@ export function arpFields(frame) {
     return field;
   });
 }
+
+/**
+ * A data frame: an IP packet from an application, labelled rather than decoded.
+ * @typedef {object} DataFrame
+ * @property {string} dst  Ethernet destination MAC (the next hop's).
+ * @property {string} src  Ethernet source MAC.
+ * @property {{ src: string, dst: string }} ip
+ * @property {'ping' | 'web' | 'dns'} app
+ */
+
+/** What each application's packet is, for labels and the inspector. */
+export const APP_PAYLOAD = /** @type {const} */ ({
+  ping: { short: 'ping', long: 'ICMP echo request' },
+  web: { short: 'web', long: 'HTTP request over TCP' },
+  dns: { short: 'DNS', long: 'DNS query over UDP' },
+});
+
+/**
+ * The 14-byte Ethernet header of a data frame (EtherType IPv4).
+ * @param {DataFrame} frame
+ * @returns {Uint8Array}
+ */
+export function encodeEthernetHeader(frame) {
+  return Uint8Array.from([...macBytes(frame.dst), ...macBytes(frame.src), ...u16(ETHERTYPE_IPV4)]);
+}
+
+/**
+ * The inspector's decode tree for a data frame. The Ethernet header has byte ranges in
+ * encodeEthernetHeader's output; the IP addresses and payload are listed with length 0,
+ * because the game does not decode past the frame header.
+ * @param {DataFrame} frame
+ * @returns {Field[]}
+ */
+export function dataFields(frame) {
+  return [
+    { name: 'Destination', value: frame.dst, offset: 0, length: 6 },
+    { name: 'Source', value: frame.src, offset: 6, length: 6 },
+    { name: 'EtherType', value: 'IPv4 (0x0800)', offset: 12, length: 2 },
+    { name: 'IP source', value: frame.ip.src, offset: 14, length: 0 },
+    { name: 'IP destination', value: frame.ip.dst, offset: 14, length: 0 },
+    { name: 'Payload', value: `${APP_PAYLOAD[frame.app].long} (not decoded)`, offset: 14, length: 0 },
+  ];
+}
+
+/**
+ * One line describing a frame, for labels, the log and the inspector heading.
+ * @param {ArpFrame | DataFrame} frame
+ */
+export function describeFrame(frame) {
+  if ('arp' in frame) {
+    const { oper, sha, spa, tpa } = frame.arp;
+    if (oper === ARP_REQUEST && spa === tpa) return `Gratuitous ARP: ${spa} is at ${sha}`;
+    return oper === ARP_REQUEST ? `ARP request: who has ${tpa}? Tell ${spa}` : `ARP reply: ${spa} is at ${sha}`;
+  }
+  const { short, long } = APP_PAYLOAD[frame.app];
+  return `${short} (${long}): ${frame.ip.src} → ${frame.ip.dst}`;
+}
+
+/** IP protocol number and name for each application's packet. */
+const IP_PROTOCOL = /** @type {const} */ ({ ping: 'ICMP (1)', web: 'TCP (6)', dns: 'UDP (17)' });
+
+/**
+ * One block of the frame strip, sized by its bytes.
+ * @typedef {{ label: string, value: string, bytes: number, layer: 'eth' | 'arp' | 'ip' | 'payload' | 'trailer', field?: number }} StripBlock
+ */
+/**
+ * One cell of a 32-bit header row. `field` links it to arpFields/dataFields (and the hex dump);
+ * `modelled: false` marks a real header field the game doesn't simulate.
+ * @typedef {{ name: string, value: string, bits: number, field?: number, modelled?: boolean }} ZoomCell
+ */
+
+/**
+ * The packet breakout: the whole frame as a strip of blocks, and the inner header
+ * (ARP, or IPv4 for data) as 32-bit rows, the way RFCs and textbooks draw it.
+ * @param {ArpFrame | (DataFrame & { ip: { ttl?: number } })} frame
+ * @returns {{ strip: StripBlock[], zoom: { title: string, layer: 'arp' | 'ip', rows: ZoomCell[][] } }}
+ */
+export function breakdown(frame) {
+  /** @type {StripBlock[]} */
+  const head = [
+    {
+      label: 'Destination MAC',
+      value: frame.dst === BROADCAST_MAC ? 'broadcast' : frame.dst,
+      bytes: 6,
+      layer: 'eth',
+      field: 0,
+    },
+    { label: 'Source MAC', value: frame.src, bytes: 6, layer: 'eth', field: 1 },
+    { label: 'Type', value: 'arp' in frame ? '0x0806' : '0x0800', bytes: 2, layer: 'eth', field: 2 },
+  ];
+  if ('arp' in frame) {
+    const f = arpFields(frame);
+    /** @param {number} i @param {number} bits */
+    const cell = (i, bits) => ({ name: f[i].name, value: f[i].value, bits, field: i });
+    return {
+      strip: [
+        ...head,
+        { label: 'ARP', value: frame.arp.oper === ARP_REQUEST ? 'request' : 'reply', bytes: 28, layer: 'arp' },
+        { label: 'Padding', value: 'zeros', bytes: 18, layer: 'trailer', field: 12 },
+        { label: 'FCS', value: 'CRC-32', bytes: 4, layer: 'trailer' },
+      ],
+      zoom: {
+        title: 'ARP header (28 bytes)',
+        layer: 'arp',
+        rows: [
+          [cell(3, 16), cell(4, 16)],
+          [cell(5, 8), cell(6, 8), cell(7, 16)],
+          [cell(8, 32)],
+          [cell(9, 32)],
+          [cell(10, 32)],
+          [cell(11, 32)],
+        ],
+      },
+    };
+  }
+  const { long } = APP_PAYLOAD[frame.app];
+  /** @param {string} name @param {number} bits */
+  const unmodelled = (name, bits) => ({ name, value: '·', bits, modelled: false });
+  return {
+    strip: [
+      ...head,
+      { label: 'IPv4 header', value: `${frame.ip.src} → ${frame.ip.dst}`, bytes: 20, layer: 'ip' },
+      { label: long, value: 'not decoded', bytes: 16, layer: 'payload' },
+      { label: 'FCS', value: 'CRC-32', bytes: 4, layer: 'trailer' },
+    ],
+    zoom: {
+      title: 'IPv4 header (20 bytes)',
+      layer: 'ip',
+      rows: [
+        [
+          { name: 'Ver.', value: '4', bits: 4 },
+          { name: 'IHL', value: '5', bits: 4 },
+          unmodelled('DSCP/ECN', 8),
+          unmodelled('Total length', 16),
+        ],
+        [unmodelled('Identification', 16), unmodelled('Flags, fragment offset', 16)],
+        [
+          { name: 'TTL', value: String(frame.ip.ttl ?? 64), bits: 8 },
+          { name: 'Protocol', value: IP_PROTOCOL[frame.app], bits: 8 },
+          unmodelled('Header checksum', 16),
+        ],
+        [{ name: 'Source address', value: frame.ip.src, bits: 32, field: 3 }],
+        [{ name: 'Destination address', value: frame.ip.dst, bits: 32, field: 4 }],
+      ],
+    },
+  };
+}

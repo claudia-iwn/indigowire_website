@@ -1,5 +1,5 @@
 ---
-title: ARP simulator
+title: How IPv4 ARP works
 summary: Play a host on a switched LAN and watch ARP resolve an address, frame by frame.
 category: layer-2
 kind: game

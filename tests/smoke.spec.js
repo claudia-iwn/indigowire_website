@@ -78,6 +78,18 @@ test('below 64rem the nav is a menu that opens and closes (R1)', async ({ page }
   await expect(page).toHaveURL(/\/about$/);
 });
 
+test('/learn explains the documentation address ranges with links to the RFCs', async ({ page }) => {
+  await page.goto('/learn');
+  const section = page.getByRole('region', { name: 'About the addresses in these games' });
+  await expect(section).toContainText('192.0.2.0/24');
+  await expect(section).toContainText('2001:db8::/32');
+  await expect(section).toContainText('00:00:5e:00:53:00');
+  await expect(section).toContainText('8.8.8.8');
+  for (const rfc of ['5737', '3849', '7042']) {
+    await expect(section.locator(`a[href*="rfc${rfc}"]`).first()).toHaveAttribute('rel', /noopener/);
+  }
+});
+
 test('external links open in a new tab with rel=noopener (R1)', async ({ page }) => {
   await page.goto('/');
   const external = page.locator('a[data-outbound]');
@@ -239,5 +251,98 @@ test.describe('decrypt effects (N4)', () => {
       await page.waitForTimeout(100);
       await expect(page.locator('[data-decrypt-overlay]')).toHaveCount(0);
     }
+  });
+});
+
+test.describe('How IPv4 ARP works (R5, section 6)', () => {
+  /**
+   * Pause, send from H1, then step until H1's ping has arrived.
+   * @param {import('@playwright/test').Page} page
+   * @param {string} ip
+   */
+  async function sendAndStep(page, ip) {
+    await page.goto('/learn/arp');
+    await page.getByRole('button', { name: 'Pause' }).click();
+    await page.getByLabel('To IP address').fill(ip);
+    await page.getByRole('button', { name: 'Send', exact: true }).click();
+    const step = page.getByRole('button', { name: 'Step' });
+    for (let i = 0; i < 30 && (await step.isEnabled()); i++) {
+      if ((await page.locator('.log').textContent())?.includes('receives a ping')) break;
+      await step.click();
+    }
+  }
+
+  test("a first send fills H1's ARP cache and SW1's MAC table", async ({ page }) => {
+    await sendAndStep(page, '192.0.2.12');
+    await expect(page.locator('.log')).toContainText('H2 receives a ping');
+    await expect(page.locator('.cache[data-host="H1"]')).toContainText('192.0.2.12');
+    await expect(page.locator('.cache[data-host="H1"]')).toContainText('00:00:5e:00:53:12');
+    await expect(page.locator('.mac-table tr[data-key="00:00:5e:00:53:11"]')).toContainText('Gi0/1');
+  });
+
+  test('Inspect pins a frame in the packet view, with its layout, header rows and 60 linked bytes', async ({
+    page,
+  }) => {
+    await sendAndStep(page, '192.0.2.12');
+    await page.locator('.log .inspect').first().focus();
+    await page.keyboard.press('Enter');
+    const packet = page.locator('.packet');
+    await expect(packet.locator('h2')).toHaveText('ARP request: who has 192.0.2.12? Tell 192.0.2.11');
+    await expect(packet).toHaveAttribute('data-kind', 'request');
+    await expect(packet.locator('.strip .label')).toHaveText([
+      'Destination MAC',
+      'Source MAC',
+      'Type',
+      'ARP',
+      'Padding',
+      'FCS',
+    ]);
+    await packet.getByText('Bytes: all 60').click();
+    await expect(packet.locator('.byte')).toHaveCount(60);
+    await packet.locator('.cell', { hasText: 'Opcode' }).hover();
+    await expect(packet.locator('.byte.hl')).toHaveText(['00', '01']);
+    await expect(packet.getByRole('button', { name: 'Follow the latest frame' })).toBeVisible();
+  });
+
+  test("the hop table and R1's card show what the router changed on the way to 8.8.8.8", async ({ page }) => {
+    await sendAndStep(page, '8.8.8.8');
+    const card = page.locator('.rewrite');
+    await expect(card).toBeVisible();
+    await expect(card).toContainText('R1 rebuilds the frame');
+    await expect(card.locator('s')).toHaveText(['R1', 'H1', '64']);
+    // The packet view follows the latest frame: the one R1 built, in teal.
+    const packet = page.locator('.packet');
+    await expect(packet).toHaveAttribute('data-kind', 'data');
+    const r1Row = packet.locator('.hops tr', { hasText: 'R1 → next hop' });
+    await expect(r1Row.locator('td.changed')).toHaveCount(3);
+    await expect(r1Row).toContainText('63');
+    await expect(packet.locator('.hops tr', { hasText: 'SW1 → R1' }).last().locator('td.changed')).toHaveCount(0);
+    // N6: the wide hop table and the card scroll or fit inside their boxes, never the page.
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+  });
+
+  test('an unused address times out with the retry bubble', async ({ page }) => {
+    await page.goto('/learn/arp');
+    await page.getByLabel('Speed').selectOption('2');
+    await page.getByRole('button', { name: 'an unused address' }).click();
+    await expect(page.locator('.bubble')).toContainText('retries about 3 times', { timeout: 10_000 });
+  });
+
+  test('a bad address shows an error instead of sending', async ({ page }) => {
+    await page.goto('/learn/arp');
+    await page.getByLabel('To IP address').fill('192.0.2');
+    await page.getByRole('button', { name: 'Send', exact: true }).click();
+    await expect(page.locator('#arp-dest-error')).toContainText('Enter an IPv4 address');
+    await expect(page.getByLabel('To IP address')).toHaveAttribute('aria-invalid', 'true');
+  });
+
+  test('with reduced motion, frames jump instead of gliding (N4)', async ({ page }) => {
+    test.skip((page.viewportSize()?.width ?? 0) < 640, 'positions below are for the wide layout');
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/learn/arp');
+    await page.getByRole('button', { name: 'Pause' }).click();
+    await page.getByRole('button', { name: 'Send', exact: true }).click();
+    // At the start of its hop a gliding frame sits on H1 (x 110); a jumping one is already 15% along.
+    await expect(page.locator('.frame').first()).toHaveAttribute('transform', /^translate\(156\.5,/);
   });
 });

@@ -38,7 +38,7 @@ Each requirement has an ID that tasks, commits and tests can reference. Acceptan
 | R2 | About page | `/about` renders bio content from a Markdown file. |
 | R3 | Contact page | `/contact` says to make contact through LinkedIn and links to the LinkedIn profile. No form. |
 | R4 | Learn index | `/learn` lists every game and topic, grouped by category, each with title, one-line summary and tags. |
-| R5 | ARP simulator | `/learn/arp` meets every acceptance criterion in section 6. |
+| R5 | ARP simulator ("How IPv4 ARP works") | `/learn/arp` meets every acceptance criterion in section 6. |
 | R6 | Spark gallery | `/spark` shows images newest first; filter by category (`working-on`, `saw-this`, `mood`) and tag. |
 | R7 | Spark permalinks | Each image has `/spark/<slug>` with full image, caption, date, category, tags and alt text. |
 | R8 | Spark publishing by push | When the glue code places a valid image + sidecar in the clone and the publisher pushes it to `main`, then the image is live after the build finishes, with no manual step. |
@@ -66,7 +66,7 @@ A failed build deploys nothing, so the live site stays as it was until the next 
 | Framework | Astro, static output | No adapter needed in v1; pages ship zero JavaScript unless they hold a game (small inline exceptions: N2). |
 | Language | JavaScript (ES modules) with JSDoc type comments | Matches the owner's goal of learning JS; TypeScript can come later. |
 | Styling | Plain CSS with custom properties (design tokens) | Light and dark themes from one token set: each color token is `light-dark(light, dark)`, chosen by `color-scheme`. No CSS framework. |
-| Animation | GSAP | Free for commercial use, including all plugins. |
+| Animation | None (no library) | The ARP simulator draws each frame from the engine's simulated clock (section 6, View), so Pause, Step, Speed and freeze-to-inspect need no animation timeline. GSAP was planned and dropped in M5 (October 2026), saving about 25 KB gzipped on the game page; add it back here first if a later game needs it. |
 | Game rendering | Inline SVG | Clickable, crisp at any size, styled by the same tokens. |
 | Content | Astro content collections, Markdown + YAML frontmatter | Schemas validated at build time. |
 | Unit tests | Vitest | Required for game engines (pure logic). |
@@ -81,6 +81,13 @@ A failed build deploys nothing, so the live site stays as it was until the next 
 - Game logic lives in a DOM-free engine module; rendering subscribes to engine events. Never mix the two.
 - Comment non-obvious JavaScript with a one-line Python comparison where it helps ("like a Python dict").
 - No new runtime dependency without updating this table.
+- **Example addresses come from the documentation ranges, never real or private ones.**
+  - IPv4 uses RFC 5737 only: 192.0.2.0/24 (TEST-NET-1), 198.51.100.0/24 (TEST-NET-2) and 203.0.113.0/24 (TEST-NET-3).
+  - IPv6 uses RFC 3849 only: 2001:db8::/32.
+  - MAC addresses use RFC 7042 only: the documentation unicast range `00:00:5e:00:53:00`–`00:00:5e:00:53:ff`.
+  - This applies to games, decrypt packets, tests, docs and blog examples. The ARP simulator's LAN is 192.0.2.0/24.
+  - The `/learn` page has a section, "About the addresses in these games", with a table of these ranges, the RFC that reserves each one (linked) and what the site uses it for. Keep that table in step when a game starts using a new range.
+  - **One exception: 8.8.8.8.** It stands for "an address on the internet", because it is the address most network engineers recognize as one. Use it only in that role (the ARP simulator's off-subnet example), never as a stand-in for an ordinary host.
 
 ## 4. Repository structure and content model
 
@@ -117,7 +124,8 @@ indigowire_website/
 │   │       ├── engine.js      # DOM-free simulation
 │   │       ├── engine.test.js
 │   │       ├── frames.js      # frame building + hex encoding
-│   │       └── renderer.js    # SVG + GSAP view
+│   │       ├── renderer.js    # SVG view (DOM)
+│   │       └── controller.js  # clock loop, Send form and playback controls (DOM)
 │   ├── components/            # Header, Footer, TagList, SparkCard, SparkGrid, LearnList, BackHome, Decrypt
 │   ├── layouts/BaseLayout.astro
 │   ├── lib/content.js         # collection queries shared by routes (drafts filtered, sorting)
@@ -190,7 +198,7 @@ Every route is generated at build time; nothing renders on request.
 | `/speaking` | Talks, podcasts, workshops, courses, Tech Field Day | `speaking` collection | R16 |
 | `/contact` | "Contact me through LinkedIn" + link | Hard-coded component | R3 |
 | `/learn` | All games and topics by category | `learn` collection | R4 |
-| `/learn/arp` | ARP simulator | `learn/arp.md` + `src/games/arp/` | R5 |
+| `/learn/arp` | How IPv4 ARP works (the ARP simulator) | `learn/arp.md` + `src/games/arp/` | R5 |
 | `/learn/<slug>` | Other games and articles | `learn` collection; entries with a `component` get their own page (`src/pages/learn/<component>.astro`) and are skipped here | R4 |
 | `/spark` | Gallery, newest first, filters | `spark` collection | R6 |
 | `/spark/<slug>` | Image permalink | `spark` entry | R7 |
@@ -214,19 +222,23 @@ Every route is generated at build time; nothing renders on request.
 
 ## 6. Feature spec: ARP simulator
 
+The page is titled **"How IPv4 ARP works"** (title in `src/content/learn/arp.md`; the URL stays `/learn/arp`). ARP is IPv4's address resolution; IPv6 uses Neighbor Discovery instead, which a later game could cover.
+
 The visitor plays a host on a switched LAN: they send traffic, watch ARP resolve the address, and can freeze any frame to inspect its fields and bytes.
 
 ### Topology
 
-One switch (SW1) and four ports in use; an attacker appears only in Break-it mode. MACs are locally administered so they are obviously simulated.
+One switch (SW1) and four ports in use; an attacker appears only in Break-it mode. MACs come from the RFC 7042 documentation range (`00:00:5e:00:53:xx`), with the last byte echoing the host's IP for easy matching.
 
 | Node | Role | IP | MAC | Switch port |
 | --- | --- | --- | --- | --- |
-| H1 | Host (visitor's default) | 10.0.0.11/24 | 02:00:00:00:00:11 | Gi0/1 |
-| H2 | Host | 10.0.0.12/24 | 02:00:00:00:00:12 | Gi0/2 |
-| H3 | Host | 10.0.0.13/24 | 02:00:00:00:00:13 | Gi0/3 |
-| R1 | Default gateway | 10.0.0.1/24 | 02:00:00:00:00:01 | Gi0/4 |
-| M | Attacker (Break-it only) | 10.0.0.66/24 | 02:00:00:00:00:66 | Gi0/5 |
+| H1 | Host (visitor's default) | 192.0.2.11/24 | 00:00:5e:00:53:11 | Gi0/1 |
+| H2 | Host | 192.0.2.12/24 | 00:00:5e:00:53:12 | Gi0/2 |
+| H3 | Host | 192.0.2.13/24 | 00:00:5e:00:53:13 | Gi0/3 |
+| R1 | Default gateway | 192.0.2.1/24 | 00:00:5e:00:53:01 | Gi0/4 |
+| M | Attacker (Break-it only) | 192.0.2.66/24 | 00:00:5e:00:53:66 | Gi0/5 |
+
+**R1's upstream link.** R1's second interface is 198.51.100.1 (`00:00:5e:00:53:a1`). The next hop is 198.51.100.254 (`00:00:5e:00:53:fe`), and R1 already has it in its cache: the game does not simulate ARP on that link. Data frames carry an IP TTL of 64, and R1 lowers it by one.
 
 **Users and infrastructure.** H1, H2 and H3 are user devices (laptops and desktops, where applications run). SW1 and R1 are network infrastructure. The view draws the two groups differently (shape, icon and a labelled legend) so a visitor can tell at a glance which boxes are people's computers and which are the network. The visitor's own host (H1 by default) is marked "You". Beyond R1, an upstream link leads off the diagram to a "next hop" (toward the internet), used for off-subnet traffic.
 
@@ -247,9 +259,12 @@ Behavior (RFC 826 semantics):
 4. The requester caches the reply and sends its queued data frame.
    - **Data frames are not decoded.** A data frame is an envelope labelled with its application (for example "ICMP echo request (ping)"). The inspector shows its Ethernet header (destination, source, EtherType `0x0800`) and its IP source and destination, but not the payload, which is not the point of the game.
    - **Off-subnet.** The data frame's Ethernet destination is R1's MAC, but its IP destination is still the far address (for example 8.8.8.8). R1 receives it, removes the Ethernet header, looks up its route and forwards the packet out its upstream link toward the next hop (`frame:forward`). The log and a caption spell out that the MAC address changes at each hop while the IP address stays the same end to end.
-   - **No reply.** If nobody answers (for example 10.0.0.99), the request times out after 1 s of simulated time (`arp:timeout`). The view shows a speech bubble at the requester: "No reply. A real host typically retries about 3 times, a second apart, then reports the destination unreachable." The engine does not actually send the retries, so the visitor never waits. The queued data is dropped.
+   - **No reply.** If nobody answers (for example 192.0.2.99), the request times out after 1 s of simulated time (`arp:timeout`). The view shows a speech bubble at the requester: "No reply. A real host typically retries about 3 times, a second apart, then reports the destination unreachable." The engine does not actually send the retries, so the visitor never waits. The queued data is dropped.
 5. Cache and MAC-table entries expire after a TTL (default 60 s simulated, adjustable 10–300 s).
 6. The engine emits events (`frame:emit`, `frame:arrive`, `frame:drop`, `frame:forward`, `cache:update`, `cache:expire`, `mactable:update`, `mactable:expire`, `arp:timeout`, `ip:conflict`, `log`) that the renderer subscribes to.
+   - Every frame carries a `flow` number shared by everything one send causes (request, reply, data and R1's rebuilt frame), so the hop table can group them.
+   - `frame:emit` from SW1 says `how` (`flood` or `forward`).
+   - `frame:forward` carries R1's rebuilt frame as `out` (with `parent`), which then travels to the next hop like any other frame.
 
 **Time and the API (built in M4).**
 
@@ -275,13 +290,24 @@ Every frame can be encoded to bytes for the inspector: Ethernet header (14 bytes
 | --- | --- | --- |
 | Learn | Guided steps with a caption per step; Next/Back | The request/reply exchange, step by step |
 | Sandbox | Pick any source host, type any IP, press Send | Cache hits vs. misses, gateway resolution, aging |
-| Gratuitous ARP | Make a host announce itself (sender IP = target IP, broadcast), as hosts do after getting an address from DHCP or coming up. A button, "Meanwhile, on another host…", plays a scenario: someone on H3 mistypes a static IP as 10.0.0.12 and H3 announces it. H2 sees its own address claimed and reports a duplicate IP (`ip:conflict`), and the other hosts' caches flip to H3's MAC | Cache refresh on other hosts; duplicate IP detection when two hosts claim one IP |
-| Break it | Enable attacker M, which sends unsolicited replies claiming 10.0.0.1 | Cache poisoning: victims' traffic to the gateway goes to M; a note names the defense (Dynamic ARP Inspection) |
+| Gratuitous ARP | Make a host announce itself (sender IP = target IP, broadcast), as hosts do after getting an address from DHCP or coming up. A button, "Meanwhile, on another host…", plays a scenario: someone on H3 mistypes a static IP as 192.0.2.12 and H3 announces it. H2 sees its own address claimed and reports a duplicate IP (`ip:conflict`), and the other hosts' caches flip to H3's MAC | Cache refresh on other hosts; duplicate IP detection when two hosts claim one IP |
+| Break it | Enable attacker M, which sends unsolicited replies claiming 192.0.2.1 | Cache poisoning: victims' traffic to the gateway goes to M; a note names the defense (Dynamic ARP Inspection) |
 
 ### View (`renderer.js`)
 
-- SVG topology with labelled nodes and links; frames are small envelopes that travel along links via a GSAP timeline.
+- SVG topology with labelled nodes and links; frames are small envelopes that travel along links. Each frame's position is computed every animation frame from the engine clock, `(clock − at) / (arrivesAt − at)` along its hop, so the picture can never drift from the simulation (no animation library).
 - Broadcasts visibly fan out from the switch; dropped frames fade at the host with a short "not for me" label.
+- **Colour by frame kind**, one token each (`--color-arp-request` purple, `--color-arp-reply` copper-red, `--color-ip-data` teal, `--color-eth` slate for Ethernet headers). The moving envelope, its packet view, its hop-table rows and the legend all use the same colour. Decided October 2026, after the ipcisco.com ARP lesson's diagrams.
+- **Packet view** (`packet-view.js`), under the diagram. It shows the latest frame, or the one the visitor selects (which pins it and pauses).
+  - **Frame strip:** Destination MAC, Source MAC and Type, then ARP (28 B) or IPv4 header (20 B) plus the payload, then Padding and FCS. Blocks are sized by byte count and tinted by layer.
+  - **The inner header in 32-bit rows**, with a 0–31 bit ruler, the way RFCs draw it. For data frames, IPv4 fields the game doesn't model are shown greyed ("·").
+  - **Field tree and hex dump**, folded under "Bytes". Hovering or focusing a field highlights it in the strip, the rows and the bytes.
+  - Layouts come from `breakdown()` in `frames.js`, which is tested.
+- **Hop by hop** (`hops.js`, tested): a table of every hop in the selected frame's exchange, with Eth dst, Eth src, IP src → dst, TTL and what the device did.
+  - A flood is one row listing every port it went out of.
+  - The switch rows say "unchanged".
+  - R1's row highlights exactly what it rewrote: both MACs and the TTL.
+- **R1's before/after card:** when R1 forwards a packet, a card beside it shows the old Ethernet addresses and TTL struck through, the new ones fading in, and the IP addresses unchanged. It is timed on the simulation clock (3 hops), so Pause and Step hold it. It sits above R1 on wide screens and to its right on phones, kept inside the diagram.
 - Side panels: each host's ARP cache and the switch MAC table, updating live, with a countdown bar per entry.
 - Event log beneath, also announced through an `aria-live` region.
 - **Frame inspector:** clicking a moving frame pauses the timeline and opens a Wireshark-style decode (field tree) beside a hex dump; hovering a field highlights its bytes and vice versa.
@@ -289,19 +315,22 @@ Every frame can be encoded to bytes for the inspector: Ethernet header (14 bytes
 
 ### Acceptance criteria
 
-- [ ] Sending from H1 to 10.0.0.12 with an empty cache shows a broadcast request reaching H2, H3 and R1, drops at H3 and R1, a unicast reply to H1, then the data frame.
-- [ ] Sending again before the TTL expires skips ARP entirely.
-- [ ] Every send logs why ARP is needed (the app knows the IP; Ethernet needs the MAC) before any ARP frame.
-- [ ] Sending to 10.0.0.99 (unused) shows a request with no reply, an `arp:timeout` after 1 s simulated, and the "retries about 3 times" bubble and log line, without simulating the retries.
-- [ ] Sending to an off-subnet IP (e.g. 8.8.8.8) resolves R1's MAC, not the destination's; the data frame is addressed to R1's MAC with IP destination 8.8.8.8, and R1 forwards it toward the next hop.
-- [ ] "Meanwhile, on another host…" makes H3 claim 10.0.0.12: H2 reports a duplicate IP and the other hosts' caches map 10.0.0.12 to H3's MAC.
-- [ ] The switch MAC table learns H1 on Gi0/1 after the first frame.
-- [ ] The inspector's hex dump for a request is exactly 60 bytes and matches the decoded fields.
-- [ ] Break-it mode shows H1's cache entry for 10.0.0.1 changing to M's MAC.
-- [ ] Everything works by keyboard; with `prefers-reduced-motion`, frames jump between nodes instead of gliding.
-- [ ] Engine unit tests cover every bullet above without a browser.
-- [ ] Usable at 360 px wide (panels stack under the topology).
-- [ ] User devices and infrastructure look different and a legend names both; the visitor's host is marked "You".
+- [x] Sending from H1 to 192.0.2.12 with an empty cache shows a broadcast request reaching H2, H3 and R1, drops at H3 and R1, a unicast reply to H1, then the data frame.
+- [x] Sending again before the TTL expires skips ARP entirely.
+- [x] Every send logs why ARP is needed (the app knows the IP; Ethernet needs the MAC) before any ARP frame.
+- [x] Sending to 192.0.2.99 (unused) shows a request with no reply, an `arp:timeout` after 1 s simulated, and the "retries about 3 times" bubble and log line, without simulating the retries.
+- [x] Sending to an off-subnet IP (e.g. 8.8.8.8) resolves R1's MAC, not the destination's; the data frame is addressed to R1's MAC with IP destination 8.8.8.8, and R1 forwards it toward the next hop.
+- [ ] "Meanwhile, on another host…" makes H3 claim 192.0.2.12: H2 reports a duplicate IP and the other hosts' caches map 192.0.2.12 to H3's MAC.
+- [x] The switch MAC table learns H1 on Gi0/1 after the first frame.
+- [x] The inspector's hex dump for a request is exactly 60 bytes and matches the decoded fields.
+- [ ] Break-it mode shows H1's cache entry for 192.0.2.1 changing to M's MAC.
+- [x] Everything works by keyboard; with `prefers-reduced-motion`, frames jump between nodes instead of gliding.
+- [x] Engine unit tests cover every bullet above without a browser.
+- [x] Usable at 360 px wide (panels stack under the topology).
+- [x] User devices and infrastructure look different and a legend names both; the visitor's host is marked "You".
+- [x] Frames are coloured by kind (ARP request, ARP reply, IP data) on the diagram, in the packet view, in the hop table and in the legend.
+- [x] The packet view shows the frame strip, the inner header in 32-bit rows, and 60 linked bytes for an ARP frame.
+- [x] For 8.8.8.8, the hop table shows SW1 forwarding unchanged and R1 rewriting both MACs and TTL 64 → 63, and R1's card shows the same change.
 
 ## 7. Feature spec: Spark image pipeline
 
@@ -685,10 +714,15 @@ Seven milestones, each ending in a deployed, working site; hand Claude Code one 
 
 ### M5: ARP view, Sandbox mode
 
-- [ ] SVG topology, frame animation, cache and MAC-table panels, event log
-- [ ] Frame inspector with linked hex dump
-- [ ] Controls, keyboard support, reduced-motion behavior (N4)
-- [ ] Feature it on Home (R11)
+- [x] SVG topology, frame animation, cache and MAC-table panels, event log (`renderer.js`, `controller.js`; a wide layout and a portrait layout below 40rem)
+- [x] Frame inspector with linked hex dump. It opens from a moving frame or the log's Inspect buttons and pauses the simulation. Data frames show their Ethernet header and IP addresses only
+- [x] Controls, keyboard support, reduced-motion behavior (N4). Done:
+  - Controls: Send form (From, To IP, Application, quick buttons), Play/Pause, Step (to the next engine event), Speed, Cache TTL and Reset.
+  - Keyboard: frames are focusable buttons.
+  - Reduced motion: frames sit 15% and 85% along each hop instead of gliding.
+  - The mode switcher arrives with the other modes in M6.
+  - Lighthouse on `/learn/arp`: 100 in every category. The game script is 7.7 KB gzipped.
+- [x] Feature it on Home (R11): under "How networking works", from `featured: true` in `learn/arp.md`
 - [ ] Fire `arp_send`, `arp_mode_change`, `arp_inspector_open` and `arp_learn_complete`; build a PostHog dashboard for game use (R15)
 
 ### M6: ARP modes and polish
@@ -732,7 +766,6 @@ None. The spec is ready to export to `docs/SPEC.md` and start M0.
 - [Transfer your domain to Cloudflare](https://developers.cloudflare.com/registrar/domain-transfers/transfer-to-cloudflare)
 - [Troubleshoot failed domain transfers](https://developers.cloudflare.com/registrar/troubleshooting)
 - [Cloudflare Pages vs Workers in 2026 (Morph)](https://www.morphllm.com/comparisons/cloudflare-pages-vs-workers)
-- [GSAP standard license](https://gsap.com/community/standard-license/)
 - [indigowire.net: Stack Recommendations](https://claude.ai/artifact/MC1QB2YdmMrmwxdbFYAXzB) (earlier doc)
 - [Cloudflare Web Analytics: Core Web Vitals](https://developers.cloudflare.com/web-analytics/data-metrics/core-web-vitals/)
 - [PostHog pricing](https://posthog.com/pricing)

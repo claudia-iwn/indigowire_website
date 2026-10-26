@@ -1,5 +1,5 @@
 ---
-/** Learn index: every game and topic grouped by category (R4). */
+/** Learn index: every game and topic grouped by category (R4), then the documentation address ranges the games use (spec section 3). */
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import LearnList from '../../components/LearnList.astro';
 import BackHome from '../../components/BackHome.astro';
@@ -7,6 +7,50 @@ import { LEARN_CATEGORIES } from '../../content.config.js';
 import { getLearn } from '../../lib/content.js';
 
 const entries = await getLearn();
+
+/** The documentation ranges used by the games and examples (spec section 3, "Example addresses"). */
+const RANGES = [
+  {
+    family: 'IPv4',
+    range: '192.0.2.0/24',
+    name: 'TEST-NET-1',
+    rfc: 'RFC 5737',
+    url: 'https://www.rfc-editor.org/rfc/rfc5737',
+    use: 'The ARP game’s LAN: hosts H1 to H3 at .11 to .13, router R1 at .1',
+  },
+  {
+    family: 'IPv4',
+    range: '198.51.100.0/24',
+    name: 'TEST-NET-2',
+    rfc: 'RFC 5737',
+    url: 'https://www.rfc-editor.org/rfc/rfc5737',
+    use: 'R1’s upstream link (.1) and the next-hop router (.254)',
+  },
+  {
+    family: 'IPv4',
+    range: '203.0.113.0/24',
+    name: 'TEST-NET-3',
+    rfc: 'RFC 5737',
+    url: 'https://www.rfc-editor.org/rfc/rfc5737',
+    use: 'Held for future games',
+  },
+  {
+    family: 'IPv6',
+    range: '2001:db8::/32',
+    name: 'Documentation prefix',
+    rfc: 'RFC 3849',
+    url: 'https://www.rfc-editor.org/rfc/rfc3849',
+    use: 'IPv6 examples, such as the packets that decrypt on the Home and About pages',
+  },
+  {
+    family: 'MAC',
+    range: '00:00:5e:00:53:00 to 00:00:5e:00:53:ff',
+    name: 'Documentation unicast',
+    rfc: 'RFC 7042, section 2.1.2',
+    url: 'https://www.rfc-editor.org/rfc/rfc7042#section-2.1.2',
+    use: 'Every simulated MAC address. The last byte echoes the host’s IP, so H1 (192.0.2.11) is 00:00:5e:00:53:11',
+  },
+];
 // Group by category, keeping the schema's category order. Like itertools.groupby over a fixed key list.
 const groups = LEARN_CATEGORIES.map((category) => ({
   category,
@@ -23,5 +67,78 @@ const groups = LEARN_CATEGORIES.map((category) => ({
       <LearnList entries={group.entries} />
     </section>
   ))}
+
+  <section class="addresses" aria-labelledby="addresses-title">
+    <h2 id="addresses-title">About the addresses in these games</h2>
+    <p>
+      Every address in the games and examples on this site comes from a range reserved for documentation. These ranges
+      are never assigned to real networks, so nothing you copy from here can clash with a live address.
+    </p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Type</th>
+            <th scope="col">Range</th>
+            <th scope="col">Reserved by</th>
+            <th scope="col">Used here for</th>
+          </tr>
+        </thead>
+        <tbody>
+          {RANGES.map((r) => (
+            <tr>
+              <td>{r.family}</td>
+              <td>
+                <code>{r.range}</code>
+                <span class="muted"> ({r.name})</span>
+              </td>
+              <td>
+                <a href={r.url} target="_blank" rel="noopener">
+                  {r.rfc}
+                </a>
+              </td>
+              <td>{r.use}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+    <p>
+      <strong>One exception:</strong> <code>8.8.8.8</code> stands for “somewhere on the internet”, because almost every
+      network engineer recognizes it (it is Google Public DNS). The ARP game uses it only in that role, as the
+      destination that has to go through the router.
+    </p>
+  </section>
   <BackHome />
 </BaseLayout>
+
+<style>
+  .addresses {
+    margin-top: var(--space-5);
+  }
+  .table-wrap {
+    overflow-x: auto;
+  }
+  table {
+    width: 100%;
+    min-width: 36rem;
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+  }
+  th,
+  td {
+    text-align: left;
+    vertical-align: top;
+    padding: var(--space-2) var(--space-3) var(--space-2) 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+  th {
+    color: var(--color-text-muted);
+  }
+  code {
+    white-space: nowrap;
+  }
+  .muted {
+    color: var(--color-text-muted);
+  }
+</style>
