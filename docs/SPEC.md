@@ -49,7 +49,7 @@ Each requirement has an ID that tasks, commits and tests can reference. Acceptan
 | R13 | Auto deploy | When a commit lands on `main`, then Workers Builds builds and deploys it; other branches get preview deploys. |
 | R14 | Custom 404 | Unknown routes return the site's 404 page with HTTP status 404. |
 | R15 | Analytics | When a page loads, then Cloudflare Web Analytics records it; when a visitor does any action in the section 9 event table, then PostHog records that event with its properties; no cookies are set. |
-| R16 | Speaking page | `/speaking` lists talks, keynotes, podcasts, workshops, courses and Tech Field Day appearances from `src/content/speaking.yaml`, upcoming first, then past by type, newest first. Links only, no embedded players. |
+| R16 | Speaking page | `/speaking`, titled "Workshops, Talks & Takes" (the nav label stays "Speaking"), lists talks, keynotes, podcasts, workshops, courses and Tech Field Day appearances from `src/content/speaking.yaml`, upcoming first, then past by type, newest first. Links only, no embedded players. |
 
 ## 3. Architecture
 
@@ -118,7 +118,7 @@ indigowire_website/
 │   │       ├── engine.test.js
 │   │       ├── frames.js      # frame building + hex encoding
 │   │       └── renderer.js    # SVG + GSAP view
-│   ├── components/            # Header, Footer, TagList, SparkCard, SparkGrid, LearnList, BackHome
+│   ├── components/            # Header, Footer, TagList, SparkCard, SparkGrid, LearnList, BackHome, Decrypt
 │   ├── layouts/BaseLayout.astro
 │   ├── lib/content.js         # collection queries shared by routes (drafts filtered, sorting)
 │   ├── pages/                 # routes (section 5)
@@ -435,9 +435,9 @@ The site should be fast, accessible and private by default, with targets Claude 
 | ID | Area | Target | How it is checked |
 | --- | --- | --- | --- |
 | N1 | Performance | Lighthouse Performance ≥ 95 on Home, `/spark` and `/learn/arp` (mobile) | `npm run lighthouse` (`scripts/lighthouse.mjs`) before each milestone closes; exits non-zero if N1 or N3 is missed |
-| N2 | JavaScript budget | 0 KB of loaded scripts on content pages. Allowed inline exceptions: the theme scripts on every page (N5; about 1.5 KB raw, under 1 KB gzipped) and the locale-date script on Spark permalinks (section 7; UTC text is the no-JS fallback). ≤ 150 KB gzipped on a game page | Build output size check |
+| N2 | JavaScript budget | 0 KB of loaded scripts on content pages. Allowed inline exceptions: the theme and text-effects scripts on every page (N5; about 2.9 KB raw, about 1 KB gzipped) and the locale-date script on Spark permalinks (section 7; UTC text is the no-JS fallback), and, as the one non-inline exception, the decorative "decrypt" script shared by Home, About and Speaking (`src/components/Decrypt.astro`; one cached file, about 2.5 KB gzipped, skipped with reduced motion or the header switch, no layout shift; section 9). ≤ 150 KB gzipped on a game page | Build output size check |
 | N3 | Accessibility | WCAG 2.2 AA; Lighthouse Accessibility = 100 | Lighthouse + keyboard walk-through |
-| N4 | Motion | All animation respects `prefers-reduced-motion` | Manual check with the OS setting on |
+| N4 | Motion | All animation respects `prefers-reduced-motion`; decorative text effects also have an on-site off switch (header) | Manual check with the OS setting on |
 | N5 | Theming | Light and dark themes from `prefers-color-scheme`, plus a manual toggle in the header. A manual choice is stored in `localStorage` and applied by an inline `<head>` script before first paint; choosing the OS theme again clears it. Without JavaScript the toggle is hidden and the OS setting applies | Visual check in both themes; toggle, persistence and no-JS checked in headless Chrome |
 | N6 | Responsive | Works from 360 px to 1920 px with no horizontal scroll | Playwright at 360 and 1280 widths (`tests/smoke.spec.js`, every route) |
 | N7 | Privacy | No cookies or browser storage for tracking; the only third-party scripts are Cloudflare Web Analytics and PostHog in cookieless mode | Network tab shows only the site's origin, Cloudflare Web Analytics and PostHog; Application tab shows no cookies |
@@ -458,11 +458,50 @@ The site uses the existing Indigo Wire Networks logo (2018): a circular wire mar
 
 **Logo assets** are tracked in `src/assets/brand/`: `.ai`, `.eps`, `.pdf` (vector masters) and `.png`, `.jpg` exports. (The original `images/logos/logo-archive/` folder on the owner's computer is gitignored.) For the web:
 
-- Convert the PDF master to an SVG for the header (`public/logo.svg`), plus a light version for the dark theme. Done with `pdftocairo -svg` (poppler), cropped to the artwork. `public/logo-dark.svg` recolors navy to `#FFFFFF` and indigo to `#B8C4FF`, keeping the copper gradient; the header switches between them with `<picture>` and `prefers-color-scheme`.
+- Convert the PDF master to an SVG for the header (`public/logo.svg`), plus a light version for the dark theme. Done with `pdftocairo -svg` (poppler), cropped to the artwork. `public/logo-dark.svg` recolors navy to `#FFFFFF` and indigo to `#B8C4FF`, keeping the copper gradient; the header shows the one matching the theme with the `.theme-light-only` / `.theme-dark-only` classes (both lazy-loaded, so the hidden one is not downloaded), which follow the manual toggle as well as the OS setting.
 - Make a favicon and app icon from the circular mark alone. Done: `favicon.svg` holds only the mark's 60 dots and switches to the dark-logo colors under `prefers-color-scheme: dark`; `favicon.ico` (16/32/48) puts the mark on a white rounded tile so it shows on dark tab bars; `apple-touch-icon.png` (180) and `icon-192.png`/`icon-512.png` (in `site.webmanifest`) are on white. Rasters are rendered from the PDF master with `pdftocairo`.
 - Check contrast: navy and indigo on white pass WCAG AA for text; copper is for accents and large text only, unless a contrast check shows it passes.
 
 The tone stays technical and playful rather than corporate, with network-diagram motifs and copper "wire" lines as the recurring decoration.
+
+### Decrypt effects
+
+Decorative "decryption" of headings and text, in `src/components/Decrypt.astro`. A page opts in by rendering `<Decrypt />` and marking elements with data attributes:
+
+| Attribute | On | Effect |
+| --- | --- | --- |
+| `data-decrypt="hex"` | A plain-text element | Each character starts as random hex (matching letter case) and resolves left to right when the element scrolls into view |
+| `data-decrypt="mac"` | A plain-text element | The same, but the noise is a MAC address (`3f:a2:9c:…`) |
+| `data-decrypt-ms="900"` | With `data-decrypt` | Duration for this element, overriding the default |
+| `data-decrypt-hover` | With `data-decrypt` | Replays the effect on hover |
+| `data-decrypt-links="hex"` | A container | Every plain link inside decrypts and replays on hover (for links written in Markdown, which can't carry attributes) |
+| `data-decrypt-packets` | A container | Each child `<p>` starts as a hex dump of a packet carrying its own text, then decrypts (below) |
+
+**Where it is used:**
+
+- **Home:** the title is hex (900 ms, replays on hover). "Featured game" and "Elsewhere" are MAC addresses, and "Latest from the Spark" is hex. The "More about me" link is hex and replays on hover.
+- **About:** the title is hex (900 ms, replays on hover). Each paragraph starts as a Wireshark-style hex dump with a tcpdump-style summary line. The packet types rotate through IPv4/TCP, IPv6/UDP and ICMP echo request. The packets use documentation addresses (192.0.2.10, 198.51.100.7, 2001:db8::) and correct IPv4 and ICMP checksums, and each payload is the paragraph's own text, so the ASCII column shows it. One paragraph at a time, top to bottom, the dump turns into the paragraph in hex noise, which resolves left to right like the headings. Then there is a pause before the next paragraph.
+- **Speaking:** the title "Workshops, Talks & Takes" is hex (900 ms, replays on hover).
+
+**Tuning the timing.** All times are in milliseconds. Edit, then reload `npm run dev`; no other file needs to change.
+
+| What | Where | Now |
+| --- | --- | --- |
+| Page titles (Home, About, Speaking) | `data-decrypt-ms` on each `<h1>` in `src/pages/index.astro`, `about.astro`, `speaking.astro` | 900 |
+| Headings and links without `data-decrypt-ms` | `DEFAULT_MS` at the top of the script in `Decrypt.astro` | 650 |
+| Hover replay | `HOVER_MS` in `Decrypt.astro` | 600 |
+| Each About paragraph's decrypt | `PARAGRAPH_MS` in `Decrypt.astro` | 1800 |
+| Gap before the next About paragraph starts | `PAUSE_MS` in `Decrypt.astro` | 1000 |
+
+To give one heading its own speed, add `data-decrypt-ms` to it. If you change these values, update the "Now" column.
+
+**Rules:**
+
+- **No layout shift and no change for assistive technology.** The real text never changes. The effect is drawn in an `aria-hidden` overlay on top, with the real text made transparent (headings and links) or covered (paragraphs), so screen readers always read the real text.
+- **Turning it off.** It is skipped with `prefers-reduced-motion` and without JavaScript. Visitors can also turn it off with the `>_` switch beside the theme toggle (`#effects-toggle`, `aria-pressed`). Turning it off stores `effects=off` in `localStorage`, which the `<head>` script applies as `data-effects="off"` on `<html>` before first paint. Turning it off mid-animation uncovers the page at once. Turning it back on clears the stored choice and replays the effects. The switch is hidden when the OS already reduces motion.
+- **Only plain text.** Headings and links that contain other elements are left alone. A link that wraps onto two lines is skipped.
+- **Budget.** The script is one shared, cached file (about 5.3 KB, 2.5 KB gzipped), loaded only on pages that render `<Decrypt />` (N2).
+- **Tests.** `tests/smoke.spec.js` ("decrypt effects") checks that About's paragraphs decrypt and are left unchanged (using Playwright's fake clock), that the switch works and is remembered, and that nothing animates with reduced motion.
 
 ### Analytics
 
@@ -560,7 +599,8 @@ Seven milestones, each ending in a deployed, working site; hand Claude Code one 
 | Repo and Worker names | Repo `claudia-iwn/indigowire_website`; Worker `indigowire-website`, because Worker names cannot contain underscores (section 8) |
 | Local-only files | `main.py`, the Spark ops addendum, the root copy of this spec and `images/` are gitignored; `docs/SPEC.md` is canonical |
 | Spark date format | ISO 8601 with offset or `Z`, `T` separator; checked on the raw text by both the validator and the build (section 4) |
-| Inline scripts on content pages | Allowed only for the theme toggle (N5) and locale dates on permalinks, each under 1 KB gzipped (N2) |
+| Inline scripts on content pages | Allowed only for the theme toggle (N5) and locale dates on permalinks, each under 1 KB gzipped, plus the decrypt script on Home, About and Speaking (one shared file, about 2.5 KB gzipped; N2) |
+| Decrypt effects | Hex and MAC-address "decryption" of titles and headings on Home, About and Speaking; About paragraphs start as packet hex dumps and decrypt one at a time. Off with reduced motion or the `>_` header switch. Behavior and how to tune the timing: section 9, "Decrypt effects" |
 | Theme toggle | Two-state button (light/dark); picking the OS theme clears the stored choice so the site follows the OS again. Theme-specific images use `.theme-light-only` / `.theme-dark-only`, lazy-loaded so the hidden one is not downloaded |
 
 ### Still open

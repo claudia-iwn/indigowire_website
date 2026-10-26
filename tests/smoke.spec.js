@@ -111,3 +111,62 @@ test.describe('theme toggle (N5)', () => {
     await expect(page.locator('.brand img.theme-dark-only')).toBeVisible();
   });
 });
+
+test.describe('decrypt effects (N4)', () => {
+  test('About paragraphs decode and leave the page as it was', async ({ page }) => {
+    const paragraphs = page.locator('main [data-decrypt-packets] > p');
+    // The real text, read with the effect off.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/about');
+    const text = await paragraphs.allTextContents();
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    // Paragraphs decrypt one after another (several seconds in all), so fake the clock.
+    await page.clock.install();
+    await page.goto('/about');
+    await expect(page.locator('[data-decrypt-overlay]').first()).toBeAttached();
+    // Scroll each paragraph into view, then fast-forward past its reading time.
+    for (const p of await paragraphs.all()) {
+      await p.scrollIntoViewIfNeeded();
+      await page.clock.runFor(30_000);
+    }
+    // The last paragraph may report itself visible late, under load.
+    await page.waitForTimeout(200);
+    await page.clock.runFor(30_000);
+    await expect(page.locator('[data-decrypt-overlay]')).toHaveCount(0);
+    expect(await paragraphs.allTextContents()).toEqual(text);
+  });
+
+  test('the header switch turns effects off and remembers it', async ({ page }) => {
+    await page.goto('/about');
+    const toggle = page.locator('#effects-toggle');
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('[data-decrypt-overlay]').first()).toBeAttached();
+
+    // Off: every covered paragraph is uncovered at once.
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator('[data-decrypt-overlay]')).toHaveCount(0);
+
+    // Remembered on the next page, with nothing animating.
+    await page.goto('/');
+    await expect(page.locator('html')).toHaveAttribute('data-effects', 'off');
+    await page.waitForTimeout(100);
+    await expect(page.locator('[data-decrypt-overlay]')).toHaveCount(0);
+
+    // On again: the choice is forgotten.
+    await page.locator('#effects-toggle').click();
+    await expect(page.locator('html')).not.toHaveAttribute('data-effects', /.*/);
+    expect(await page.evaluate(() => localStorage.getItem('effects'))).toBeNull();
+  });
+
+  test('nothing animates with prefers-reduced-motion', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/');
+    await expect(page.locator('#effects-toggle')).toBeHidden();
+    for (const route of ['/', '/about']) {
+      await page.goto(route);
+      await page.waitForTimeout(100);
+      await expect(page.locator('[data-decrypt-overlay]')).toHaveCount(0);
+    }
+  });
+});

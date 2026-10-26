@@ -3,6 +3,7 @@
 import { getEntry, render } from 'astro:content';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import BackHome from '../components/BackHome.astro';
+import Decrypt from '../components/Decrypt.astro';
 
 const about = await getEntry('pages', 'about');
 if (!about) throw new Error('src/content/pages/about.md is missing');
@@ -10,7 +11,12 @@ const { Content } = await render(about);
 ---
 
 <BaseLayout title={about.data.title} description={about.data.description}>
-  <h1>{about.data.title}</h1>
-  <Content />
+  <h1 data-decrypt="hex" data-decrypt-ms="900" data-decrypt-hover>
+    {about.data.title}
+  </h1>
+  <div data-decrypt-packets>
+    <Content />
+  </div>
   <BackHome />
+  <Decrypt />
 </BaseLayout>

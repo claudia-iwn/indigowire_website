@@ -30,7 +30,7 @@ M0 skeleton: every route renders from the collections, but the ARP engine, frame
 
 ## Stack and conventions
 
-- **Astro, static output.** No adapter, no server code in v1. Content pages ship zero JavaScript; only game pages load scripts.
+- **Astro, static output.** No adapter, no server code in v1. Content pages ship zero JavaScript apart from the exceptions listed in spec N2 (theme and effects toggles, permalink dates, the decrypt effect); game pages load their own scripts.
 - **JavaScript with JSDoc type comments**, not TypeScript, for every file you write.
 - **Plain CSS** with custom properties from `src/styles/tokens.css`. No CSS frameworks. Never hard-code a color; use a token. Color tokens are `light-dark(light, dark)`, so one token covers both themes; the manual toggle sets `data-theme` on `<html>`. For theme-specific images use the `.theme-light-only` / `.theme-dark-only` classes (with `loading="lazy"`), never a `prefers-color-scheme` media query, which ignores the toggle.
 - **Python only through uv.** Use `uv add` / `uv add --dev` and `uv run`. Never use pip, `python -m venv`, or a bare `python`.
@@ -43,6 +43,7 @@ M0 skeleton: every route renders from the collections, but the ARP engine, frame
 - **Content:** everything is files under `src/content/`, validated by the schemas in `src/content.config.js`. A bad file must fail the build, not publish.
 - **Tags:** only values listed in `src/content/tags.yaml` (lowercase kebab-case).
 - **External links:** defined once in `src/site.config.js`. Never hard-code profile URLs in components.
+- **Decrypt effects:** `src/components/Decrypt.astro`, opted into with `data-decrypt*` attributes. The timings are the constants at the top of its script (`DEFAULT_MS`, `HOVER_MS`, `PARAGRAPH_MS`, `PAUSE_MS`) plus `data-decrypt-ms` on each page title. The attributes, tuning table and rules are in spec section 9, "Decrypt effects"; keep that table in step when timings change. Every effect must keep the real text in place (no layout shift) and respect both `prefers-reduced-motion` and the header `>_` switch (`data-effects="off"` on `<html>`).
 - **Spark images:** the Hermes glue code writes `<name>.webp` + `<name>.md` pairs into `src/content/spark/YYYY/MM/`; `scripts/spark_publisher.py` commits and pushes them (spec section 7). The publisher adds only validated pairs by explicit path, never with `git add -A`.
 
 ## Quality bars (spec section 9)

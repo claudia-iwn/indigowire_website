@@ -1,0 +1,347 @@
+---
+/**
+ * "Decrypt" effects, opted into with data attributes:
+ *  - data-decrypt="hex" | "mac" on a plain-text element: each character starts as
+ *    random hex (or a MAC address, 02:00:5e:…) and resolves left to right when the
+ *    element scrolls into view. data-decrypt-ms sets the duration (default DEFAULT_MS);
+ *    data-decrypt-hover replays it on hover.
+ *  - data-decrypt-links="hex" on a container: the same for each plain link inside it
+ *    (for links written in Markdown, which can't carry attributes).
+ *  - data-decrypt-packets on a container: each child <p> is covered by a hex dump of
+ *    a packet (IPv4/TCP, IPv6/UDP, ICMP echo, in turn) whose payload is the
+ *    paragraph's own text, then decrypted like the headings (hex resolving left to
+ *    right), one paragraph at a time with a short pause between, when scrolled into view.
+ * Decorative only: the real text never moves (no layout shift) and screen readers
+ * keep reading it, while aria-hidden overlays show the effect. Everything is skipped
+ * with prefers-reduced-motion or without JavaScript.
+ * Usage: add <Decrypt /> to a page. Timings are the constants at the top of the script.
+ */
+---
+
+<script>
+  const HEX = '0123456789abcdef';
+  const rand = () => HEX[Math.floor(Math.random() * 16)];
+
+  /** @type {Record<string, (ch: string, i: number) => string>} */
+  const NOISE = {
+    // Hex matching the letter's case, so widths stay close.
+    hex: (ch) => (ch === ch.toLowerCase() ? rand() : rand().toUpperCase()),
+    // A MAC address: two hex digits, then a colon.
+    mac: (_ch, i) => (i % 3 === 2 ? ':' : rand()),
+  };
+
+  /** True when the header toggle has turned text effects off (see Header.astro). */
+  const effectsOff = () => document.documentElement.dataset.effects === 'off';
+
+  // ---- Timing (milliseconds). Tune here; see docs/SPEC.md, "Decrypt effects". ----
+  // Headings and links without data-decrypt-ms (titles set data-decrypt-ms="900" in the page).
+  const DEFAULT_MS = 650;
+  // Replay when the pointer moves over an element with data-decrypt-hover.
+  const HOVER_MS = 600;
+  // About paragraphs: each decrypts in PARAGRAPH_MS, then the next starts PAUSE_MS later.
+  const PARAGRAPH_MS = 1800;
+  const PAUSE_MS = 1000;
+
+  /**
+   * Make an element a positioned host for an overlay; returns a function that undoes it.
+   * @param {HTMLElement} el
+   * @param {boolean} hideText make the real text transparent (it still holds its place)
+   */
+  function host(el, hideText) {
+    const saved = { position: el.style.position, color: el.style.color };
+    if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
+    if (hideText) el.style.color = 'transparent';
+    return () => {
+      el.style.position = saved.position;
+      el.style.color = saved.color;
+    };
+  }
+
+  /**
+   * Scramble an element's text and resolve it left to right over `duration` ms.
+   * @param {HTMLElement} el
+   * @param {string} kind a key of NOISE
+   * @param {number} duration
+   */
+  function decrypt(el, kind, duration) {
+    if (el.dataset.decrypting || effectsOff()) return;
+    const text = el.textContent ?? '';
+    // An inline element that wraps onto two lines has no single box to overlay.
+    if (!text.trim() || el.getClientRects().length > 1) return;
+    el.dataset.decrypting = '1';
+    const noise = NOISE[kind] ?? NOISE.hex;
+
+    const overlay = document.createElement('span');
+    overlay.setAttribute('aria-hidden', 'true');
+    overlay.dataset.decryptOverlay = '';
+    // A block (heading) wraps like the real text. An inline link stays on one line, with
+    // line height = its box height so the overlay sits exactly on the real text.
+    const inline = getComputedStyle(el).display === 'inline';
+    const layout = inline
+      ? `white-space:nowrap;line-height:${el.getBoundingClientRect().height}px`
+      : 'overflow-wrap:anywhere';
+    overlay.style.cssText = `position:absolute;inset:0;overflow:hidden;pointer-events:none;${layout};color:${getComputedStyle(el).color}`;
+    const restore = host(el, true);
+    el.append(overlay);
+
+    const start = performance.now();
+    /** @param {number} now */
+    function frame(now) {
+      const done = effectsOff() ? 1 : Math.min(1, Math.max(0, (now - start) / duration));
+      const revealed = Math.floor(done * text.length);
+      let out = '';
+      for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        const keep = i < revealed || (kind === 'hex' && /\s/.test(ch));
+        out += keep ? ch : noise(ch, i);
+      }
+      overlay.textContent = out;
+      if (done < 1) return requestAnimationFrame(frame);
+      overlay.remove();
+      restore();
+      delete el.dataset.decrypting;
+    }
+    requestAnimationFrame(frame);
+  }
+
+  // ---- Packets ----------------------------------------------------------------
+
+  /**
+   * Internet checksum (RFC 1071): one's-complement sum of 16-bit words.
+   * @param {number[]} bytes
+   */
+  function checksum(bytes) {
+    let sum = 0;
+    for (let i = 0; i < bytes.length; i += 2) sum += (bytes[i] << 8) + (bytes[i + 1] ?? 0);
+    while (sum > 0xffff) sum = (sum & 0xffff) + (sum >>> 16);
+    return ~sum & 0xffff;
+  }
+
+  /** @param {number} n a 16-bit number as two bytes, like Python's n.to_bytes(2, 'big') */
+  const u16 = (n) => [(n >> 8) & 0xff, n & 0xff];
+  const SRC4 = [192, 0, 2, 10]; // documentation addresses (RFC 5737, RFC 3849)
+  const DST4 = [198, 51, 100, 7];
+  const SRC6 = [0x20, 0x01, 0x0d, 0xb8, ...Array(11).fill(0), 0x10];
+  const DST6 = [0x20, 0x01, 0x0d, 0xb8, ...Array(11).fill(0), 0x07];
+
+  /**
+   * IPv4 header with a correct header checksum.
+   * @param {number} proto
+   * @param {number} totalLength
+   */
+  function ipv4(proto, totalLength) {
+    const h = [0x45, 0, ...u16(totalLength), 0x1c, 0x46, 0x40, 0, 64, proto, 0, 0, ...SRC4, ...DST4];
+    h.splice(10, 2, ...u16(checksum(h)));
+    return h;
+  }
+
+  /**
+   * Build a packet carrying `payload`, plus a tcpdump-style summary line.
+   * @param {number} index which paragraph this is (picks the packet type)
+   * @param {number[]} payload
+   * @returns {{ summary: string, bytes: number[] }}
+   */
+  function packet(index, payload) {
+    const n = payload.length;
+    switch (index % 3) {
+      case 0: {
+        const tcp = [0xc0, 0xde, 0, 80, 0x1e, 0x2b, 0x9a, 0x01, 0x6c, 0x3f, 0x00, 0x42];
+        tcp.push(0x50, 0x18, 0xfa, 0xf0, 0x9c, 0x4e, 0, 0); // PSH+ACK
+        return {
+          summary: `IP 192.0.2.10.49374 > 198.51.100.7.80: Flags [P.], length ${n}`,
+          bytes: [...ipv4(6, 40 + n), ...tcp, ...payload],
+        };
+      }
+      case 1: {
+        const udp = [0x13, 0x89, 0x13, 0x89, ...u16(8 + n), 0x5d, 0x21];
+        return {
+          summary: `IP6 2001:db8::10.5001 > 2001:db8::7.5001: UDP, length ${n}`,
+          bytes: [0x60, 0, 0, 0, ...u16(8 + n), 17, 64, ...SRC6, ...DST6, ...udp, ...payload],
+        };
+      }
+      default: {
+        const seq = index + 1;
+        const icmp = [8, 0, 0, 0, 0, 1, ...u16(seq), ...payload];
+        icmp.splice(2, 2, ...u16(checksum(icmp)));
+        return {
+          summary: `IP 192.0.2.10 > 198.51.100.7: ICMP echo request, id 1, seq ${seq}, length ${8 + n}`,
+          bytes: [...ipv4(1, 20 + icmp.length), ...icmp],
+        };
+      }
+    }
+  }
+
+  /**
+   * Hex dump rows in Wireshark's layout: offset, bytes, and ASCII when it fits.
+   * @param {number[]} bytes
+   * @param {number} cols characters that fit on one row
+   * @param {number} rows
+   */
+  function hexdump(bytes, cols, rows) {
+    const width = (/** @type {number} */ n) => 6 + 3 * n - 1 + (n > 8 ? 1 : 0);
+    const per = [16, 12, 8, 4].find((n) => width(n) <= cols) ?? 4;
+    const ascii = width(per) + 2 + per <= cols;
+    const lines = [];
+    for (let r = 0; r < rows && r * per < bytes.length; r++) {
+      const row = bytes.slice(r * per, (r + 1) * per);
+      let hex = row.map((b) => b.toString(16).padStart(2, '0')).join(' ');
+      if (per > 8 && row.length > 8) hex = hex.slice(0, 23) + ' ' + hex.slice(23);
+      let line = (r * per).toString(16).padStart(4, '0') + '  ' + hex;
+      if (ascii) {
+        const text = row.map((b) => (b >= 0x20 && b < 0x7f ? String.fromCharCode(b) : '.'));
+        line = line.padEnd(width(per)) + '  ' + text.join('');
+      }
+      lines.push(line);
+    }
+    return lines.join('\n');
+  }
+
+  /**
+   * Cover a paragraph with a hex dump of a packet carrying its text.
+   * Returns a function that decodes it: the dump becomes the text in hex noise, which
+   * resolves left to right in PARAGRAPH_MS (instantly when effects are off).
+   * @param {HTMLElement} p
+   * @param {number} index
+   */
+  function cover(p, index) {
+    const text = p.textContent ?? ''; // read before the overlay adds its own text
+    const style = getComputedStyle(p);
+    const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.6;
+    const overlay = document.createElement('div');
+    overlay.setAttribute('aria-hidden', 'true');
+    overlay.dataset.decryptOverlay = '';
+    overlay.style.cssText = `position:absolute;inset:0;overflow:hidden;pointer-events:none;background:var(--color-bg);color:var(--color-text-muted);font:0.85em/${lineHeight}px var(--font-mono);white-space:pre`;
+    const summary = document.createElement('div');
+    summary.style.color = 'var(--color-accent)';
+    const dump = document.createElement('div');
+    overlay.append(summary, dump);
+    const restore = host(p, false);
+    p.append(overlay);
+
+    // Measure the monospace character width to size the rows.
+    const probe = document.createElement('span');
+    probe.textContent = '0123456789';
+    summary.append(probe);
+    const charWidth = probe.getBoundingClientRect().width / 10 || 8;
+    const cols = Math.floor(overlay.clientWidth / charWidth);
+    const rows = Math.ceil(p.clientHeight / lineHeight) + 3; // spare rows in case it re-wraps
+
+    const { summary: line, bytes } = packet(index, [...new TextEncoder().encode(text)]);
+    summary.textContent = line;
+    dump.textContent = hexdump(bytes, cols, rows - 1);
+
+    let started = false;
+    return () => {
+      if (started) return; // safe to call twice (the off switch and a queued timer)
+      started = true;
+      // Swap the dump for the paragraph's own text in hex noise, in the paragraph's font,
+      // and resolve it left to right like the headings.
+      overlay.replaceChildren();
+      overlay.style.font = 'inherit';
+      overlay.style.whiteSpace = 'normal';
+      overlay.style.color = 'var(--color-text)';
+      const start = performance.now();
+      /** @param {number} now */
+      function frame(now) {
+        // Clamp at 0: a frame's timestamp can be a little earlier than `start`.
+        const done = effectsOff() ? 1 : Math.min(1, Math.max(0, (now - start) / PARAGRAPH_MS));
+        const revealed = Math.floor(done * text.length);
+        let out = text.slice(0, revealed);
+        for (let i = revealed; i < text.length; i++) out += /\s/.test(text[i]) ? text[i] : NOISE.hex(text[i], i);
+        overlay.textContent = out;
+        if (done < 1) return requestAnimationFrame(frame);
+        overlay.remove();
+        restore();
+      }
+      requestAnimationFrame(frame);
+    };
+  }
+
+  // ---- Wiring -----------------------------------------------------------------
+
+  /** @type {IntersectionObserver | null} */
+  let io = null;
+  /** Paragraphs still covered (off screen, or queued behind the one above): their decode functions. */
+  const pending = new Set();
+
+  /** Set up every effect on the page. Runs on load, and again when effects are turned on. */
+  function start() {
+    if (io || effectsOff()) return;
+    /** Run callbacks for elements once they scroll into view. Like a Python dict of el -> fn. */
+    const onView = new Map();
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          observer.unobserve(entry.target);
+          onView.get(entry.target)?.();
+          onView.delete(entry.target);
+        }
+      },
+      { rootMargin: '0px 0px -10% 0px' },
+    );
+    io = observer;
+    /**
+     * @param {Element} el
+     * @param {() => void} fn
+     */
+    const whenVisible = (el, fn) => {
+      onView.set(el, fn);
+      observer.observe(el);
+    };
+
+    /**
+     * @param {HTMLElement} el
+     * @param {string} kind
+     */
+    const setUp = (el, kind) => {
+      if (el.children.length) return; // only plain text, so nested links are untouched
+      const ms = Number(el.dataset.decryptMs) || DEFAULT_MS;
+      whenVisible(el, () => decrypt(el, kind, ms));
+      if ('decryptHover' in el.dataset && !el.dataset.decryptBound) {
+        el.dataset.decryptBound = '1'; // add the listener once, even if start() runs again
+        el.addEventListener('pointerenter', () => decrypt(el, kind, HOVER_MS));
+      }
+    };
+
+    document.querySelectorAll('[data-decrypt]').forEach((el) => {
+      if (el instanceof HTMLElement) setUp(el, el.dataset.decrypt ?? 'hex');
+    });
+    document.querySelectorAll('[data-decrypt-links]').forEach((box) => {
+      if (!(box instanceof HTMLElement)) return;
+      box.querySelectorAll('a').forEach((a) => {
+        a.dataset.decryptHover = '';
+        setUp(a, box.dataset.decryptLinks ?? 'hex');
+      });
+    });
+
+    // Paragraphs decrypt one at a time, top to bottom: each waits for the one above.
+    let nextStart = 0;
+    document.querySelectorAll('[data-decrypt-packets] > p').forEach((p, i) => {
+      if (!(p instanceof HTMLElement)) return;
+      const decode = cover(p, i);
+      pending.add(decode);
+      whenVisible(p, () => {
+        const delay = Math.max(0, nextStart - performance.now());
+        nextStart = performance.now() + delay + PARAGRAPH_MS + PAUSE_MS;
+        setTimeout(() => {
+          pending.delete(decode);
+          decode();
+        }, delay);
+      });
+    });
+  }
+
+  /** Stop watching and uncover every paragraph at once (running animations finish instantly). */
+  function stop() {
+    io?.disconnect();
+    io = null;
+    pending.forEach((decode) => decode());
+    pending.clear();
+  }
+
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches && 'IntersectionObserver' in window) {
+    start();
+    document.addEventListener('effects-change', () => (effectsOff() ? stop() : start()));
+  }
+</script>

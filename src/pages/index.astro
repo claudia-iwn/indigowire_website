@@ -3,6 +3,7 @@
 import { getEntry, render } from 'astro:content';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import SparkCard from '../components/SparkCard.astro';
+import Decrypt from '../components/Decrypt.astro';
 import { externalLinks } from '../site.config.js';
 import { getSpark, getLearn, learnHref } from '../lib/content.js';
 
@@ -14,15 +15,17 @@ const featured = (await getLearn()).find((entry) => entry.data.featured);
 ---
 
 <BaseLayout title={home.data.title} description={home.data.description}>
-  <h1>{home.data.title}</h1>
-  <div class="lede">
+  <h1 data-decrypt="hex" data-decrypt-ms="900" data-decrypt-hover>
+    {home.data.title}
+  </h1>
+  <div class="lede" data-decrypt-links="hex">
     <Content />
   </div>
 
   <div class="home-grid">
     {featured && (
       <section>
-        <h2>Featured game</h2>
+        <h2 data-decrypt="mac">Featured game</h2>
         <h3>
           <a href={learnHref(featured)}>{featured.data.title}</a>
         </h3>
@@ -31,7 +34,7 @@ const featured = (await getLearn()).find((entry) => entry.data.featured);
     )}
     {latest && (
       <section>
-        <h2>Latest from the Spark</h2>
+        <h2 data-decrypt="hex">Latest from the Spark</h2>
         <SparkCard entry={latest} eager />
         <p>
           <a href="/spark">All images →</a>
@@ -41,7 +44,7 @@ const featured = (await getLearn()).find((entry) => entry.data.featured);
   </div>
 
   <section>
-    <h2>Elsewhere</h2>
+    <h2 data-decrypt="mac">Elsewhere</h2>
     <ul>
       {externalLinks.map((link) => (
         <li>
@@ -52,6 +55,7 @@ const featured = (await getLearn()).find((entry) => entry.data.featured);
       ))}
     </ul>
   </section>
+  <Decrypt />
 </BaseLayout>
 
 <style>
