@@ -249,7 +249,21 @@ Behavior (RFC 826 semantics):
    - **Off-subnet.** The data frame's Ethernet destination is R1's MAC, but its IP destination is still the far address (for example 8.8.8.8). R1 receives it, removes the Ethernet header, looks up its route and forwards the packet out its upstream link toward the next hop (`frame:forward`). The log and a caption spell out that the MAC address changes at each hop while the IP address stays the same end to end.
    - **No reply.** If nobody answers (for example 10.0.0.99), the request times out after 1 s of simulated time (`arp:timeout`). The view shows a speech bubble at the requester: "No reply. A real host typically retries about 3 times, a second apart, then reports the destination unreachable." The engine does not actually send the retries, so the visitor never waits. The queued data is dropped.
 5. Cache and MAC-table entries expire after a TTL (default 60 s simulated, adjustable 10–300 s).
-6. The engine emits events (`frame:emit`, `frame:arrive`, `frame:drop`, `frame:forward`, `cache:update`, `cache:expire`, `mactable:update`, `arp:timeout`, `ip:conflict`) that the renderer subscribes to.
+6. The engine emits events (`frame:emit`, `frame:arrive`, `frame:drop`, `frame:forward`, `cache:update`, `cache:expire`, `mactable:update`, `mactable:expire`, `arp:timeout`, `ip:conflict`, `log`) that the renderer subscribes to.
+
+**Time and the API (built in M4).**
+
+- **Simulated time.** Every hop (host to switch, or switch to host) takes `HOP_MS` (600 ms) of simulated time, slow enough to animate at 1× speed. The engine keeps a queue of timed actions. `tick(ms)` advances the clock and runs whatever falls due, in order, so tests run a whole exchange instantly.
+- **Timeout start.** The `ARP_TIMEOUT_MS` (1 s) timer starts once a request has reached every host and none of them owns the address. Counting from the moment of sending wouldn't work: the slowed-down hops mean a real reply would arrive after the timer had already fired.
+- **Cache rules (RFC 826).** A host refreshes an entry it already has from any ARP it sees, but adds a new entry only when it is the target, or when it receives a reply addressed to it. That is what makes gratuitous ARP refresh other caches, and what makes an unsolicited spoofed reply poison one.
+- **Calls:**
+  - `send(src, dstIp, app)`;
+  - `announce(name)` for gratuitous ARP;
+  - `claimIp(name, ip)` for "Meanwhile, on another host…";
+  - `spoof(attacker, victim, ip)` for Break it;
+  - `setTtl(ms)`, clamped to 10–300 s;
+  - `tick(ms)`, `runUntilIdle()` and `isIdle()`.
+- **Inspector data.** `frames.js` has `encodeArpFrame(frame)` (60 bytes) and `arpFields(frame)`, the decode tree with each field's byte offset and length. Both read one field layout, so the hex dump and the tree always agree.
 
 ### Frame model (`frames.js`)
 
@@ -664,7 +678,10 @@ Seven milestones, each ending in a deployed, working site; hand Claude Code one 
 
 ### M4: ARP engine
 
-- [ ] `engine.js` and `frames.js` with unit tests for every section 6 acceptance criterion
+- [x] `engine.js` and `frames.js` with unit tests for every section 6 acceptance criterion. Done 26 October 2026, 27 Vitest tests (`engine.test.js`, `frames.test.js`). They cover:
+  - the engine-level criteria: request/drops/reply/data, the cache hit, the timeout, off-subnet, MAC learning, 60 bytes, Break it, "Meanwhile, on another host…" and why ARP is needed;
+  - switch flooding and forwarding, aging, the TTL range, and queuing while ARP is pending.
+  - The keyboard, reduced-motion, 360 px and legend criteria belong to the view (M5).
 
 ### M5: ARP view, Sandbox mode
 
