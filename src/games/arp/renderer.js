@@ -9,7 +9,7 @@
  * stepping, changing speed and freezing to inspect need nothing from the view.
  */
 import { HOP_MS, TOPOLOGY } from './engine.js';
-import { describeFrame, APP_PAYLOAD } from './frames.js';
+import { describeFrame, appLabel } from './frames.js';
 import { hopRows } from './hops.js';
 import { mountPacketView } from './packet-view.js';
 
@@ -93,7 +93,7 @@ const seconds = (ms) => `${(ms / 1000).toFixed(1)} s`;
 /** Short label drawn on a frame. */
 /** @param {any} frame */
 function frameLabel(frame) {
-  if (!frame.arp) return APP_PAYLOAD[/** @type {'ping' | 'web' | 'dns'} */ (frame.app)].short;
+  if (!frame.arp) return appLabel(frame).short;
   if (frame.arp.spa === frame.arp.tpa) return 'GARP';
   return frame.arp.oper === 1 ? 'ARP?' : 'ARP!';
 }
@@ -139,7 +139,7 @@ export function mountRenderer(parts, engine, { onInspect } = {}) {
 
     for (const node of Object.values(engine.state.hosts)) {
       const p = place(node.name);
-      const link = svg('g', { class: `link ${node.role}` });
+      const link = svg('g', { class: `link ${node.role}${node.down ? ' down' : ''}` });
       link.append(svg('line', { x1: sw.x, y1: sw.y, x2: p.x, y2: p.y }));
       link.append(
         svg(
@@ -175,7 +175,10 @@ export function mountRenderer(parts, engine, { onInspect } = {}) {
     for (const node of Object.values(engine.state.hosts)) {
       const p = place(node.name);
       const infra = node.role === 'gateway';
-      const group = svg('g', { class: `node ${infra ? 'infra' : 'user'} ${node.role}`, 'data-node': node.name });
+      const group = svg('g', {
+        class: `node ${infra ? 'infra' : 'user'} ${node.role}${node.down ? ' down' : ''}`,
+        'data-node': node.name,
+      });
       group.append(svg('rect', { x: p.x - w / 2, y: p.y - h / 2, width: w, height: h, rx: 8 }));
       if (!infra) {
         // A small monitor: user devices are where applications run.
@@ -190,7 +193,13 @@ export function mountRenderer(parts, engine, { onInspect } = {}) {
           : node.role === 'attacker'
             ? `${node.name} attacker`
             : node.name;
-      group.append(svg('text', { class: 'name', x: p.x, y: p.y - h / 2 + 22, 'text-anchor': 'middle' }, title));
+      group.append(
+        svg(
+          'text',
+          { class: 'name', x: p.x, y: p.y - h / 2 + 22, 'text-anchor': 'middle' },
+          node.down ? `${title} (down)` : title,
+        ),
+      );
       group.append(svg('text', { class: 'addr', x: p.x, y: p.y + 6, 'text-anchor': 'middle' }, node.ip));
       group.append(
         svg(
@@ -517,6 +526,7 @@ export function mountRenderer(parts, engine, { onInspect } = {}) {
       ),
     ),
     engine.on('ip:conflict', ({ host, ip, mac }) => bubble(host, `Duplicate IP address! ${mac} also claims ${ip}.`)),
+    engine.on('host:down', drawTopology),
     engine.on('log', ({ at, text }) => logLine(at, text)),
   );
 
@@ -576,6 +586,8 @@ export function mountRenderer(parts, engine, { onInspect } = {}) {
       you = name;
       drawTopology();
     },
+    /** Redraw the diagram, e.g. after a host takes a new address. */
+    redraw: drawTopology,
     destroy() {
       for (const off of offs) off();
       narrow.removeEventListener('change', onLayout);

@@ -256,18 +256,19 @@ test.describe('decrypt effects (N4)', () => {
 
 test.describe('How IPv4 ARP works (R5, section 6)', () => {
   /**
-   * Pause, send from H1, then step until H1's ping has arrived.
+   * Pause, send from H1, then step until the log shows `until` (by default, H1's ping arriving).
    * @param {import('@playwright/test').Page} page
    * @param {string} ip
+   * @param {string} [until]
    */
-  async function sendAndStep(page, ip) {
+  async function sendAndStep(page, ip, until = 'receives a ping') {
     await page.goto('/learn/arp');
     await page.getByRole('button', { name: 'Pause' }).click();
     await page.getByLabel('To IP address').fill(ip);
     await page.getByRole('button', { name: 'Send', exact: true }).click();
     const step = page.getByRole('button', { name: 'Step' });
     for (let i = 0; i < 30 && (await step.isEnabled()); i++) {
-      if ((await page.locator('.log').textContent())?.includes('receives a ping')) break;
+      if ((await page.locator('.log').textContent())?.includes(until)) break;
       await step.click();
     }
   }
@@ -305,7 +306,7 @@ test.describe('How IPv4 ARP works (R5, section 6)', () => {
   });
 
   test("the hop table and R1's card show what the router changed on the way to 8.8.8.8", async ({ page }) => {
-    await sendAndStep(page, '8.8.8.8');
+    await sendAndStep(page, '8.8.8.8', 'new frame for its upstream link');
     const card = page.locator('.rewrite');
     await expect(card).toBeVisible();
     await expect(card).toContainText('R1 rebuilds the frame');
@@ -319,6 +320,57 @@ test.describe('How IPv4 ARP works (R5, section 6)', () => {
     await expect(packet.locator('.hops tr', { hasText: 'SW1 → R1' }).last().locator('td.changed')).toHaveCount(0);
     // N6: the wide hop table and the card scroll or fit inside their boxes, never the page.
     expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+  });
+
+  test('the destination answers: the echo reply comes back to H1', async ({ page }) => {
+    await sendAndStep(page, '192.0.2.12', 'H1 receives the ICMP echo reply');
+    await expect(page.locator('.log')).toContainText('H1 receives the ICMP echo reply from 192.0.2.12');
+  });
+
+  test('Learn mode walks through the exchange with Next and Back', async ({ page }) => {
+    await page.goto('/learn/arp#learn');
+    await expect(page.getByRole('radio', { name: 'Learn' })).toBeChecked();
+    await expect(page.locator('form.send')).toBeHidden();
+    await page.getByRole('button', { name: 'Start' }).click();
+    await expect(page.locator('#lesson-title')).toHaveText('Why ARP?');
+    const next = page.getByRole('button', { name: 'Next' });
+    for (let i = 0; i < 7; i++) await next.click();
+    await expect(page.locator('#lesson-title')).toHaveText('Ping again: no ARP');
+    await expect(page.getByRole('button', { name: 'Start again' })).toBeVisible();
+    await expect(page.locator('.log')).toContainText('already has 192.0.2.12 in its ARP cache', { timeout: 10_000 });
+    await page.getByRole('button', { name: 'Back' }).click();
+    await expect(page.locator('#lesson-title')).toHaveText('The round trip is done');
+    await expect(page.locator('.cache[data-host="H1"]')).toContainText('00:00:5e:00:53:12');
+  });
+
+  test("switching mode updates the URL and shows that mode's controls", async ({ page }) => {
+    await page.goto('/learn/arp');
+    await page.getByRole('radio', { name: 'Gratuitous ARP' }).check();
+    await expect(page).toHaveURL(/#garp$/);
+    await expect(page.getByRole('button', { name: 'Announce' })).toBeVisible();
+    await page.getByRole('radio', { name: 'Sandbox' }).check();
+    await expect(page.getByRole('button', { name: 'Announce' })).toBeHidden();
+  });
+
+  test('"Meanwhile, on another host…": H2 reports a duplicate IP and caches flip to H3', async ({ page }) => {
+    await page.goto('/learn/arp#garp');
+    await page.getByLabel('Speed').selectOption('2');
+    await page.getByRole('button', { name: 'Meanwhile, on another host…' }).click();
+    await expect(page.locator('.bubble')).toContainText(
+      'Duplicate IP address! 00:00:5e:00:53:13 also claims 192.0.2.12',
+    );
+    await expect(page.locator('.cache[data-host="H1"]')).toContainText('00:00:5e:00:53:13');
+    await expect(page.locator('.cache[data-host="R1"]')).toContainText('00:00:5e:00:53:13');
+  });
+
+  test('Failover: the standby takes over the address with no duplicate-IP alarm', async ({ page }) => {
+    await page.goto('/learn/arp#garp');
+    await page.getByLabel('Speed').selectOption('2');
+    await page.getByRole('button', { name: /^Failover/ }).click();
+    await expect(page.locator('[data-node="H2"]')).toContainText('(down)');
+    await expect(page.locator('.cache[data-host="H1"]')).toContainText('00:00:5e:00:53:13');
+    await expect(page.locator('.log')).toContainText('R1 updates 192.0.2.12');
+    await expect(page.locator('.bubble')).toHaveCount(0);
   });
 
   test('an unused address times out with the retry bubble', async ({ page }) => {

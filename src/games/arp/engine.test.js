@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createEngine, TOPOLOGY, HOP_MS, ARP_TIMEOUT_MS } from './engine.js';
+import { createEngine, TOPOLOGY, HOP_MS, ARP_TIMEOUT_MS, IP_TTL, INTERNET_HOPS } from './engine.js';
 import { encodeArpFrame, BROADCAST_MAC, ETHERTYPE_IPV4, MIN_FRAME_BYTES } from './frames.js';
 
 const MAC = Object.fromEntries(TOPOLOGY.nodes.map((n) => [n.name, n.mac])); // name -> MAC
@@ -22,6 +22,7 @@ function record(engine) {
     'mactable:expire',
     'arp:timeout',
     'ip:conflict',
+    'host:down',
     'log',
   ])) {
     engine.on(event, (payload) => seen.push({ event, payload }));
@@ -107,7 +108,7 @@ describe('sending with an empty cache (H1 to 192.0.2.12)', () => {
       .map((e) => e.node);
     expect(replyReached).toEqual(['SW1', 'H1']);
 
-    const data = rec.of('frame:arrive').filter((e) => e.frame.type === ETHERTYPE_IPV4);
+    const data = rec.of('frame:arrive').filter((e) => e.frame.type === ETHERTYPE_IPV4 && !e.frame.reply);
     expect(data.map((e) => e.node)).toEqual(['SW1', 'H2']);
     expect(data[0].frame).toMatchObject({
       dst: MAC.H2,
@@ -167,12 +168,14 @@ describe('the switch', () => {
     const rec = record(engine);
     engine.send('H1', '192.0.2.12');
     engine.runUntilIdle();
+    const ping = rec.of('frame:emit')[0].frame;
     const first = rec
       .of('frame:arrive')
-      .filter((e) => e.node !== 'SW1')
+      .filter((e) => e.node !== 'SW1' && e.frame === ping)
       .map((e) => e.node);
     expect(first.sort()).toEqual(['H2', 'H3', 'R1']);
-    expect(rec.of('frame:drop').map((e) => e.reason)).toEqual(['not for me', 'not for me']);
+    const drops = rec.of('frame:drop').filter((e) => e.frame === ping);
+    expect(drops.map((e) => e.reason)).toEqual(['not for me', 'not for me']);
   });
 });
 
@@ -185,7 +188,8 @@ describe('cache hits and aging', () => {
     engine.send('H1', '192.0.2.12');
     engine.runUntilIdle();
     expect(rec.of('frame:emit').some((e) => isArp(e.frame))).toBe(false);
-    expect(rec.of('frame:arrive').map((e) => e.node)).toEqual(['SW1', 'H2']);
+    // The ping to H2, then H2's echo reply back to H1.
+    expect(rec.of('frame:arrive').map((e) => e.node)).toEqual(['SW1', 'H2', 'SW1', 'H1']);
   });
 
   it('expires cache and MAC-table entries after the TTL, then ARPs again', () => {
@@ -260,8 +264,8 @@ describe('off-subnet (8.8.8.8)', () => {
     engine.runUntilIdle();
     const data = rec.of('frame:emit').find((e) => !isArp(e.frame)).frame;
     expect(data).toMatchObject({ dst: MAC.R1, ip: { src: '192.0.2.11', dst: '8.8.8.8' } });
-    expect(rec.of('frame:forward')).toEqual([expect.objectContaining({ node: 'R1', to: 'next hop' })]);
-    expect(rec.of('log').at(-1).text).toMatch(/next hop/);
+    expect(rec.of('frame:forward')[0]).toMatchObject({ node: 'R1', to: 'next hop' });
+    expect(rec.of('log').some((e) => /new frame for its upstream link/.test(e.text))).toBe(true);
   });
 });
 
@@ -346,12 +350,13 @@ describe('what each device does to the frame (hop table)', () => {
     const rec = record(engine);
     engine.send('H1', '192.0.2.12');
     engine.runUntilIdle();
+    const first = rec.of('frame:emit').length;
     engine.send('H1', '192.0.2.12');
     engine.runUntilIdle();
     const flows = rec.of('frame:emit').map((e) => e.frame.flow);
-    // Request, reply and ping share flow 1; the cached second ping is flow 2.
-    expect(new Set(flows.slice(0, -2))).toEqual(new Set([1]));
-    expect(flows.at(-1)).toBe(2);
+    // Request, reply, ping and echo reply share flow 1; the cached second ping and its reply are flow 2.
+    expect(new Set(flows.slice(0, first))).toEqual(new Set([1]));
+    expect(new Set(flows.slice(first))).toEqual(new Set([2]));
   });
 
   it('says whether the switch flooded or forwarded each copy, and never changes the frame', () => {
@@ -392,6 +397,175 @@ describe('what each device does to the frame (hop table)', () => {
     // The rewritten frame travels on to the next hop like any other.
     const out = rec.of('frame:emit').find((e) => e.frame === forward.out);
     expect(out).toMatchObject({ from: 'R1', to: 'next hop' });
-    expect(rec.of('frame:arrive').at(-1)).toMatchObject({ node: 'next hop', frame: forward.out });
+    expect(rec.of('frame:arrive')).toContainEqual(expect.objectContaining({ node: 'next hop', frame: forward.out }));
+  });
+});
+
+describe('replies come back', () => {
+  /** @param {any[]} emits */
+  const dataHops = (emits) =>
+    emits.filter((e) => !isArp(e.frame)).map((e) => `${e.from}→${e.to} ${e.frame.reply ? 'reply' : 'request'}`);
+
+  it('has H2 answer a ping straight away, using the entry it cached from the ARP request', () => {
+    const engine = createEngine();
+    const rec = record(engine);
+    engine.send('H1', '192.0.2.12');
+    engine.runUntilIdle();
+    expect(dataHops(rec.of('frame:emit'))).toEqual([
+      'H1→SW1 request',
+      'SW1→H2 request',
+      'H2→SW1 reply',
+      'SW1→H1 reply',
+    ]);
+    // H2 learnt H1 from the request, so the reply needs no ARP of its own.
+    expect(
+      rec
+        .of('frame:emit')
+        .filter((e) => isArp(e.frame) && e.from === 'H2')
+        .map((e) => e.frame.arp.oper),
+    ).toEqual([2]);
+    const reply = rec.of('frame:emit').find((e) => e.frame.reply).frame;
+    expect(reply).toMatchObject({
+      dst: MAC.H1,
+      src: MAC.H2,
+      app: 'ping',
+      ip: { src: '192.0.2.12', dst: '192.0.2.11', ttl: IP_TTL },
+      flow: 1,
+    });
+    expect(rec.of('log').at(-1).text).toMatch(/H1 receives the ICMP echo reply from 192\.0\.2\.12/);
+  });
+
+  it('answers web and DNS requests with a response of the same application', () => {
+    const engine = createEngine();
+    const rec = record(engine);
+    engine.send('H1', '192.0.2.12', 'dns');
+    engine.runUntilIdle();
+    expect(rec.of('frame:emit').find((e) => e.frame.reply).frame.app).toBe('dns');
+  });
+
+  it('brings the reply from the internet back through R1, which rebuilds the frame for H1', () => {
+    const engine = createEngine();
+    const rec = record(engine);
+    engine.send('H1', '8.8.8.8');
+    engine.runUntilIdle();
+    expect(dataHops(rec.of('frame:emit'))).toEqual([
+      'H1→SW1 request',
+      'SW1→R1 request',
+      'R1→next hop request',
+      'next hop→R1 reply',
+      'R1→SW1 reply',
+      'SW1→H1 reply',
+    ]);
+    const forwards = rec.of('frame:forward');
+    expect(forwards).toHaveLength(2);
+    const back = forwards[1];
+    expect(back.frame).toMatchObject({
+      src: TOPOLOGY.upstream.nextHop.mac,
+      dst: TOPOLOGY.upstream.mac,
+      ip: { src: '8.8.8.8', dst: '192.0.2.11', ttl: IP_TTL - INTERNET_HOPS },
+    });
+    expect(back.out).toMatchObject({
+      src: MAC.R1,
+      dst: MAC.H1,
+      ip: { src: '8.8.8.8', dst: '192.0.2.11', ttl: IP_TTL - INTERNET_HOPS - 1 },
+      reply: true,
+      parent: back.frame.id,
+      flow: 1,
+    });
+    expect(back).toMatchObject({ node: 'R1', to: 'H1' });
+  });
+
+  it('has R1 use ARP on the way back when it no longer knows H1', () => {
+    const engine = createEngine();
+    engine.send('H1', '8.8.8.8');
+    engine.runUntilIdle();
+    engine.state.hosts.R1.arpCache.delete('192.0.2.11');
+    const rec = record(engine);
+    engine.send('H1', '8.8.8.8');
+    engine.runUntilIdle();
+    const fromR1 = rec.of('frame:emit').filter((e) => e.from === 'R1' && isArp(e.frame));
+    expect(fromR1.map((e) => e.frame.arp)).toEqual([expect.objectContaining({ oper: 1, tpa: '192.0.2.11' })]);
+    expect(rec.of('frame:arrive').at(-1)).toMatchObject({
+      node: 'H1',
+      frame: expect.objectContaining({ reply: true }),
+    });
+  });
+
+  it('has R1 answer a ping to its own address', () => {
+    const engine = createEngine();
+    const rec = record(engine);
+    engine.send('H1', '192.0.2.1');
+    engine.runUntilIdle();
+    expect(dataHops(rec.of('frame:emit')).slice(-2)).toEqual(['R1→SW1 reply', 'SW1→H1 reply']);
+  });
+
+  it('does not answer a reply', () => {
+    const engine = createEngine();
+    const rec = record(engine);
+    engine.send('H1', '192.0.2.12');
+    engine.runUntilIdle();
+    expect(rec.of('frame:emit').filter((e) => e.frame.reply && e.from !== 'SW1')).toHaveLength(1);
+    expect(engine.isIdle()).toBe(true);
+  });
+});
+
+describe('failover with gratuitous ARP', () => {
+  it('primes a cache entry from the topology, as if the hosts had talked earlier', () => {
+    const engine = createEngine();
+    const rec = record(engine);
+    engine.primeCache('H1', '192.0.2.12');
+    expect(engine.state.hosts.H1.arpCache.get('192.0.2.12')?.mac).toBe(MAC.H2);
+    expect(rec.of('cache:update')).toEqual([expect.objectContaining({ host: 'H1', ip: '192.0.2.12', mac: MAC.H2 })]);
+  });
+
+  it('takes a failed host off the network: its port goes down and the switch forgets its MAC', () => {
+    const engine = createEngine();
+    engine.send('H1', '192.0.2.12');
+    engine.runUntilIdle();
+    const rec = record(engine);
+    engine.fail('H2');
+    expect(rec.of('host:down')).toEqual([expect.objectContaining({ host: 'H2' })]);
+    expect(engine.state.switch.macTable.has(MAC.H2)).toBe(false);
+    engine.announce('H1');
+    engine.runUntilIdle();
+    expect(
+      rec
+        .of('frame:emit')
+        .filter((e) => e.from === 'SW1')
+        .map((e) => e.to),
+    ).toEqual(['H3', 'R1']);
+  });
+
+  it("lets a standby take over a failed host's address with no duplicate-IP alarm", () => {
+    const engine = createEngine();
+    engine.primeCache('H1', '192.0.2.12');
+    engine.primeCache('R1', '192.0.2.12');
+    engine.fail('H2');
+    const rec = record(engine);
+    engine.claimIp('H3', '192.0.2.12', 'H3, the standby, takes over 192.0.2.12.');
+    engine.runUntilIdle();
+    expect(rec.of('log')[0].text).toBe('H3, the standby, takes over 192.0.2.12.');
+    expect(rec.of('ip:conflict')).toEqual([]);
+    expect(engine.state.hosts.H1.arpCache.get('192.0.2.12')?.mac).toBe(MAC.H3);
+    expect(engine.state.hosts.R1.arpCache.get('192.0.2.12')?.mac).toBe(MAC.H3);
+    // Traffic for 192.0.2.12 now reaches the standby, which answers it.
+    const after = record(engine);
+    engine.send('H1', '192.0.2.12');
+    engine.runUntilIdle();
+    expect(
+      after
+        .of('frame:emit')
+        .filter((e) => e.frame.reply)
+        .map((e) => e.frame.src)[0],
+    ).toBe(MAC.H3);
+  });
+
+  it('sends nothing from a failed host', () => {
+    const engine = createEngine();
+    engine.fail('H2');
+    const rec = record(engine);
+    engine.send('H2', '192.0.2.11');
+    expect(rec.of('frame:emit')).toEqual([]);
+    expect(rec.of('log')[0].text).toMatch(/H2 is down/);
   });
 });

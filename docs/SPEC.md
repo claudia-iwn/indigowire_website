@@ -257,12 +257,14 @@ Behavior (RFC 826 semantics):
 2. The switch learns the source MAC on the ingress port, floods broadcasts and unknown unicasts out every other port, and forwards known unicasts out one port.
 3. Each receiving host whose IP is not the target drops the request. The target caches the sender's mapping, then sends a unicast reply (opcode 2).
 4. The requester caches the reply and sends its queued data frame.
+   - **The answer comes back** (decided October 2026, M6). The destination answers every request: a ping gets an ICMP echo reply, web an HTTP response, DNS an answer. The answer is sent like any packet, with ARP first if the sender lacks the next hop's MAC; after the exchange above, H2 already knows H1 from the request. Frames carry `reply: true`, and the view labels them "echo", "page" or "answer".
+   - **Off-subnet answers** come back from the next hop to R1 with an IP TTL of 64 − `INTERNET_HOPS` (8, illustrative: the routers crossed on the internet). R1 rebuilds the frame for the LAN (new MACs, TTL one lower) and, if H1 is no longer in its cache, uses ARP for it first.
    - **Data frames are not decoded.** A data frame is an envelope labelled with its application (for example "ICMP echo request (ping)"). The inspector shows its Ethernet header (destination, source, EtherType `0x0800`) and its IP source and destination, but not the payload, which is not the point of the game.
    - **Off-subnet.** The data frame's Ethernet destination is R1's MAC, but its IP destination is still the far address (for example 8.8.8.8). R1 receives it, removes the Ethernet header, looks up its route and forwards the packet out its upstream link toward the next hop (`frame:forward`). The log and a caption spell out that the MAC address changes at each hop while the IP address stays the same end to end.
    - **No reply.** If nobody answers (for example 192.0.2.99), the request times out after 1 s of simulated time (`arp:timeout`). The view shows a speech bubble at the requester: "No reply. A real host typically retries about 3 times, a second apart, then reports the destination unreachable." The engine does not actually send the retries, so the visitor never waits. The queued data is dropped.
 5. Cache and MAC-table entries expire after a TTL (default 60 s simulated, adjustable 10–300 s).
-6. The engine emits events (`frame:emit`, `frame:arrive`, `frame:drop`, `frame:forward`, `cache:update`, `cache:expire`, `mactable:update`, `mactable:expire`, `arp:timeout`, `ip:conflict`, `log`) that the renderer subscribes to.
-   - Every frame carries a `flow` number shared by everything one send causes (request, reply, data and R1's rebuilt frame), so the hop table can group them.
+6. The engine emits events (`frame:emit`, `frame:arrive`, `frame:drop`, `frame:forward`, `cache:update`, `cache:expire`, `mactable:update`, `mactable:expire`, `arp:timeout`, `ip:conflict`, `host:down`, `log`) that the renderer subscribes to.
+   - Every frame carries a `flow` number shared by everything one send causes (request, reply, data, the answer and R1's rebuilt frames), so the hop table can group them.
    - `frame:emit` from SW1 says `how` (`flood` or `forward`).
    - `frame:forward` carries R1's rebuilt frame as `out` (with `parent`), which then travels to the next hop like any other frame.
 
@@ -274,7 +276,9 @@ Behavior (RFC 826 semantics):
 - **Calls:**
   - `send(src, dstIp, app)`;
   - `announce(name)` for gratuitous ARP;
-  - `claimIp(name, ip)` for "Meanwhile, on another host…";
+  - `claimIp(name, ip, why?)` for "Meanwhile, on another host…" and the failover (`why` is the log line);
+  - `fail(name)` for the failover: the host's switch port goes down, SW1 forgets the MACs learnt there and sends it nothing, and the host sends nothing;
+  - `primeCache(name, ip)` fills a cache entry from the topology, so a scenario starts from warm caches;
   - `spoof(attacker, victim, ip)` for Break it;
   - `setTtl(ms)`, clamped to 10–300 s;
   - `tick(ms)`, `runUntilIdle()` and `isIdle()`.
@@ -290,8 +294,15 @@ Every frame can be encoded to bytes for the inspector: Ethernet header (14 bytes
 | --- | --- | --- |
 | Learn | Guided steps with a caption per step; Next/Back | The request/reply exchange, step by step |
 | Sandbox | Pick any source host, type any IP, press Send | Cache hits vs. misses, gateway resolution, aging |
-| Gratuitous ARP | Make a host announce itself (sender IP = target IP, broadcast), as hosts do after getting an address from DHCP or coming up. A button, "Meanwhile, on another host…", plays a scenario: someone on H3 mistypes a static IP as 192.0.2.12 and H3 announces it. H2 sees its own address claimed and reports a duplicate IP (`ip:conflict`), and the other hosts' caches flip to H3's MAC | Cache refresh on other hosts; duplicate IP detection when two hosts claim one IP |
+| Gratuitous ARP | Make a host announce itself (sender IP = target IP, broadcast), as hosts do after getting an address from DHCP or coming up. Two scenarios, each starting with H1 and R1 already caching H2: **Failover** (H2 fails, and H3, its standby, takes over 192.0.2.12 and announces it; caches move to H3 with no alarm, and a ping to 192.0.2.12 is answered by H3) and **"Meanwhile, on another host…"** (someone on H3 mistypes a static IP as 192.0.2.12; H2 is still up, sees its own address claimed and reports a duplicate IP (`ip:conflict`), and the other caches flip to H3's MAC) | The legitimate uses first: cache refresh, failover of HA pairs, VRRP/HSRP and VM moves (listed under "Where you meet gratuitous ARP"); duplicate IP detection. A note says ARP has no authentication, a man-in-the-middle attack uses this same path, and Dynamic ARP Inspection defends against it (and blocks a failover pair whose port isn't trusted) |
 | Break it | Enable attacker M, which sends unsolicited replies claiming 192.0.2.1 | Cache poisoning: victims' traffic to the gateway goes to M; a note names the defense (Dynamic ARP Inspection) |
+
+**Mode switcher and Learn (decided October 2026, M6).**
+
+- A radio group above the controls: Learn, Sandbox (the default), Gratuitous ARP. Switching mode resets the simulation. The URL hash names the mode (`#learn`, `#garp`), so a link opens straight into one.
+- Each mode shows only its controls (`data-modes` on the element). Learn hides the Send form, Step and the TTL slider; Gratuitous ARP keeps the Send form, so a visitor can ping 192.0.2.12 after a scenario.
+- **Learn** (`lesson.js`, DOM-free, tested): an introduction and 8 steps. H1 pings H2 with empty caches (why ARP, SW1 learns and floods, only H2 answers, the unicast reply, H1 sends the ping, H2's echo reply, the round trip done), then pings again with no ARP. Each step names the engine event it ends on. Next plays the clock until that event and pauses (finishing the current step first if it is still playing); Back rebuilds the lesson in a fresh engine and jumps to the step before. The engine is deterministic, so the rebuild is exact.
+- Break it arrives with its own design pass; it is not in the switcher yet.
 
 ### View (`renderer.js`)
 
@@ -320,7 +331,10 @@ Every frame can be encoded to bytes for the inspector: Ethernet header (14 bytes
 - [x] Every send logs why ARP is needed (the app knows the IP; Ethernet needs the MAC) before any ARP frame.
 - [x] Sending to 192.0.2.99 (unused) shows a request with no reply, an `arp:timeout` after 1 s simulated, and the "retries about 3 times" bubble and log line, without simulating the retries.
 - [x] Sending to an off-subnet IP (e.g. 8.8.8.8) resolves R1's MAC, not the destination's; the data frame is addressed to R1's MAC with IP destination 8.8.8.8, and R1 forwards it toward the next hop.
-- [ ] "Meanwhile, on another host…" makes H3 claim 192.0.2.12: H2 reports a duplicate IP and the other hosts' caches map 192.0.2.12 to H3's MAC.
+- [x] "Meanwhile, on another host…" makes H3 claim 192.0.2.12: H2 reports a duplicate IP and the other hosts' caches map 192.0.2.12 to H3's MAC.
+- [x] Failover: after H2 fails, H3 takes over 192.0.2.12 with no duplicate-IP alarm, H1's and R1's caches map it to H3's MAC, and a ping to 192.0.2.12 is answered by H3.
+- [x] Every request is answered: H2's echo reply reaches H1 without a second ARP, and the answer from 8.8.8.8 comes back through R1, which rewrites both MACs and the TTL again.
+- [x] Learn mode steps through the exchange with Next and Back, ending on a second ping that needs no ARP.
 - [x] The switch MAC table learns H1 on Gi0/1 after the first frame.
 - [x] The inspector's hex dump for a request is exactly 60 bytes and matches the decoded fields.
 - [ ] Break-it mode shows H1's cache entry for 192.0.2.1 changing to M's MAC.
@@ -727,7 +741,8 @@ Seven milestones, each ending in a deployed, working site; hand Claude Code one 
 
 ### M6: ARP modes and polish
 
-- [ ] Learn, Gratuitous ARP and Break-it modes
+- [x] Learn and Gratuitous ARP modes, the mode switcher, and answers to every request (replies, including back through R1). Done 26 October 2026: `lesson.js` with Vitest tests, `fail`/`primeCache` in the engine, the Failover and "Meanwhile" scenarios, and Playwright tests for each mode
+- [ ] Break-it mode
 - [ ] Accessibility and Lighthouse pass on all pages (N1–N3)
 - [ ] Open Graph images and metadata (N8)
 

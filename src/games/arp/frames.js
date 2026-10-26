@@ -107,6 +107,7 @@ export function arpFields(frame) {
  * @property {string} src  Ethernet source MAC.
  * @property {{ src: string, dst: string }} ip
  * @property {'ping' | 'web' | 'dns'} app
+ * @property {boolean} [reply]  True for the answer coming back.
  */
 
 /** What each application's packet is, for labels and the inspector. */
@@ -115,6 +116,22 @@ export const APP_PAYLOAD = /** @type {const} */ ({
   web: { short: 'web', long: 'HTTP request over TCP' },
   dns: { short: 'DNS', long: 'DNS query over UDP' },
 });
+
+/** The answer each application gets back. */
+export const APP_REPLY = /** @type {const} */ ({
+  ping: { short: 'echo', long: 'ICMP echo reply' },
+  web: { short: 'page', long: 'HTTP response over TCP' },
+  dns: { short: 'answer', long: 'DNS answer over UDP' },
+});
+
+/**
+ * Short and long names for a data frame's packet: the request, or the answer to it.
+ * @param {{ app?: 'ping' | 'web' | 'dns', reply?: boolean }} frame
+ * @returns {{ short: string, long: string }}
+ */
+export function appLabel({ app = 'ping', reply = false }) {
+  return (reply ? APP_REPLY : APP_PAYLOAD)[app];
+}
 
 /**
  * The 14-byte Ethernet header of a data frame (EtherType IPv4).
@@ -139,7 +156,7 @@ export function dataFields(frame) {
     { name: 'EtherType', value: 'IPv4 (0x0800)', offset: 12, length: 2 },
     { name: 'IP source', value: frame.ip.src, offset: 14, length: 0 },
     { name: 'IP destination', value: frame.ip.dst, offset: 14, length: 0 },
-    { name: 'Payload', value: `${APP_PAYLOAD[frame.app].long} (not decoded)`, offset: 14, length: 0 },
+    { name: 'Payload', value: `${appLabel(frame).long} (not decoded)`, offset: 14, length: 0 },
   ];
 }
 
@@ -153,7 +170,7 @@ export function describeFrame(frame) {
     if (oper === ARP_REQUEST && spa === tpa) return `Gratuitous ARP: ${spa} is at ${sha}`;
     return oper === ARP_REQUEST ? `ARP request: who has ${tpa}? Tell ${spa}` : `ARP reply: ${spa} is at ${sha}`;
   }
-  const { short, long } = APP_PAYLOAD[frame.app];
+  const { short, long } = appLabel(frame);
   return `${short} (${long}): ${frame.ip.src} → ${frame.ip.dst}`;
 }
 
@@ -214,7 +231,7 @@ export function breakdown(frame) {
       },
     };
   }
-  const { long } = APP_PAYLOAD[frame.app];
+  const { long } = appLabel(frame);
   /** @param {string} name @param {number} bits */
   const unmodelled = (name, bits) => ({ name, value: '·', bits, modelled: false });
   return {

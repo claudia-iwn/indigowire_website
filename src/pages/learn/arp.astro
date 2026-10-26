@@ -15,6 +15,12 @@ if (!entry) throw new Error('src/content/learn/arp.md is missing');
 
 const hosts = TOPOLOGY.nodes.filter((node) => node.role !== 'attacker');
 const ttlSeconds = DEFAULT_TTL_MS / 1000;
+/** The mode switcher's choices; the value is also the URL hash (#learn, #garp). */
+const MODES = [
+  { value: 'learn', label: 'Learn' },
+  { value: 'sandbox', label: 'Sandbox' },
+  { value: 'garp', label: 'Gratuitous ARP' },
+];
 ---
 
 <BaseLayout title={entry.data.title} description={entry.data.summary}>
@@ -45,7 +51,84 @@ const ttlSeconds = DEFAULT_TTL_MS / 1000;
   </noscript>
 
   <div class="arp" data-arp>
-    <form class="send" novalidate>
+    <fieldset class="modes">
+      <legend>Mode</legend>
+      {MODES.map((mode) => (
+        <label>
+          <input type="radio" name="arp-mode" value={mode.value} checked={mode.value === 'sandbox'} />
+          {mode.label}
+        </label>
+      ))}
+    </fieldset>
+
+    <section class="lesson" data-modes="learn" aria-labelledby="lesson-title" hidden>
+      <p class="lesson-count" id="lesson-count"></p>
+      <h2 id="lesson-title">Learn</h2>
+      <p class="lesson-caption" aria-live="polite"></p>
+      <div class="lesson-nav">
+        <button id="lesson-back" type="button">
+          Back
+        </button>
+        <button id="lesson-next" class="primary" type="button">
+          Next
+        </button>
+      </div>
+    </section>
+
+    <section class="garp" data-modes="garp" aria-labelledby="garp-title" hidden>
+      <h2 id="garp-title">Gratuitous ARP</h2>
+      <p>
+        A gratuitous ARP is a host announcing its own address: an ARP request for its own IP, sent to everyone. Nobody
+        replies. Any host that already has that IP in its cache updates the entry to the sender’s MAC, and a host that
+        owns the IP itself knows someone else is using it.
+      </p>
+      <div class="garp-row">
+        <label for="garp-host">Announce from</label>
+        <select id="garp-host">
+          {hosts.map((node) => (
+            <option value={node.name}>
+              {node.name} ({node.ip})
+            </option>
+          ))}
+        </select>
+        <button id="garp-announce" class="primary" type="button">
+          Announce
+        </button>
+      </div>
+      <div class="garp-row">
+        <button id="garp-failover" type="button">
+          Failover: H2 fails, H3 takes over 192.0.2.12
+        </button>
+        <button id="garp-meanwhile" type="button">
+          Meanwhile, on another host…
+        </button>
+      </div>
+      <p class="garp-status" aria-live="polite"></p>
+      <details class="garp-uses">
+        <summary>Where you meet gratuitous ARP</summary>
+        <ul>
+          <li>A host announces itself when its interface comes up or DHCP gives it an address.</li>
+          <li>
+            A high-availability pair of load balancers or firewalls: when the standby takes over the shared address, it
+            announces it, so traffic follows straight away instead of waiting for caches to expire. That is the Failover
+            button.
+          </li>
+          <li>
+            First-hop redundancy (VRRP, HSRP): the routers share a virtual MAC, so host caches need no change, but the
+            new active router announces it so the switches move that MAC to its port.
+          </li>
+          <li>A virtual machine moving to another server announces itself from its new switch port.</li>
+        </ul>
+      </details>
+      <p class="garp-note">
+        <strong>Note:</strong> ARP has no authentication, so hosts believe any announcement. An ARP spoofing
+        (man-in-the-middle) attack uses this same path to claim an address it doesn’t own. Switches defend with Dynamic
+        ARP Inspection, which checks ARP against the DHCP snooping table; switch it on without trusting a failover
+        pair’s port and it blocks the failover too.
+      </p>
+    </section>
+
+    <form class="send" data-modes="sandbox garp" novalidate>
       <div class="field">
         <label for="arp-source">From</label>
         <select id="arp-source">
@@ -96,7 +179,7 @@ const ttlSeconds = DEFAULT_TTL_MS / 1000;
       <button id="arp-play" type="button">
         Pause
       </button>
-      <button id="arp-step" type="button" disabled>
+      <button id="arp-step" type="button" data-modes="sandbox garp" disabled>
         Step
       </button>
       <label>
@@ -110,7 +193,7 @@ const ttlSeconds = DEFAULT_TTL_MS / 1000;
           <option value="2">2×</option>
         </select>
       </label>
-      <label class="ttl">
+      <label class="ttl" data-modes="sandbox garp">
         Cache TTL
         <input id="arp-ttl" type="range" min={MIN_TTL_MS / 1000} max={MAX_TTL_MS / 1000} step="10" value={ttlSeconds} />
         <output id="arp-ttl-out" for="arp-ttl">
@@ -231,6 +314,100 @@ const ttlSeconds = DEFAULT_TTL_MS / 1000;
     background: var(--color-bg);
     color: var(--color-text);
     padding: var(--space-1) var(--space-2);
+  }
+
+  /* Parts that belong to other modes; beats the display rules below. */
+  [data-modes][hidden] {
+    display: none;
+  }
+  .modes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .modes legend {
+    font-weight: 600;
+    margin-block-end: var(--space-1);
+    padding: 0;
+    width: 100%;
+  }
+  .modes label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: var(--space-1) var(--space-3);
+    cursor: pointer;
+  }
+  .modes label:has(:checked) {
+    border-color: var(--color-link);
+    background: var(--color-surface);
+    font-weight: 600;
+  }
+  .modes label:has(:focus-visible) {
+    outline: 2px solid var(--color-link);
+    outline-offset: 2px;
+  }
+
+  .lesson,
+  .garp {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+    padding: var(--space-3) var(--space-4);
+  }
+  .lesson h2,
+  .garp h2 {
+    margin: 0 0 var(--space-2);
+    font-size: var(--text-lg);
+  }
+  .lesson-count {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+  }
+  .lesson-caption {
+    margin: 0 0 var(--space-3);
+    min-height: 4.5em;
+  }
+  .lesson-nav,
+  .garp-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+  }
+  .garp p,
+  .garp details {
+    margin: 0 0 var(--space-3);
+  }
+  .garp-row {
+    margin-block-end: var(--space-3);
+  }
+  .garp-row label {
+    font-weight: 600;
+  }
+  .garp-status:empty {
+    display: none;
+  }
+  .garp-status {
+    font-weight: 600;
+  }
+  .garp-uses ul {
+    margin: var(--space-2) 0 0;
+    padding-inline-start: 1.25em;
+  }
+  .garp-uses li + li {
+    margin-block-start: var(--space-1);
+  }
+  .garp .garp-note {
+    border-inline-start: 4px solid var(--color-accent);
+    padding-inline-start: var(--space-3);
+    margin-block-end: 0;
   }
 
   .send {
@@ -375,6 +552,18 @@ const ttlSeconds = DEFAULT_TTL_MS / 1000;
   .topology :global(.node.attacker rect:first-child) {
     stroke: var(--color-accent);
     stroke-dasharray: 6 4;
+  }
+  /* A failed host: dashed outline and link, muted text (still readable, so no opacity). */
+  .topology :global(.link.down line) {
+    stroke: var(--color-text-muted);
+    stroke-dasharray: 4 6;
+  }
+  .topology :global(.node.down rect:first-child) {
+    stroke: var(--color-text-muted);
+    stroke-dasharray: 6 4;
+  }
+  .topology :global(.node.down text) {
+    fill: var(--color-text-muted);
   }
   .topology :global(.node.cloud path) {
     fill: var(--color-bg);

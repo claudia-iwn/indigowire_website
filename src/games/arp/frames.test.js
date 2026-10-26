@@ -4,6 +4,7 @@ import {
   breakdown,
   dataFields,
   describeFrame,
+  appLabel,
   encodeArpFrame,
   encodeEthernetHeader,
   BROADCAST_MAC,
@@ -105,6 +106,14 @@ describe('describeFrame', () => {
     const gratuitous = { ...REQUEST, arp: { ...REQUEST.arp, tpa: '192.0.2.11' } };
     expect(describeFrame(gratuitous)).toBe('Gratuitous ARP: 192.0.2.11 is at 00:00:5e:00:53:11');
     expect(describeFrame(DATA)).toBe('ping (ICMP echo request): 192.0.2.11 → 8.8.8.8');
+  });
+
+  it('names the answer that comes back for each application', () => {
+    const reply = { ...DATA, ip: { src: '8.8.8.8', dst: '192.0.2.11' }, reply: true };
+    expect(describeFrame(reply)).toBe('echo (ICMP echo reply): 8.8.8.8 → 192.0.2.11');
+    expect(appLabel({ app: 'web', reply: true })).toEqual({ short: 'page', long: 'HTTP response over TCP' });
+    expect(appLabel({ app: 'dns', reply: true }).long).toBe('DNS answer over UDP');
+    expect(appLabel({ app: 'dns' }).long).toBe('DNS query over UDP');
   });
 });
 

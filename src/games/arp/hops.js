@@ -2,7 +2,7 @@
  * The hop table (spec section 6, "View"): what each device did to a frame on its way.
  * DOM-free. The renderer collects an exchange's frame:emit events and passes them here.
  */
-import { BROADCAST_MAC, APP_PAYLOAD } from './frames.js';
+import { BROADCAST_MAC, appLabel } from './frames.js';
 
 /**
  * @typedef {object} HopRow
@@ -71,7 +71,7 @@ export function hopRows(hops, nameOf) {
     } else if (kind === 'reply') {
       row.note = `${from} replies only to ${row.ethDst}: ${frame.arp.spa} is at ${frame.arp.sha}.`;
     } else {
-      row.note = `${from} wraps the ${APP_PAYLOAD[/** @type {'ping' | 'web' | 'dns'} */ (frame.app)].long} in a frame for ${row.ethDst}.`;
+      row.note = `${from} wraps the ${appLabel(frame).long} in a frame for ${row.ethDst}.`;
     }
     rows.push(row);
     lastRow.set(frame.id, row);

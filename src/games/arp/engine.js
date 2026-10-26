@@ -30,13 +30,20 @@ import { BROADCAST_MAC, ZERO_MAC, ETHERTYPE_ARP, ETHERTYPE_IPV4, ARP_REQUEST, AR
  * @property {import('./frames.js').ArpPayload} [arp]
  * @property {{ src: string, dst: string, ttl: number }} [ip]
  * @property {App} [app]
+ * @property {boolean} [reply] Data frames: true for the answer (echo reply, web response, DNS answer).
  * @property {number} flow     Groups every frame of one send (request, reply, data), for the hop table.
  * @property {number} [parent] For a frame a router rebuilt: the id of the frame it came from.
  */
 
 /**
  * @typedef {'frame:emit' | 'frame:arrive' | 'frame:drop' | 'frame:forward' | 'cache:update' | 'cache:expire'
- *   | 'mactable:update' | 'mactable:expire' | 'arp:timeout' | 'ip:conflict' | 'log'} EngineEvent
+ *   | 'mactable:update' | 'mactable:expire' | 'arp:timeout' | 'ip:conflict' | 'host:down' | 'log'} EngineEvent
+ */
+
+/**
+ * An IP packet waiting to go out, with what the frame around it needs. `via` is the frame
+ * a router received it in, when the router is forwarding rather than sending its own.
+ * @typedef {{ ip: { src: string, dst: string, ttl: number }, app: App, reply: boolean, flow: number, via?: Frame }} Packet
  */
 
 /** One switch, four ports in use, attacker only in Break-it mode. MACs from the RFC 7042 documentation range. */
@@ -68,6 +75,8 @@ export const HOP_MS = 600;
 export const ARP_TIMEOUT_MS = 1_000;
 /** IP time-to-live a host puts on a new packet; each router lowers it by one. */
 export const IP_TTL = 64;
+/** Routers a reply from the internet is taken to have crossed before the next hop (illustrative). */
+export const INTERNET_HOPS = 8;
 
 const SWITCH = TOPOLOGY.switch.name;
 const GATEWAY = TOPOLOGY.nodes.find((node) => node.role === 'gateway');
@@ -78,6 +87,14 @@ const APP_LABEL = {
   web: 'a web request (HTTP over TCP)',
   dns: 'a DNS query (UDP)',
 };
+/** @type {Record<App, string>} */
+const REPLY_LABEL = {
+  ping: 'the ICMP echo reply',
+  web: 'the web response',
+  dns: 'the DNS answer',
+};
+/** @param {{ app?: App, reply?: boolean }} packet */
+const labelOf = ({ app = 'ping', reply }) => (reply ? REPLY_LABEL[app] : APP_LABEL[app]);
 
 /** @param {string} ip Dotted quad to a 32-bit number. `>>> 0` keeps it unsigned. */
 const ipToInt = (ip) => ip.split('.').reduce((n, part) => ((n << 8) | Number(part)) >>> 0, 0);
@@ -114,8 +131,10 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
           ...node,
           /** @type {Map<string, { mac: string, expiresAt: number }>} */
           arpCache: new Map(),
-          /** @type {Map<string, { dstIp: string, app: App, flow: number }[]>} */
+          /** @type {Map<string, Packet[]>} */
           pending: new Map(),
+          /** True once the host has failed (Gratuitous ARP mode's failover). */
+          down: false,
         },
       ]),
     ),
@@ -182,7 +201,14 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
    * @param {Omit<Frame, 'id'>} fields
    */
   function transmit(host, fields) {
-    const frame = /** @type {Frame} */ ({ id: nextFrameId++, ...fields });
+    return transmitFrame(host, /** @type {Frame} */ ({ id: nextFrameId++, ...fields }));
+  }
+
+  /**
+   * @param {Host} host
+   * @param {Frame} frame  Already numbered.
+   */
+  function transmitFrame(host, frame) {
     emit('frame:emit', { frame, from: host.name, to: SWITCH, at: state.clock, arrivesAt: state.clock + HOP_MS });
     schedule(HOP_MS, () => switchReceive(frame, host.port));
     return frame;
@@ -206,13 +232,15 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
     let outs;
     // Either way the frame leaves exactly as it arrived: a switch never rewrites it.
     let how = 'forward';
+    // A failed host's port is down, so nothing goes out of it.
+    const others = Object.values(state.hosts).filter((host) => host.port !== ingress && !host.down);
     if (frame.dst === BROADCAST_MAC) {
       how = 'flood';
-      outs = Object.values(state.hosts).filter((host) => host.port !== ingress);
+      outs = others;
       log(`${SWITCH} floods the broadcast out every other port.`);
     } else if (!entry) {
       how = 'flood';
-      outs = Object.values(state.hosts).filter((host) => host.port !== ingress);
+      outs = others;
       log(`${SWITCH} has no entry for ${frame.dst}, so it floods the frame out every other port.`);
     } else {
       const out = nodeByPort(entry.port);
@@ -234,6 +262,7 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
    */
   function hostReceive(host, frame) {
     emit('frame:arrive', { frame, node: host.name, time: state.clock });
+    if (host.down) return;
     if (frame.dst !== host.mac && frame.dst !== BROADCAST_MAC) {
       drop(host, frame, 'not for me');
     } else if (frame.arp) {
@@ -308,7 +337,7 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
       log(`${host.name} learns that ${spa} is at ${sha}.`);
       const waiting = host.pending.get(spa) ?? [];
       host.pending.delete(spa);
-      for (const { dstIp, app, flow } of waiting) sendData(host, sha, dstIp, app, flow);
+      for (const packet of waiting) sendData(host, sha, packet);
     } else if (!had) {
       drop(host, frame, 'not for me');
     }
@@ -319,10 +348,11 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
    * @param {Frame} frame
    */
   function receiveData(host, frame) {
-    const { ip, app = 'ping' } = frame;
+    const { ip, app = 'ping', reply = false } = frame;
     if (!ip) return;
     if (ip.dst === host.ip) {
-      log(`${host.name} receives ${APP_LABEL[app]} from ${ip.src}.`);
+      log(`${host.name} receives ${labelOf(frame)} from ${ip.src}.`);
+      if (!reply) answer(host, frame);
     } else if (host.role === 'gateway') {
       const { upstream } = TOPOLOGY;
       const out = /** @type {Frame} */ ({
@@ -332,6 +362,7 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
         type: ETHERTYPE_IPV4,
         ip: { ...ip, ttl: ip.ttl - 1 },
         app,
+        reply,
         flow: frame.flow,
         parent: frame.id,
       });
@@ -348,33 +379,144 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
   }
 
   /**
+   * The destination answers: an echo reply, a web response or a DNS answer, sent back the
+   * same way any packet is (ARP first if the host doesn't know the next hop's MAC).
    * @param {Host} host
-   * @param {string} mac   Next hop's MAC.
-   * @param {string} dstIp Final IP destination.
-   * @param {App} app
-   * @param {number} flow
+   * @param {Frame} request
    */
-  function sendData(host, mac, dstIp, app, flow) {
-    log(`${host.name} sends ${APP_LABEL[app]} to ${dstIp} in a frame addressed to ${mac}.`);
-    transmit(host, {
-      dst: mac,
-      src: host.mac,
-      type: ETHERTYPE_IPV4,
-      ip: { src: host.ip, dst: dstIp, ttl: IP_TTL },
-      app,
-      flow,
-    });
+  function answer(host, request) {
+    const ip = /** @type {NonNullable<Frame['ip']>} */ (request.ip);
+    const packet = {
+      ip: { src: host.ip, dst: ip.src, ttl: IP_TTL },
+      app: request.app ?? 'ping',
+      reply: true,
+      flow: request.flow,
+    };
+    const local = sameSubnet(host.ip, ip.src, host.prefix);
+    if (!local && !GATEWAY) return;
+    deliver(host, local ? ip.src : /** @type {Node} */ (GATEWAY).ip, packet);
   }
 
   /**
-   * Send a frame out R1's upstream link; it arrives at the next hop and leaves the game.
+   * Send a packet to `nextHop` on the LAN: at once on a cache hit, otherwise after ARP.
+   * @param {Host} host
+   * @param {string} nextHop  IP whose MAC goes in the frame.
+   * @param {Packet} packet
+   * @returns {boolean} True when the packet went out at once.
+   */
+  function deliver(host, nextHop, packet) {
+    const cached = host.arpCache.get(nextHop);
+    if (cached) {
+      sendData(host, cached.mac, packet);
+      return true;
+    }
+    const waiting = host.pending.get(nextHop);
+    if (waiting) {
+      waiting.push(packet);
+      log(`${host.name} is already asking for ${nextHop}; this packet waits for the same reply.`);
+      return false;
+    }
+    host.pending.set(nextHop, [packet]);
+    const request = transmit(host, {
+      dst: BROADCAST_MAC,
+      src: host.mac,
+      type: ETHERTYPE_ARP,
+      arp: { oper: ARP_REQUEST, sha: host.mac, spa: host.ip, tha: ZERO_MAC, tpa: nextHop },
+      flow: packet.flow,
+    });
+    floods.set(request.id, { host: host.name, ip: nextHop, remaining: Infinity, answered: false });
+    log(`${host.name} broadcasts an ARP request: who has ${nextHop}? Tell ${host.ip}.`);
+    return false;
+  }
+
+  /**
+   * @param {Host} host
+   * @param {string} mac   Next hop's MAC.
+   * @param {Packet} packet
+   */
+  function sendData(host, mac, packet) {
+    const { ip, app, reply, flow, via } = packet;
+    const frame = /** @type {Frame} */ ({
+      id: nextFrameId++,
+      dst: mac,
+      src: host.mac,
+      type: ETHERTYPE_IPV4,
+      ip,
+      app,
+      reply,
+      flow,
+      ...(via ? { parent: via.id } : {}), // like Python's {**({'parent': ...} if via else {})}
+    });
+    if (via) {
+      const to = Object.values(state.hosts).find((h) => h.mac === mac)?.name ?? mac;
+      emit('frame:forward', { frame: via, out: frame, node: host.name, to, time: state.clock });
+      log(
+        `${host.name} removes the upstream Ethernet header, lowers the TTL from ${via.ip?.ttl} to ${ip.ttl} and ` +
+          `builds a new frame for the LAN: from its own MAC ${host.mac} to ${to}'s ${mac}. The IP addresses stay ` +
+          `${ip.src} → ${ip.dst}.`,
+      );
+    } else {
+      log(`${host.name} sends ${labelOf(packet)} to ${ip.dst} in a frame addressed to ${mac}.`);
+    }
+    transmitFrame(host, frame);
+  }
+
+  /**
+   * Send a frame out R1's upstream link. At the next hop a request is answered: the reply
+   * comes back from "the internet" to R1.
    * @param {Host} router
    * @param {Frame} frame
    */
   function routeOut(router, frame) {
-    const to = TOPOLOGY.upstream.nextHop.name;
+    const { upstream } = TOPOLOGY;
+    const to = upstream.nextHop.name;
     emit('frame:emit', { frame, from: router.name, to, at: state.clock, arrivesAt: state.clock + HOP_MS });
-    schedule(HOP_MS, () => emit('frame:arrive', { frame, node: to, time: state.clock }));
+    schedule(HOP_MS, () => {
+      emit('frame:arrive', { frame, node: to, time: state.clock });
+      const ip = /** @type {NonNullable<Frame['ip']>} */ (frame.ip);
+      if (frame.reply) return;
+      const back = /** @type {Frame} */ ({
+        id: nextFrameId++,
+        dst: upstream.mac,
+        src: upstream.nextHop.mac,
+        type: ETHERTYPE_IPV4,
+        ip: { src: ip.dst, dst: ip.src, ttl: IP_TTL - INTERNET_HOPS },
+        app: frame.app,
+        reply: true,
+        flow: frame.flow,
+      });
+      log(
+        `${labelOf(back)} from ${ip.dst} comes back across the internet to the next hop, which sends it to ${router.name}.`,
+      );
+      emit('frame:emit', { frame: back, from: to, to: router.name, at: state.clock, arrivesAt: state.clock + HOP_MS });
+      schedule(HOP_MS, () => upstreamReceive(router, back));
+    });
+  }
+
+  /**
+   * R1 receives a packet on its upstream link and routes it onto the LAN.
+   * @param {Host} router
+   * @param {Frame} frame
+   */
+  function upstreamReceive(router, frame) {
+    emit('frame:arrive', { frame, node: router.name, time: state.clock });
+    const ip = /** @type {NonNullable<Frame['ip']>} */ (frame.ip);
+    if (ip.dst === TOPOLOGY.upstream.ip) {
+      log(`${router.name} receives ${labelOf(frame)} from ${ip.src}.`);
+      return;
+    }
+    if (!sameSubnet(router.ip, ip.dst, router.prefix)) return;
+    const packet = {
+      ip: { ...ip, ttl: ip.ttl - 1 },
+      app: frame.app ?? 'ping',
+      reply: Boolean(frame.reply),
+      flow: frame.flow,
+      via: frame,
+    };
+    if (!router.arpCache.has(ip.dst)) {
+      log(`${router.name} has a packet for ${ip.dst} on its LAN but no MAC for it, so it uses ARP too.`);
+    }
+    deliver(router, ip.dst, packet);
   }
 
   /**
@@ -420,6 +562,10 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
   function send(src, dstIp, app = 'ping') {
     const host = state.hosts[src];
     if (!host) throw new Error(`No host named ${src}`);
+    if (host.down) {
+      log(`${src} is down, so it sends nothing.`);
+      return;
+    }
     const local = sameSubnet(host.ip, dstIp, host.prefix);
 
     const flow = nextFlow++;
@@ -440,10 +586,11 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
     if (!local && !GATEWAY) throw new Error('No gateway in the topology');
     const nextHop = local ? dstIp : /** @type {Node} */ (GATEWAY).ip;
 
+    const packet = { ip: { src: host.ip, dst: dstIp, ttl: IP_TTL }, app, reply: false, flow };
     const cached = host.arpCache.get(nextHop);
     if (cached) {
       log(`${src} already has ${nextHop} in its ARP cache (${cached.mac}), so no ARP is needed.`);
-      sendData(host, cached.mac, dstIp, app, flow);
+      sendData(host, cached.mac, packet);
       return;
     }
 
@@ -456,23 +603,7 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
         : `${why} ${dstIp} is not on the local subnet, so the frame goes to the default gateway, ` +
             `${GATEWAY?.name} (${nextHop}). ${src} asks for the gateway's MAC, not ${dstIp}'s.`,
     );
-
-    const waiting = host.pending.get(nextHop);
-    if (waiting) {
-      waiting.push({ dstIp, app, flow });
-      log(`${src} is already asking for ${nextHop}; this packet waits for the same reply.`);
-      return;
-    }
-    host.pending.set(nextHop, [{ dstIp, app, flow }]);
-    const request = transmit(host, {
-      dst: BROADCAST_MAC,
-      src: host.mac,
-      type: ETHERTYPE_ARP,
-      arp: { oper: ARP_REQUEST, sha: host.mac, spa: host.ip, tha: ZERO_MAC, tpa: nextHop },
-      flow,
-    });
-    floods.set(request.id, { host: src, ip: nextHop, remaining: Infinity, answered: false });
-    log(`${src} broadcasts an ARP request: who has ${nextHop}? Tell ${host.ip}.`);
+    deliver(host, nextHop, packet);
   }
 
   /**
@@ -493,14 +624,16 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
   }
 
   /**
-   * "Meanwhile, on another host…": give a host an address and have it announce it.
+   * Give a host an address and have it announce it: "Meanwhile, on another host…" (a
+   * mistyped static IP) or a failover (a standby taking over a failed host's address).
    * @param {string} name
    * @param {string} ip
+   * @param {string} [why]  The log line saying how the host came to claim it.
    */
-  function claimIp(name, ip) {
+  function claimIp(name, ip, why = `Meanwhile, on ${name}, someone sets a static address of ${ip}.`) {
     const host = state.hosts[name];
     if (!host) throw new Error(`No host named ${name}`);
-    log(`Meanwhile, on ${name}, someone sets a static address of ${ip}.`);
+    log(why);
     host.ip = ip;
     announce(name);
   }
@@ -523,6 +656,38 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
       arp: { oper: ARP_REPLY, sha: attackerHost.mac, spa: claimIp, tha: victim.mac, tpa: victim.ip },
       flow: nextFlow++,
     });
+  }
+
+  /**
+   * Failover: a host fails. Its switch port goes down, so SW1 forgets the MACs it learnt
+   * there and sends it nothing more.
+   * @param {string} name
+   */
+  function fail(name) {
+    const host = state.hosts[name];
+    if (!host) throw new Error(`No host named ${name}`);
+    host.down = true;
+    emit('host:down', { host: name, time: state.clock });
+    log(`${name} fails. ${SWITCH} sees its port ${host.port} go down and forgets the MAC addresses learnt there.`);
+    for (const [mac, entry] of state.switch.macTable) {
+      if (entry.port !== host.port) continue;
+      state.switch.macTable.delete(mac);
+      emit('mactable:expire', { mac, port: entry.port });
+    }
+  }
+
+  /**
+   * Fill in a cache entry from the topology, as if the hosts had talked a moment ago.
+   * Scenarios use it to start from warm caches.
+   * @param {string} name
+   * @param {string} ip
+   */
+  function primeCache(name, ip) {
+    const host = state.hosts[name];
+    const owner = Object.values(state.hosts).find((h) => h.ip === ip);
+    if (!host || !owner) throw new Error(`Cannot prime ${name} with ${ip}`);
+    cache(host, ip, owner.mac);
+    log(`${name} already has ${ip} at ${owner.mac} in its cache from earlier traffic.`);
   }
 
   /** @param {number} ms Cache and MAC-table lifetime, kept within 10–300 s. */
@@ -561,5 +726,20 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
   /** True when no frame or timer is pending. */
   const isIdle = () => queue.length === 0;
 
-  return { state, on, emit, send, announce, claimIp, spoof, setTtl, tick, runUntilIdle, isIdle, nextEventAt };
+  return {
+    state,
+    on,
+    emit,
+    send,
+    announce,
+    claimIp,
+    spoof,
+    fail,
+    primeCache,
+    setTtl,
+    tick,
+    runUntilIdle,
+    isIdle,
+    nextEventAt,
+  };
 }
