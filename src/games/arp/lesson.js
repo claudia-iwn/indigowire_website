@@ -46,7 +46,7 @@ export const LESSON = [
     title: 'SW1 learns and floods',
     note: { node: 'SW1', text: 'H1 is on Gi0/1. Broadcast: flood it' },
     caption:
-      'SW1 notes that H1’s MAC is on port Gi0/1 (see its MAC address table). The destination is the broadcast address, so it floods a copy out every other port, unchanged.',
+      'SW1 notes that H1’s MAC is on port Gi0/1 (see its MAC address table). The destination is the broadcast address, so it floods a copy out every other port in the same VLAN, unchanged. This LAN has one VLAN; chapter 5, Broadcasts and VLANs, explains more.',
     until: { event: 'frame:emit', match: (hop) => hop.from === 'SW1' && hop.how === 'flood' },
   },
   {

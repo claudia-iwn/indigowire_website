@@ -1,0 +1,43 @@
+---
+/**
+ * Visible breadcrumbs for a lesson page: Learn › Part › Chapter › Lesson (spec section 12).
+ * The same list goes to BaseLayout for structured data.
+ * @typedef {object} Props
+ * @property {{ name: string, path: string }[]} crumbs
+ */
+const { crumbs } = Astro.props;
+---
+
+<nav class="crumbs" aria-label="Breadcrumb">
+  <ol>
+    {crumbs.map((crumb, i) =>
+      i === crumbs.length - 1 ? (
+        <li aria-current="page">{crumb.name}</li>
+      ) : (
+        <li>
+          <a href={crumb.path}>{crumb.name}</a>
+        </li>
+      ),
+    )}
+  </ol>
+</nav>
+
+<style>
+  .crumbs ol {
+    list-style: none;
+    margin: 0 0 var(--space-2);
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 var(--space-1);
+    font-size: var(--text-sm);
+  }
+  .crumbs li:not(:last-child)::after {
+    content: '›' / '';
+    margin-inline-start: var(--space-1);
+    color: var(--color-text-muted);
+  }
+  .crumbs [aria-current] {
+    color: var(--color-text-muted);
+  }
+</style>

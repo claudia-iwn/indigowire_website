@@ -208,6 +208,25 @@ test.describe('Search and AI search (N11)', () => {
       await expect(lesson.locator('li')).toHaveCount(9);
       await expect(lesson).toContainText('Ethernet delivers frames by MAC address');
     });
+
+    test('the ARP page shows its place in the course, why you’d care, and the way back to the map', async ({
+      page,
+    }) => {
+      await page.goto('/learn/arp');
+      const crumbs = page.getByRole('navigation', { name: 'Breadcrumb' });
+      await expect(crumbs.getByRole('link', { name: 'Chapter 4: Finding your neighbours' })).toHaveAttribute(
+        'href',
+        '/learn#chapter-finding-your-neighbours',
+      );
+      await expect(page.locator('.place')).toContainText('Part 1 · Chapter 4 · Finding your neighbours · IPv4');
+      await expect(page.locator('.place')).toContainText('On the photo’s journey: Wi-Fi or cable');
+      await expect(page.locator('.lesson-why')).toContainText('Your laptop and the printer are on the same Wi-Fi');
+      const nav = page.getByRole('navigation', { name: 'Course' });
+      await expect(nav.getByRole('link', { name: 'The course map' })).toHaveAttribute('href', '/learn');
+      await expect(nav).toContainText('Up next in the course: Neighbor Discovery');
+      await page.getByText('Read the lesson as text').click();
+      await expect(page.locator('.lesson-text')).toContainText('in the same VLAN');
+    });
   });
 
   test('the 404 page asks not to be indexed', async ({ page }) => {

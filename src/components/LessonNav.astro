@@ -1,0 +1,51 @@
+---
+/**
+ * At a lesson's foot: the previous and next available lessons, the map, and what's
+ * coming (spec section 12, "Lesson pages").
+ * @typedef {object} Props
+ * @property {import('../lib/path.js').Course} course
+ * @property {import('../lib/path.js').Lesson} lesson
+ */
+import { neighbours } from '../lib/path.js';
+
+const { course, lesson } = Astro.props;
+const { previous, next } = neighbours(course, lesson);
+---
+
+<nav class="lesson-nav" aria-label="Course">
+  {previous?.page && (
+    <a rel="prev" href={previous.page.href}>
+      ← {previous.page.title}
+    </a>
+  )}
+  <a href="/learn">The course map</a>
+  {next?.page && (
+    <a rel="next" href={next.page.href}>
+      {next.page.title} →
+    </a>
+  )}
+  {!next && course.next && (
+    <p class="coming">
+      Up next in the course: {course.next.title}
+      {course.next.familyLabel && ` (${course.next.familyLabel})`}
+    </p>
+  )}
+</nav>
+
+<style>
+  .lesson-nav {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: var(--space-2);
+    margin-block-start: var(--space-5);
+    padding-block-start: var(--space-3);
+    border-top: 1px solid var(--color-border);
+  }
+  .coming {
+    flex-basis: 100%;
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+  }
+</style>

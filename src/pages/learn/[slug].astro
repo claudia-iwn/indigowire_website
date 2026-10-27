@@ -8,8 +8,12 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import { shareCards } from '../../site.config.js';
 import TagList from '../../components/TagList.astro';
 import BackHome from '../../components/BackHome.astro';
-import { getLearn, getTagNames } from '../../lib/content.js';
+import { getCourse, getLearn, getTagNames } from '../../lib/content.js';
 import { learningResourceLd } from '../../lib/seo.js';
+import LessonBreadcrumbs from '../../components/LessonBreadcrumbs.astro';
+import LessonPlace from '../../components/LessonPlace.astro';
+import LessonNav from '../../components/LessonNav.astro';
+import { lessonFor, lessonBreadcrumbs } from '../../lib/path.js';
 
 export async function getStaticPaths() {
   const entries = await getLearn();
@@ -23,6 +27,15 @@ const { Content } = await render(entry);
 const description = entry.data.description ?? entry.data.summary;
 const tagNames = await getTagNames();
 const path = `/learn/${entry.id}`;
+const course = await getCourse();
+const lesson = lessonFor(course, entry.id);
+// Entries not yet placed in path.yaml keep simple breadcrumbs.
+const crumbs = lesson
+  ? lessonBreadcrumbs(lesson)
+  : [
+      { name: 'Learn', path: '/learn' },
+      { name: entry.data.title, path },
+    ];
 const resource = learningResourceLd({
   path,
   title: entry.data.title,
@@ -35,19 +48,13 @@ const resource = learningResourceLd({
 });
 ---
 
-<BaseLayout
-  title={entry.data.title}
-  {description}
-  ogImage={shareCards.learn}
-  breadcrumbs={[
-    { name: 'Learn', path: '/learn' },
-    { name: entry.data.title, path },
-  ]}
-  jsonLd={[resource]}
->
+<BaseLayout title={entry.data.title} {description} ogImage={shareCards.learn} breadcrumbs={crumbs} jsonLd={[resource]}>
+  {lesson && <LessonBreadcrumbs crumbs={crumbs} />}
   <h1>{entry.data.title}</h1>
   <p class="lede">{entry.data.summary}</p>
+  {lesson && <LessonPlace lesson={lesson} />}
   <TagList tags={entry.data.tags} />
   <Content />
+  {lesson && <LessonNav course={course} lesson={lesson} />}
   <BackHome />
 </BaseLayout>

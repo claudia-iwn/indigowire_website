@@ -11,11 +11,20 @@ import BackHome from '../../components/BackHome.astro';
 import { TOPOLOGY, DEFAULT_TTL_MS, MIN_TTL_MS, MAX_TTL_MS } from '../../games/arp/engine.js';
 import { shareCards } from '../../site.config.js';
 import { learningResourceLd } from '../../lib/seo.js';
-import { getTagNames } from '../../lib/content.js';
+import { getCourse, getTagNames } from '../../lib/content.js';
 import { LESSON } from '../../games/arp/lesson.js';
+import LessonBreadcrumbs from '../../components/LessonBreadcrumbs.astro';
+import LessonPlace from '../../components/LessonPlace.astro';
+import LessonNav from '../../components/LessonNav.astro';
+import { lessonFor, lessonBreadcrumbs } from '../../lib/path.js';
 
 const entry = await getEntry('learn', 'arp');
 if (!entry) throw new Error('src/content/learn/arp.md is missing');
+
+const course = await getCourse();
+const lesson = lessonFor(course, 'arp');
+if (!lesson) throw new Error('path.yaml has no lesson with entry: arp');
+const crumbs = lessonBreadcrumbs(lesson);
 
 const description = entry.data.description ?? entry.data.summary;
 const tagNames = await getTagNames();
@@ -41,16 +50,8 @@ const MODES = [
 ];
 ---
 
-<BaseLayout
-  title={entry.data.title}
-  {description}
-  ogImage={shareCards.arp}
-  breadcrumbs={[
-    { name: 'Learn', path: '/learn' },
-    { name: entry.data.title, path: '/learn/arp' },
-  ]}
-  jsonLd={[resource]}
->
+<BaseLayout title={entry.data.title} {description} ogImage={shareCards.arp} breadcrumbs={crumbs} jsonLd={[resource]}>
+  <LessonBreadcrumbs crumbs={crumbs} />
   <h1>{entry.data.title}</h1>
   <p class="lede">{entry.data.summary}</p>
   <TagList tags={entry.data.tags} />
@@ -66,6 +67,7 @@ const MODES = [
       )}
     </p>
   )}
+  <LessonPlace lesson={lesson} />
 
   <noscript>
     <p class="notice">The simulator needs JavaScript. Here is the network it simulates:</p>
@@ -314,6 +316,7 @@ const MODES = [
       </ol>
     </details>
   </section>
+  <LessonNav course={course} lesson={lesson} />
   <BackHome />
 </BaseLayout>
 

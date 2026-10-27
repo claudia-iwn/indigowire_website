@@ -14,6 +14,12 @@ function emits(engine) {
 }
 
 describe('the Learn lesson', () => {
+  it('says a broadcast floods only within the VLAN, and points to chapter 5', () => {
+    const flood = LESSON.find((step) => step.title === 'SW1 learns and floods');
+    expect(flood?.caption).toContain('in the same VLAN');
+    expect(flood?.caption).toContain('chapter 5');
+  });
+
   it('starts with an introduction that sends nothing, and gives every later step a caption and an end', () => {
     expect(LESSON[0].until).toBeUndefined();
     expect(LESSON[0].start).toBeUndefined();

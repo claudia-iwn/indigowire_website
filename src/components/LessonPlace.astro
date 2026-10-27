@@ -1,0 +1,27 @@
+---
+/**
+ * Under a lesson's title: where it sits in the course, its step on the photo's journey,
+ * and why you'd care (spec section 12, "Lesson pages").
+ * @typedef {object} Props
+ * @property {import('../lib/path.js').Lesson} lesson
+ */
+import { JOURNEY, placeOf } from '../lib/path.js';
+
+const { lesson } = Astro.props;
+const step = JOURNEY.find((s) => s.id === lesson.chapter.journey);
+---
+
+<p class="place">
+  <a href={`/learn#${lesson.chapter.anchor}`}>{placeOf(lesson)}</a>
+  {step && <span> · On the photo’s journey: {step.label}</span>}
+</p>
+{lesson.chapter.why && <p class="lesson-why">Why you’d care: {lesson.chapter.why}</p>}
+
+<style>
+  .place,
+  .lesson-why {
+    margin: 0 0 var(--space-1);
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+  }
+</style>
