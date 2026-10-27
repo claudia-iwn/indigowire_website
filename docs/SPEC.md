@@ -824,7 +824,7 @@ Every fact about the person and the company comes from the About page; add nothi
 
 **Owner actions after the domain move** (M0):
 
-- [ ] Verify `indigowire.net` in Google Search Console (a DNS TXT record in Cloudflare) and submit `https://indigowire.net/sitemap.xml`.
+- [x] Verify `indigowire.net` in Google Search Console. Done 27 October 2026 as a Domain property (covers http, https and www), verified by a TXT record Google added through Cloudflare; keep that record. Still to do: submit `https://indigowire.net/sitemap.xml` under Sitemaps
 - [ ] Do the same in Bing Webmaster Tools, which can import the Search Console setup. Bing's index feeds ChatGPT search and Copilot.
 - [ ] Run Lighthouse against `indigowire.net` and confirm SEO 100.
 - [ ] Link back to `https://indigowire.net` from the LinkedIn, Bluesky and GitHub profiles, so the `sameAs` links point both ways.
@@ -854,7 +854,13 @@ Audited 27 October 2026. The site is static files on Cloudflare: no server code,
 - [ ] Two-factor authentication on the GitHub, Cloudflare and GoDaddy accounts.
 - [ ] GitHub: turn on Dependabot alerts and secret scanning (free for public repos), and a branch rule on `main` that blocks force pushes and deletion.
 - [ ] Hermes deploy key (M0): it can write anything in the repo, not just `src/content/spark/`, so a compromised Spark could change the whole site. Before M3, decide between accepting that (the body rules and the CSP limit what a bad sidecar can do) and having Hermes push to a separate branch that a check merges only when every change is a valid pair under `src/content/spark/`.
-- [ ] DNS move (M0): turn DNSSEC back on in Cloudflare; add CAA records naming the certificate authorities Cloudflare uses; keep SPF, DKIM and DMARC in place, and move DMARC to `p=quarantine` or `p=reject` once reports look clean, so no one can send convincing mail as `@indigowire.net`.
+- [ ] DNSSEC: turn it on in Cloudflare (DNS → Settings → DNSSEC) and add the DS record it gives at GoDaddy, the registrar. Not on as of 27 October 2026.
+- [ ] CAA records naming the certificate authorities Cloudflare uses. None as of 27 October 2026.
+- [ ] Email authentication, so no one can send convincing mail as `@indigowire.net`. Found on 27 October 2026: mail is Microsoft 365 (MX `indigowire-net.mail.protection.outlook.com`); SPF is `v=spf1 include:secureserver.net -all`, whose GoDaddy chain includes `spf.protection.outlook.com`, so Microsoft 365 mail passes SPF; DKIM isn't set up for the domain (no `selector1`/`selector2._domainkey` records), so Microsoft 365 signs with its `onmicrosoft.com` domain, which doesn't count for DMARC; there is no DMARC record. Plan, in order:
+  - [ ] **DMARC, monitoring only:** TXT `_dmarc` = `v=DMARC1; p=none; rua=mailto:<reports address>`. Changes nothing about delivery; starts daily reports of every server sending as `@indigowire.net`. Reports address: Cloudflare's DMARC Management (Email → DMARC Management, readable dashboard), or a dedicated alias such as `dmarc@indigowire.net` (the address is public in DNS, so not the owner's main address).
+  - [ ] **DKIM in Microsoft 365:** Defender portal → Email & collaboration → Policies → Email authentication settings → DKIM → `indigowire.net`; add the two CNAMEs (`selector1._domainkey`, `selector2._domainkey`) in Cloudflare as DNS only (grey cloud), then Enable. Mail is then signed as `indigowire.net` and passes DMARC even when forwarded, which SPF alone doesn't.
+  - [ ] **Tighten DMARC** after 2 to 4 weeks of reports showing only Microsoft 365 sending, and passing: `p=quarantine`, then `p=reject` (same record, `rua` kept).
+  - [ ] **Optional, SPF:** `include:secureserver.net` authorises all of GoDaddy's shared mail servers. Once the reports show Microsoft 365 is the only legitimate sender (no old website forms or newsletter services), change SPF to `v=spf1 include:spf.protection.outlook.com -all`.
 - [ ] After the domain move, check the live headers again (`BASE_URL=https://indigowire.net npm run test:e2e`).
 
 ## 10. Implementation plan
