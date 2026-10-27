@@ -37,7 +37,7 @@ Each requirement has an ID that tasks, commits and tests can reference. Acceptan
 | R1 | Site shell with persistent navigation | Every page shows header nav (Home, Learn, Spark, About, Speaking, Contact) and external links (Blog, LinkedIn, Bluesky, GitHub) that open in a new tab with `rel="noopener"`. Below 64rem the nav collapses into a menu button that opens it as a sheet across the top (section 11, "Mobile menu"). |
 | R2 | About page | `/about` renders bio content from a Markdown file. |
 | R3 | Contact page | `/contact` says to make contact through LinkedIn and links to the LinkedIn profile. No form. |
-| R4 | Learn index | `/learn` lists every game and topic, grouped by category, each with title, one-line summary and tags. |
+| R4 | Learn index | `/learn` shows the learning path (R17): every part, chapter and lesson in course order, with each lesson's status. Available lessons link to their page with title and one-line summary. |
 | R5 | ARP simulator ("How IPv4 ARP works") | `/learn/arp` meets every acceptance criterion in section 6. |
 | R6 | Spark gallery | `/spark` shows images newest first; filter by category (`working-on`, `saw-this`, `mood`) and tag. |
 | R7 | Spark permalinks | Each image has `/spark/<slug>` with full image, caption, date, category, tags and alt text. |
@@ -50,6 +50,7 @@ Each requirement has an ID that tasks, commits and tests can reference. Acceptan
 | R14 | Custom 404 | Unknown routes return the site's 404 page with HTTP status 404. |
 | R15 | Analytics | When a page loads, then Cloudflare Web Analytics records it; when a visitor does any action in the section 9 event table, then PostHog records that event with its properties; no cookies are set. |
 | R16 | Speaking page | `/speaking`, titled "Workshops, Talks & Takes" (the nav label stays "Speaking"), lists talks, keynotes, podcasts, workshops, courses and Tech Field Day appearances from `src/content/speaking.yaml`, upcoming first, then past by type, newest first. Links only, no embedded players. |
+| R17 | Learning path | The games and articles form one course, "How networking works", built around one question: what happens when I tap Send on a photo? Part 0, "How devices talk", tells that story for adult beginners; Parts 1 to 7 go deeper in 34 numbered chapters, with IPv4 and IPv6 lessons side by side. Defined in `src/content/path.yaml`. Lessons that don't exist yet are listed as "Not available yet", one is marked "Up next", and each lesson page shows its place in the course (section 12). |
 
 ## 3. Architecture
 
@@ -229,7 +230,7 @@ Every route is generated at build time; nothing renders on request.
 | `/about` | Bio | `pages/about.md` | R2 |
 | `/speaking` | Talks, podcasts, workshops, courses, Tech Field Day | `speaking` collection | R16 |
 | `/contact` | "Contact me through LinkedIn" + link | Hard-coded component | R3 |
-| `/learn` | All games and topics by category | `learn` collection | R4 |
+| `/learn` | The learning path: course map with "Start here", parts, chapters and lesson statuses, then the address ranges | `path.yaml` + `learn` collection | R4, R17 |
 | `/learn/arp` | How IPv4 ARP works (the ARP simulator) | `learn/arp.md` + `src/games/arp/` | R5 |
 | `/learn/<slug>` | Other games and articles | `learn` collection; entries with a `component` get their own page (`src/pages/learn/<component>.astro`) and are skipped here | R4 |
 | `/spark` | Gallery, newest first, filters | `spark` collection | R6 |
@@ -911,6 +912,16 @@ Seven milestones, each ending in a deployed, working site; hand Claude Code one 
 - [ ] Accessibility and Lighthouse pass on all pages (N1–N3)
 - [x] Open Graph images and metadata (N8). Done 26 October 2026: four share cards from `npm run og`, Spark permalinks share their own image (section 9, "Share cards")
 
+### M7: Learning path scaffold (R17, section 12)
+
+- [ ] `path` collection: `src/content/path.yaml` with Part 0 (ten lessons) and Parts 1 to 7 (34 chapters), including each chapter's `why` and `journey`; schema and build checks (an `entry` must exist; at most one `next`)
+- [ ] `src/lib/path.js` (statuses, chapter numbers, previous/next available lesson) with Vitest tests
+- [ ] `/learn` as the course map: "Start here", the photo's journey strip, parts, chapters with their "why you'd care" lines, lesson statuses; the addresses table kept; the category grouping removed
+- [ ] Lesson pages show their place in the course and link to the previous and next available lessons; ARP first
+- [ ] `Course` structured data on `/learn`; `isPartOf` on each lesson (N11)
+- [ ] ARP: the VLAN note in the "SW1 learns and floods" step (and so in the lesson text)
+- [ ] Playwright tests for the map, the statuses and the ARP page's place in the course
+
 ## 11. Open questions
 
 ### Decided
@@ -937,6 +948,162 @@ Seven milestones, each ending in a deployed, working site; hand Claude Code one 
 ### Still open
 
 None. The spec is ready to export to `docs/SPEC.md` and start M0.
+
+## 12. Feature spec: Learning path ("How networking works")
+
+Designed 27 October 2026 with the owner. The games and articles on `/learn` become one course, **"How networking works"**, for adults who have never heard of an IP address: curious people, career changers, and people in IT who never learned networking. It is built around one question:
+
+> **What happens when I tap Send on a photo?**
+
+Following that photo gives every part of the network a purpose. Networks are like plumbing: hidden, and noticed only when the hot water stops. The course shows the pipes, starting each time from the tap.
+
+**Part 0, "How devices talk"**, tells the photo's whole journey in plain language, using **delivery** as the analogy: devices exchange small messages, addresses help them find their way, and connecting equipment passes them along. A network is simply connected devices exchanging information and sharing things, not necessarily anything to do with the internet. **Parts 1 to 7** then go deeper, chapter by chapter, out to the internet, the enterprise, the data center, automation and the skills beyond protocols.
+
+The course is a scaffold: most lessons are "Not available yet", and the owner fills it in one game or article at a time. One lesson is always marked "Up next", so returning visitors know what is coming.
+
+### Principles
+
+- **Problem before name.** A term is introduced only after the learner understands the problem it solves: "How do we reach another network?" before "router", "Where should this message go?" before "IP address".
+- **Why you'd care.** Every chapter opens with the moment someone notices it (its `why`, below), and says which step of the photo's journey it explains. Simple means removing unnecessary prerequisites, not talking down to anyone.
+- **Lessons build on each other.** Each assumes only what came before. Binary and hex arrive as a small toolbox where chapter 2 needs them, not as a gate at the start.
+- **IPv4 and IPv6 side by side** in Parts 1 to 5: an IPv4 lesson and an IPv6 lesson on separate pages, because they are often different protocols (ARP and Neighbor Discovery, DHCPv4 and SLAAC), and a short comparison closes the chapter. Part 0, and lessons that don't depend on the IP version, have none.
+- **Containerlab** has two roles: "try it for real" (an optional lab at the end of a chapter, running the same LAN as the browser game on real network software) and showing the infrastructure behind the diagrams. Labs are lessons of kind `lab`.
+- **Wireless** is its own discipline, but here it is a transmission medium: a link without the cable. Everything above it works the same. Lesson 0.3 and an article in chapter 1 say so.
+- **Abstraction** is taught in Part 6 (chapter 24), with Cisco ACI as the worked example: tenants, endpoint groups and contracts as higher-level descriptions of VLANs, subnets and access lists. The owner built many ACI fabrics and says they taught them how to think about abstraction; with today's data centers running VXLAN and EVPN, the course uses ACI to illustrate the idea, not as a build guide.
+- **No empty pages.** Planned lessons appear only on `/learn`, never as pages of their own, so search engines see no thin "coming soon" pages (N11).
+- **Checked facts.** Facts taken from outside material (for example the teaching resources the owner shared on 27 October 2026: an Illinois Community College Board teacher pack, HowStuffWorks, cellstream.com, a YouTube video) are checked against a primary source before they go on the site, and the source is recorded, as for the hero card's history facts.
+
+### The photo's journey
+
+The spine of `/learn`: a strip across the top of the map, each step linking to the chapters that explain it.
+
+| Step (`journey` id) | What happens |
+| --- | --- |
+| Your phone (`phone`) | The phone has an address, finds the service's name and packs the photo into messages |
+| Wi-Fi (`wifi`) | The messages cross the air to the access point and the local network |
+| Home router (`home-router`) | The router passes them out of the home network |
+| Your provider (`provider`) | The internet provider carries them onward |
+| The internet (`internet`) | Networks hand them from one to the next |
+| The messaging service (`service`) | They arrive, securely, at the service's servers in a data center or the cloud, where the photo waits |
+| Their network (`their-network`) | The service sends the photo on to the other person's network, at home or at work |
+| Their phone (`their-phone`) | The pieces are put back together and the photo appears |
+
+### Part 0: How devices talk
+
+Ten short lessons for adult beginners, numbered 0.1 to 0.10 so the chapters keep their numbers. Each starts from a problem, uses the delivery analogy, ends with "Go deeper" links into Parts 1 to 7, and some have a small activity in the browser. Left out on purpose, until Parts 1 to 7 give a reason to care: the OSI model, subnet maths, routing protocol names, VLAN configuration, command lines and vendor terms.
+
+| Lesson | Problem first | Activity (in the browser) | Go deeper |
+| --- | --- | --- | --- |
+| 0.1 Why do we need a network? | Your device has something another device wants, or wants something another has | — | — |
+| 0.2 What's connected to what? | The phone isn't the network; it joins one. Connections are cables or wireless links | Build a small map of a home network | Ch. 1 |
+| 0.3 Talking without a wire | Wi-Fi is another kind of link, not another kind of network | — | Ch. 1 |
+| 0.4 The connecting boxes | Local delivery and delivery to another neighbourhood: switch, access point, router, one job at a time | Deliver messages within one room, then to the next | Ch. 1, 6 |
+| 0.5 How does a message know where to go? | A letter with no address | Address the envelopes | Ch. 2 to 4 |
+| 0.6 How does a big picture travel? | Too big to send in one go: packets, and agreed rules (protocols) | Reassemble numbered pieces of a picture; what if one is missing? | Ch. 8 |
+| 0.7 Is our network the internet? | Sharing at home and reaching the world are different journeys | Join networks together, then zoom out | Ch. 10 to 12 |
+| 0.8 Who's on the other end? | One device asks, another provides: client and server | Request a picture from a picture library | Ch. 7, 8 |
+| 0.9 Keeping it safe | Passwords, private information, secure connections | Sort messages into safe to share, private, and ask first | Ch. 9 |
+| 0.10 The whole journey | "You tap Send. Explain how your photo reaches someone else." | Point to each step of the journey | The map |
+
+Part 0 ends with a story, not an acronym quiz.
+
+### The course
+
+Families: **4** = IPv4, **6** = IPv6, **–** = no version. Kinds: game, article, lab. Status as of 27 October 2026: ✅ available, ⏭ up next, otherwise not available yet. The "why you'd care" lines are drafts for the owner to edit before each chapter is written.
+
+| Part | Ch. | Chapter | Lessons | Why you'd care (draft) | Journey |
+| --- | --- | --- | --- | --- | --- |
+| 1. Your local network | 1 | What is a network? | Devices, links, switches and routers (–, article) · Wireless: a link without the cable (–, article) · The real LAN in Containerlab (–, lab) | Wi-Fi shows full bars but nothing loads: which part is broken? | wifi |
+|  | 2 | Addresses | MAC addresses (–, article) · IPv4 addresses and masks: are we on the same network? (4, game) · IPv6 addresses and prefixes: reading and shortening them (6, game) · Toolbox: binary and hex (–, article) | A settings screen asks for an "IP address" and you have no idea what goes there. | phone |
+|  | 3 | Getting an address (DHCP, part 1) | DHCP: Discover, Offer, Request, Acknowledge (4, game) · SLAAC and DHCPv6 (6, game) | Connected to Wi-Fi, but no internet. | phone |
+|  | 4 | Finding your neighbours | How IPv4 ARP works (4, game) ✅ · Neighbor Discovery (6, game) ⏭ · Try it for real: ARP in Containerlab (–, lab) | Your phone and the printer are on the same Wi-Fi but can't find each other. | wifi |
+|  | 5 | Broadcasts and VLANs | Broadcast domains and VLANs (4, game) · Multicast instead of broadcast (6, game) | Guest Wi-Fi can't reach the office printer, on purpose. | wifi |
+|  | 6 | Leaving the LAN | The default gateway (4, game) · Router advertisements (6, game) | You can print, but you can't reach the internet. | home-router |
+| 2. Names and conversations | 7 | Names: DNS | How a name becomes an address: A and AAAA records (–, game) · DHCP, part 2: learning the DNS servers (4, game: DHCP option 6) · DHCP, part 2: RDNSS and DHCPv6 (6, game). A "from the field" note: some of the worst outages the owner has troubleshot turned out to be DNS | Websites won't load by name, yet the network looks fine. | phone |
+|  | 8 | Conversations: ports, TCP and UDP | Ports, TCP and UDP (–, game) | One app works and another doesn't, over the same connection. | service |
+|  | 9 | Keeping it safe: firewalls and encrypted connections | Firewalls: which conversations are allowed (–, game) · Encrypted connections: TLS and the padlock (–, article) · Passwords and private information (–, article) | The padlock in the browser and the Wi-Fi password: what do they actually protect? | service |
+| 3. Across the internet | 10 | Routing between networks | Routing tables and static routes (4, game) · IPv6 routing (6, game) · Routing protocols (–, article) | Your photo crosses many networks, and something has to choose the way at each one. | internet |
+|  | 11 | NAT | Sharing one address: NAT and PAT (4, game) · Why IPv6 doesn't need NAT (6, article) | Every device at home shares one public address. | home-router |
+|  | 12 | The internet | Internet providers and BGP (–, article) | One mistake somewhere makes popular sites vanish for everyone at once. | internet |
+|  | 13 | Segment routing | The source picks the path: segments and labels (–, article) · SR-MPLS (4, game) · SRv6: segments as IPv6 addresses (6, game) | Your provider steers traffic around a busy link without you noticing. | provider |
+| 4. The enterprise | 14 | Campus networks | Trunks and routing between VLANs (–, game) · Segmentation (–, article) · 802.1X: who gets on the network (–, article) | Plug in a laptop at work and only the right network lets you on. | their-network |
+|  | 15 | The WAN | Connecting sites: MPLS and SD-WAN (–, article) | A branch office reaches headquarters as if it were down the hall. | their-network |
+|  | 16 | The cloud | Virtual networks in the cloud (–, article) · Hybrid links back to the data center (–, article) | The photo service runs in someone else's data center. | service |
+| 5. The data center | 17 | Inside a data center | Racks, top-of-rack switches and east-west traffic (–, article) | Where your photo actually waits: a rack in a building you'll never see. | service |
+|  | 18 | Spine-leaf fabrics | Every leaf one hop from every spine: ECMP (–, game) | Thousands of servers talk to each other at once without a traffic jam. | service |
+|  | 19 | Overlays: VXLAN and EVPN | Carrying LANs across a routed fabric: what today's data centers run (–, article). Points to chapter 24, where Cisco ACI illustrates abstraction | A virtual machine moves to another rack and keeps its address. | service |
+|  | 20 | Servers and virtual networks | Hypervisor switches and container networking (–, article) | Many "computers" share one physical server, each with its own network. | service |
+|  | 21 | Connecting data centers | Data center interconnect, the WAN and the cloud (–, article) | One data center fails and the service carries on from another. | service |
+| 6. Automating the network | 22 | Talking to devices with code | Python and Netmiko (–, article) | Changing one device by hand is fine; changing five hundred isn't. |  |
+|  | 23 | Many devices at once | Nornir and Ansible (–, article) | The same change, everywhere, the same way, every time. |  |
+|  | 24 | Abstraction | Describing what you want, not how: intent instead of device configuration (–, article) · Cisco ACI as an example: tenants, endpoint groups and contracts as abstractions of VLANs, subnets and access lists (–, article). The owner built many ACI fabrics; demand is lower now that today's data centers run VXLAN and EVPN, but building them taught the owner how to think about abstraction in network automation, which is why ACI is the example | Saying what you want is easier, and safer, than configuring how, device by device. |  |
+|  | 25 | Testing changes before and after | Containerlab and SuzieQ (–, lab) | Knowing a change worked before anyone calls to say it didn't. |  |
+| 7. Beyond the protocols | 26 | What I learned early that helps me every day | The skills from the owner's first years that still help every day as a senior technical consultant and network engineer: Linux, revision control, software development, DNS and DHCP, automating what you do more than twice, documenting everything, structured cabling. One sentence each on why it still matters, linking to chapters 27 to 34, ending with "take what interests you; it's a lifetime of learning" (–, article) |  |  |
+|  | 27 | Linux | Learned to support DNS zone files; "you have no idea how helpful this is" (–, article) |  |  |
+|  | 28 | Revision control with Git | The zone files were under revision control from the start (–, article) |  |  |
+|  | 29 | Software development and Python | Development concepts made Python easy later; links Kirk Byers' free Python course for network engineers, [pynet.twb-tech.com/free-python-course.html](https://pynet.twb-tech.com/free-python-course.html) (–, article; the link goes in `site.config.js` when the chapter is written) |  |  |
+|  | 30 | Automate what you do more than twice | The Ops manager's rule; the tools are in Part 6 (–, article) |  |  |
+|  | 31 | Documentation | Document everything: "come back when you have documentation" (–, article) |  |  |
+|  | 32 | Troubleshooting methodology | Write one-page troubleshooting plans; they show method and documentation and can serve as a MOP (–, article; a one-page template to copy can be added later as its own lesson) |  |  |
+|  | 33 | Structured cabling | The physical layer (–, article) |  |  |
+|  | 34 | Show your work | A free GitHub account, sample documentation, a small website (–, article) |  |  |
+
+Part 7 comes from advice the owner wrote to a new network engineer. Only the owner's own words are used; nothing from the other person goes on the site. Chapter 26 is about lessons that help every day, not a career history; it mentions only that the owner started in software development.
+
+### Content changes that come with the scaffold
+
+- **ARP and VLANs.** The ARP game's "SW1 learns and floods" step says the switch floods a broadcast to every port in the same VLAN (this LAN has one), and points to chapter 5. The lesson text on the page follows, because it comes from the same `LESSON` data.
+- **ARP's place in the story.** The ARP page opens with its "why you'd care" line and its journey step ("the step where your phone finds the router on your Wi-Fi").
+
+### Data: `src/content/path.yaml`
+
+A `path` collection loaded with Astro's `file()` loader: a list of parts, each with its chapters and lessons. Validated at build time like every collection, so a bad file fails the build.
+
+| Level | Field | Rule |
+| --- | --- | --- |
+| Part | `id` | kebab-case, unique. Parts are numbered by position from 0 |
+| | `title` | e.g. "How devices talk", "Your local network" |
+| | `chapters` | non-empty list, in order |
+| Chapter | `id`, `title` | unique id. Numbers are positions, never stored: Part 0's chapters are 0.1 to 0.10, and the chapters of Parts 1 to 7 count on from 1 across the whole course |
+| | `summary` | one line, at most 140 characters |
+| | `why` | Parts 1 to 7: one line, the moment someone notices this (the "why you'd care" column). Part 0: the problem it starts from |
+| | `journey` | optional: the step of the photo's journey it explains (`phone`, `wifi`, `home-router`, `provider`, `internet`, `service`, `their-network`, `their-phone`) |
+| | `deeper` | Part 0 only: the ids of the chapters to "go deeper" into |
+| | `lessons` | non-empty list |
+| Lesson | `title` | as listed above |
+| | `family` | `ipv4` \| `ipv6` \| `none` |
+| | `kind` | `game` \| `article` \| `lab` |
+| | `entry` | optional. The `learn` entry id once the lesson exists (`reference('learn')`, so an unknown id fails the build) |
+| | `next` | optional `true`. At most one lesson in the whole file; the build fails on two |
+| | `note` | optional, one line for the map (e.g. the DNS "from the field" note) |
+
+**Status** is derived, never stored: a lesson with an `entry` is **available**; the `next` lesson without an entry is **up next**; anything else is **not available yet**. When the up-next lesson ships, its `entry` is added and `next` moves to another lesson. Up next on 27 October 2026: IPv6 Neighbor Discovery (chapter 4). `src/lib/path.js` (DOM-free, Vitest-tested) computes statuses, chapter numbers, a lesson's place ("Part 1 · Chapter 4 · Finding your neighbours · IPv4"), the chapters for each journey step, and the previous and next available lessons.
+
+### `/learn`
+
+- **Start here:** a short introduction: the question (tapping Send on a photo), the plumbing idea, that lessons build on each other, what the three statuses mean, and a button to the first available lesson (Part 0's first lesson once it exists; ARP until then).
+- **The photo's journey:** the strip of eight steps, each linking to its chapters on the map.
+- **The map:** each part as a section (`h2`), each chapter numbered (`h3`) with its summary and "why you'd care" line, then its lessons. IPv4 and IPv6 lessons sit side by side with a version badge. Available lessons are links; "Up next" has a badge in the accent colour; "Not available yet" is muted text, not a link. Statuses are words, not colour alone (WCAG).
+- **About the addresses in these games:** the existing table, kept at the bottom.
+- The grouping by `category` goes; the `category` field stays for tags and topics.
+
+### Lesson pages
+
+- Under the title: the chapter's "why you'd care" line, and "Part 1 · Chapter 4 · Finding your neighbours · IPv4", linking to the chapter on `/learn` (an anchor), with its journey step.
+- Breadcrumbs: Learn › Part › Chapter › Lesson (visible and in structured data).
+- At the foot: links to the previous and next **available** lessons in course order, and a link to the map.
+
+### Search (N11)
+
+- `/learn` carries a `Course` node ("How networking works", provider Indigo Wire Networks, free, beginner) with its available lessons as `hasPart`.
+- Each lesson's `LearningResource` adds `isPartOf` the course, and its position.
+- `llms.txt` lists the course outline (parts and chapters) and the available lessons.
+
+### Tests
+
+- Vitest (`src/lib/path.test.js`): statuses; numbering (0.1 to 0.10, then 1 to 34 across parts); a lesson's place; journey steps to chapters; previous and next skipping unavailable lessons; at most one `next`.
+- Playwright: `/learn` shows the journey strip, all eight parts (0 to 7), Part 0's ten lessons and 34 chapters; exactly one "Up next"; only available lessons are links; the ARP page shows "Part 1 · Chapter 4", its "why you'd care" line and its breadcrumb; the ARP lesson text mentions VLANs.
+- Build: a lesson whose `entry` names a missing `learn` entry fails the build.
 
 ## Sources
 
