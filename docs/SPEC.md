@@ -541,6 +541,9 @@ The repo is public under `claudia-iwn`, because the games and the image pipeline
 3. If DNSSEC is on at GoDaddy, turn it off before changing nameservers (re-enable it in Cloudflare afterwards).
 4. At GoDaddy, replace the nameservers with the two Cloudflare gives you. Propagation can take minutes to 24 hours.
 5. Send and receive a test email, then attach `indigowire.net` as a Workers custom domain and redirect `www` to the apex. Cloudflare issues the HTTPS certificate automatically.
+6. Turn on **Always Use HTTPS** (SSL/TLS → Edge Certificates), so every `http://` request gets a 301 to `https://`. The site's HSTS header can't do this alone: browsers ignore HSTS on an unencrypted response.
+
+**As set up on 27 October 2026:** `indigowire.net` and `www.indigowire.net` are custom domains on the Worker. A Cloudflare redirect rule (the "Redirect from WWW to root" template: `https://www.*` → `https://${1}`, 301, query string kept) sends `www` to the apex; the rule editor warns that `www` may not be proxied, because it doesn't recognise the custom domain's DNS record, but the rule works (deployed with "Ignore"). Always Use HTTPS is on. Checked: `http://` and `http://www.` both end at `https://indigowire.net/…` in at most two 301s.
 
 **Step 2: transfer the registration (optional, any time later)**
 
@@ -860,13 +863,13 @@ Seven milestones, each ending in a deployed, working site; hand Claude Code one 
 
 ### M0: Repo and deploy skeleton
 
-- [ ] Add `indigowire.net` to Cloudflare, verify imported records (mail records especially), switch GoDaddy nameservers, confirm email still works (section 8, step 1)
+- [x] Add `indigowire.net` to Cloudflare, verify imported records (mail records especially), switch GoDaddy nameservers, confirm email still works (section 8, step 1). Done 27 October 2026: nameservers are Cloudflare's, and the owner confirmed email works
 - [x] Create the public repo `claudia-iwn/indigowire_website` with `LICENSE` (MIT) and `CONTENT-LICENSE.md`
 - [x] Initialize an Astro project (static output, JavaScript)
 - [x] Add `wrangler.jsonc`, Prettier, ESLint, Vitest and the `npm run check` script
 - [x] Add `CLAUDE.md` and `docs/SPEC.md`
 - [x] Connect Workers Builds; confirm a "hello" page deploys to the workers.dev URL on push (live at https://indigowire-website.claudia-b4a.workers.dev/)
-- [ ] Attach `indigowire.net` as a custom domain and redirect `www` (R13)
+- [x] Attach `indigowire.net` as a custom domain and redirect `www` (R13). Done 27 October 2026: both hosts are Worker custom domains, a redirect rule sends `www` to the apex with a 301, and Always Use HTTPS is on (section 8, "Domain")
 - [ ] Add a deploy key for Hermes with write access to this repo only
 
 ### M1: Site shell
