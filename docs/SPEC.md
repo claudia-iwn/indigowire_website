@@ -1121,6 +1121,7 @@ A `path` collection loaded with Astro's `file()` loader. As built, the file hold
 - Under the title: the chapter's "why you'd care" line, and "Part 1 · Chapter 4 · Finding your neighbours · IPv4", linking to the chapter on `/learn` (an anchor), with its journey step as built: "On the photo's journey: <step label>" (for ARP, "Wi-Fi or cable").
 - Breadcrumbs: Learn › Part › Chapter › Lesson (visible and in structured data).
 - At the foot: links to the previous and next **available** lessons in course order, and a link to the map.
+- A learn entry not yet placed in `path.yaml` still builds its page, with simple breadcrumbs (Learn › title), and is reachable through Topics and the sitemap; it does not appear on `/learn`, Home or `llms.txt` until it is placed.
 
 ### Search (N11)
 

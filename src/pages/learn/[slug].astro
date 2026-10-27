@@ -45,6 +45,7 @@ const resource = learningResourceLd({
   keywords: (entry.data.tags ?? []).map((tag) => tagNames[tag] ?? tag),
   image: shareCards.learn.src,
   interactive: entry.data.kind === 'game',
+  position: lesson?.position,
 });
 ---
 

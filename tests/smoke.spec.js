@@ -371,6 +371,10 @@ test.describe('/learn: the course map (R4, R17, section 12)', () => {
     await expect(page.locator('#part-0 .chapter')).toHaveCount(10);
     await expect(page.locator('section.part:not(#part-0) .chapter')).toHaveCount(34);
     await expect(page.locator('#chapter-show-your-work .number')).toHaveText('34');
+    // These numbers are quoted in src/games/arp/lesson.js ("chapter 5") and
+    // src/content/path.yaml ("Chapter 24"); if chapters are reordered, fix those texts too.
+    await expect(page.locator('#chapter-broadcasts-and-vlans .number')).toHaveText('5');
+    await expect(page.locator('#chapter-abstraction .number')).toHaveText('24');
     await expect(page.locator('.lesson.next')).toHaveCount(1);
     await expect(page.locator('.lesson.next')).toContainText('Neighbor Discovery');
     await expect(page.locator('.lesson.next')).toContainText('Up next');
@@ -535,6 +539,8 @@ test.describe('Home: the course teaser (section 12)', () => {
     await expect(section.locator('svg.journey-picture')).toHaveAttribute('aria-hidden', 'true');
     await expect(section.locator('ol.journey li')).toHaveCount(7);
     await expect(section.getByRole('link', { name: 'How IPv4 ARP works' })).toHaveAttribute('href', '/learn/arp');
+    await expect(section.locator('.label')).toHaveText('Latest game');
+    await expect(section.getByRole('link', { name: /^Play/ })).toHaveAttribute('href', '/learn/arp');
     await expect(section).toContainText('Up next: Neighbor Discovery (IPv6)');
     await expect(section.getByRole('link', { name: 'Start the course' })).toHaveAttribute('href', '/learn');
   });

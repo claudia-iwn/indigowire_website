@@ -153,7 +153,15 @@ const coursePath = defineCollection({
   schema: z.object({
     title: z.string(),
     question: z.string(),
-    parts: z.array(z.object({ id: z.string(), title: z.string(), chapters: z.array(chapter).min(1) })).min(1),
+    parts: z
+      .array(
+        z.object({
+          id: z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/),
+          title: z.string(),
+          chapters: z.array(chapter).min(1),
+        }),
+      )
+      .min(1),
   }),
 });
 

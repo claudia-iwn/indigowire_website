@@ -97,7 +97,11 @@ export function buildCourse(data, pages) {
   const deeper = [];
   let count = 0;
 
+  /** @type {Set<string>} */
+  const partIds = new Set();
   const parts = data.parts.map((partData, p) => {
+    if (partIds.has(partData.id)) throw new Error(`path.yaml: part id "${partData.id}" is used twice`);
+    partIds.add(partData.id);
     /** @type {Part} */
     const part = { id: partData.id, number: p, title: partData.title, anchor: `part-${p}`, chapters: [] };
     part.chapters = partData.chapters.map((c, i) => {
