@@ -27,7 +27,16 @@ Prettier ignores all Markdown (`**/*.md`) so the spec and content keep their han
 
 ## Current state
 
-M0 skeleton: every route renders from the collections, but the ARP engine, frame encoding, renderer and Spark publisher are stubs (marked `STUB`/`TODO(Mn)`). The header logo is `public/logo.svg` / `logo-dark.svg`, converted from the PDF master with `pdftocairo -svg`, cropped to the artwork, and recolored for dark mode (navy → white, indigo → `#B8C4FF`, copper unchanged). Favicons and app icons (`public/favicon.svg`, `favicon.ico`, `apple-touch-icon.png`, `icon-192/512.png`) come from the logo's circular mark. `docs/SPEC.md` is canonical; the root `indigowire.net Site Specification_SPEC.md` is an untracked local copy; never edit it. Where `spark-art-github-publishing-and-operations-addendum.md` conflicts with the spec (Cloudflare Pages, a `site/` + `gallery.json` layout), the spec wins.
+As of 27 October 2026, the site is built through M6 except for the items below; spec section 10 has the checklist. Live on workers.dev only: `indigowire.net` still serves the old GoDaddy site until the M0 DNS move, so share cards (which point at `site.url`) show no image in link previews yet.
+
+- **Done:** site shell, content collections and topics, the Spark gallery with permalinks, categories and RSS, the validator, the Speaking page (R16), Open Graph share cards (N8), and the ARP game: engine, frames, the `lesson.js` Learn lesson, the renderer and controller with Learn, Sandbox and Gratuitous ARP modes, the packet view and the hop table.
+- **Not done:**
+  - M0: the DNS move to Cloudflare, the custom domain, the Hermes deploy key.
+  - Analytics (R15): no `src/analytics.js` yet, and no beacon in `BaseLayout` (`TODO(M1)`). The ARP and Spark events wait on the PostHog key.
+  - M3: `scripts/spark_publisher.py` is still a `STUB`; the gallery tag filter is a `TODO(M3)`; the build-fails-on-a-bad-entry check is not automated.
+  - M6: Break-it mode, held for its own design pass and kept at the conceptual, simulation-only level in spec section 6. Then the accessibility and Lighthouse pass.
+
+The header logo is `public/logo.svg` / `logo-dark.svg`, converted from the PDF master with `pdftocairo -svg`, cropped to the artwork, and recolored for dark mode (navy → white, indigo → `#B8C4FF`, copper unchanged). Favicons and app icons (`public/favicon.svg`, `favicon.ico`, `apple-touch-icon.png`, `icon-192/512.png`) come from the logo's circular mark. `docs/SPEC.md` is canonical; the root `indigowire.net Site Specification_SPEC.md` is an untracked local copy; never edit it. Where `spark-art-github-publishing-and-operations-addendum.md` conflicts with the spec (Cloudflare Pages, a `site/` + `gallery.json` layout), the spec wins.
 
 ## Stack and conventions
 
