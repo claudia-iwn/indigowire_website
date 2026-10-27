@@ -1,0 +1,357 @@
+# The course "How networking works" (spec section 12, R17). One entry, `course`.
+# Numbers are positions, never stored: Part 0's chapters are 0.1 to 0.10, and later
+# chapters count on from 1. A lesson with `entry` is available; the one lesson with
+# `next: true` is up next; everything else is not available yet.
+# To ship a lesson: add its learn entry, set `entry: <id>`, and move `next` on.
+course:
+  title: How networking works
+  question: What happens when I upload a photo to Leapix?
+  parts:
+    - id: how-devices-talk
+      title: How devices talk
+      chapters:
+        - id: why-a-network
+          title: Why do we need a network?
+          summary: Your device has something another device wants, or wants something another device has.
+          why: Your photo is on your laptop; your friends are somewhere else.
+          lessons:
+            - { title: Why do we need a network?, family: none, kind: article }
+        - id: whats-connected
+          title: What's connected to what?
+          summary: Devices, and the cables and radio links that join them. The laptop isn't the network; it joins one.
+          why: Before anything can travel, something has to connect the laptop to everything else.
+          deeper: [what-is-a-network]
+          lessons:
+            - { title: What's connected to what?, family: none, kind: game }
+        - id: without-a-wire
+          title: Talking without a wire
+          summary: Wi-Fi is another kind of link, not another kind of network.
+          why: The laptop has no cable plugged in, yet the photo still leaves it.
+          deeper: [what-is-a-network]
+          lessons:
+            - { title: Talking without a wire, family: none, kind: article }
+        - id: connecting-boxes
+          title: The connecting boxes
+          summary: 'Switch, access point and router: local delivery, and delivery to another neighbourhood, one job at a time.'
+          why: Something has to pass the photo along, near and far.
+          deeper: [what-is-a-network, leaving-the-lan]
+          lessons:
+            - { title: The connecting boxes, family: none, kind: game }
+        - id: where-to-go
+          title: How does a message know where to go?
+          summary: 'Addresses: why a letter with no address goes nowhere, and how devices get theirs.'
+          why: A letter with no address goes nowhere.
+          deeper: [addresses, getting-an-address, finding-your-neighbours]
+          lessons:
+            - { title: How does a message know where to go?, family: none, kind: game }
+        - id: big-picture
+          title: How does a big picture travel?
+          summary: 'Too big to send in one go: packets, and the agreed rules for sending them, called protocols.'
+          why: The photo is far too big to send in one piece.
+          deeper: [ports-tcp-udp]
+          lessons:
+            - { title: How does a big picture travel?, family: none, kind: game }
+        - id: our-network-or-internet
+          title: Is our network the internet?
+          summary: Sharing at home and reaching the world are different journeys.
+          why: Printing at home works even when the internet is down. Why?
+          deeper: [routing, nat, the-internet]
+          lessons:
+            - { title: Is our network the internet?, family: none, kind: game }
+        - id: other-end
+          title: Who's on the other end?
+          summary: "One device asks, another provides: your laptop and Leapix's servers, client and server."
+          why: The photo has to end up somewhere that keeps it and shows it to friends.
+          deeper: [dns, ports-tcp-udp]
+          lessons:
+            - { title: Who's on the other end?, family: none, kind: game }
+        - id: keeping-safe
+          title: Keeping it safe
+          summary: Passwords, private information and secure connections, and why they matter on every network.
+          why: Anyone could be listening along the way.
+          deeper: [keeping-it-safe]
+          lessons:
+            - { title: Keeping it safe, family: none, kind: game }
+        - id: whole-journey
+          title: The whole journey
+          summary: 'Click Upload, then tell the story: every step from your laptop to your friends.'
+          why: You click Upload. How does your photo reach Leapix, and your friends?
+          lessons:
+            - { title: The whole journey, family: none, kind: game }
+
+    - id: your-local-network
+      title: Your local network
+      chapters:
+        - id: what-is-a-network
+          title: What is a network?
+          summary: Devices, links, switches and routers, the real LAN behind the diagrams, and wireless as a link without the cable.
+          why: 'Wi-Fi shows full bars but nothing loads: which part is broken?'
+          journey: link
+          lessons:
+            - { title: 'Devices, links, switches and routers', family: none, kind: article }
+            - { title: 'Wireless: a link without the cable', family: none, kind: article }
+            - { title: The real LAN in Containerlab, family: none, kind: lab }
+        - id: addresses
+          title: Addresses
+          summary: 'MAC, IPv4 and IPv6: the names devices use, and a small toolbox for binary and hex.'
+          why: A settings screen asks for an "IP address" and you have no idea what goes there.
+          journey: laptop
+          lessons:
+            - { title: MAC addresses, family: none, kind: article }
+            - { title: 'IPv4 addresses and masks: are we on the same network?', family: ipv4, kind: game }
+            - { title: 'IPv6 addresses and prefixes: reading and shortening them', family: ipv6, kind: game }
+            - { title: 'Toolbox: binary and hex', family: none, kind: article }
+        - id: getting-an-address
+          title: Getting an address (DHCP, part 1)
+          summary: How a device gets an address the moment it joins a network.
+          why: Connected to Wi-Fi, but no internet.
+          journey: laptop
+          lessons:
+            - { title: 'DHCP: Discover, Offer, Request, Acknowledge', family: ipv4, kind: game }
+            - { title: SLAAC and DHCPv6, family: ipv6, kind: game }
+        - id: finding-your-neighbours
+          title: Finding your neighbours
+          summary: How a device finds the hardware address of the next device on the same network.
+          why: Your laptop and the printer are on the same Wi-Fi but can't find each other.
+          journey: link
+          lessons:
+            - { title: How IPv4 ARP works, family: ipv4, kind: game, entry: arp }
+            - { title: Neighbor Discovery, family: ipv6, kind: game, next: true }
+            - { title: 'Try it for real: ARP in Containerlab', family: none, kind: lab }
+        - id: broadcasts-and-vlans
+          title: Broadcasts and VLANs
+          summary: Who hears a broadcast, and how VLANs split one switch into separate networks. IPv6 uses multicast instead.
+          why: Guest Wi-Fi can't reach the office printer, on purpose.
+          journey: link
+          lessons:
+            - { title: Broadcast domains and VLANs, family: ipv4, kind: game }
+            - { title: Multicast instead of broadcast, family: ipv6, kind: game }
+        - id: leaving-the-lan
+          title: Leaving the LAN
+          summary: 'The default gateway: how traffic leaves the local network.'
+          why: You can print, but you can't reach the internet.
+          journey: home-router
+          lessons:
+            - { title: The default gateway, family: ipv4, kind: game }
+            - { title: Router advertisements, family: ipv6, kind: game }
+
+    - id: names-and-conversations
+      title: Names and conversations
+      chapters:
+        - id: dns
+          title: 'Names: DNS'
+          summary: How a name like leapix.example becomes an address, and how a device learns which DNS servers to ask.
+          why: Websites won't load by name, yet the network looks fine.
+          journey: laptop
+          lessons:
+            - {
+                title: 'How a name becomes an address: A and AAAA records',
+                family: none,
+                kind: game,
+                note: 'From the field: some of the worst outages turn out to be DNS.',
+              }
+            - { title: 'DHCP, part 2: learning the DNS servers', family: ipv4, kind: game }
+            - { title: 'DHCP, part 2: RDNSS and DHCPv6', family: ipv6, kind: game }
+        - id: ports-tcp-udp
+          title: 'Conversations: ports, TCP and UDP'
+          summary: How many conversations share one connection, and the difference between reliable and fast.
+          why: One app works and another doesn't, over the same connection.
+          journey: leapix
+          lessons:
+            - { title: 'Ports, TCP and UDP', family: none, kind: game }
+        - id: keeping-it-safe
+          title: 'Keeping it safe: firewalls and encrypted connections'
+          summary: Firewalls decide which conversations are allowed; encryption keeps them private.
+          why: 'The padlock in the browser and the Wi-Fi password: what do they actually protect?'
+          journey: leapix
+          lessons:
+            - { title: 'Firewalls: which conversations are allowed', family: none, kind: game }
+            - { title: 'Encrypted connections: TLS and the padlock', family: none, kind: article }
+            - { title: Passwords and private information, family: none, kind: article }
+
+    - id: across-the-internet
+      title: Across the internet
+      chapters:
+        - id: routing
+          title: Routing between networks
+          summary: Routing tables, static routes and the protocols routers use to learn the way.
+          why: Your photo crosses many networks, and something has to choose the way at each one.
+          journey: internet
+          lessons:
+            - { title: Routing tables and static routes, family: ipv4, kind: game }
+            - { title: IPv6 routing, family: ipv6, kind: game }
+            - { title: Routing protocols, family: none, kind: article }
+        - id: nat
+          title: NAT
+          summary: How a whole home shares one public IPv4 address, and why IPv6 doesn't need to.
+          why: Every device at home shares one public address.
+          journey: home-router
+          lessons:
+            - { title: 'Sharing one address: NAT and PAT', family: ipv4, kind: game }
+            - { title: Why IPv6 doesn't need NAT, family: ipv6, kind: article }
+        - id: the-internet
+          title: The internet
+          summary: Internet providers, and how BGP connects their networks into one internet.
+          why: One mistake somewhere makes popular sites vanish for everyone at once.
+          journey: internet
+          lessons:
+            - { title: Internet providers and BGP, family: none, kind: article }
+        - id: segment-routing
+          title: Segment routing
+          summary: 'Letting the source choose the path: segments and labels with SR-MPLS, and segments as IPv6 addresses with SRv6.'
+          why: Your provider steers traffic around a busy link without you noticing.
+          journey: provider
+          lessons:
+            - { title: 'The source picks the path: segments and labels', family: none, kind: article }
+            - { title: SR-MPLS, family: ipv4, kind: game }
+            - { title: 'SRv6: segments as IPv6 addresses', family: ipv6, kind: game }
+
+    - id: the-enterprise
+      title: The enterprise
+      chapters:
+        - id: campus
+          title: Campus networks
+          summary: Trunks, routing between VLANs, segmentation, and 802.1X deciding who gets on.
+          why: Plug in a laptop at work and only the right network lets you on.
+          journey: friends
+          lessons:
+            - { title: Trunks and routing between VLANs, family: none, kind: game }
+            - { title: Segmentation, family: none, kind: article }
+            - { title: '802.1X: who gets on the network', family: none, kind: article }
+        - id: wan
+          title: The WAN
+          summary: Connecting offices and sites over MPLS and SD-WAN.
+          why: A branch office reaches headquarters as if it were down the hall.
+          journey: friends
+          lessons:
+            - { title: 'Connecting sites: MPLS and SD-WAN', family: none, kind: article }
+        - id: cloud
+          title: The cloud
+          summary: Virtual networks in the cloud, and hybrid links back to the data center.
+          why: Leapix runs in someone else's data center.
+          journey: leapix
+          lessons:
+            - { title: Virtual networks in the cloud, family: none, kind: article }
+            - { title: Hybrid links back to the data center, family: none, kind: article }
+
+    - id: the-data-center
+      title: The data center
+      chapters:
+        - id: inside-a-data-center
+          title: Inside a data center
+          summary: Racks, top-of-rack switches, and why traffic between servers matters more than traffic in and out.
+          why: "Where your photo actually waits: a rack in a building you'll never see."
+          journey: leapix
+          lessons:
+            - { title: 'Racks, top-of-rack switches and east-west traffic', family: none, kind: article }
+        - id: spine-leaf
+          title: Spine-leaf fabrics
+          summary: Every leaf one hop from every spine, and many equal paths (ECMP).
+          why: Thousands of servers talk to each other at once without a traffic jam.
+          journey: leapix
+          lessons:
+            - { title: 'Every leaf one hop from every spine: ECMP', family: none, kind: game }
+        - id: vxlan-evpn
+          title: 'Overlays: VXLAN and EVPN'
+          summary: "Carrying LANs across a routed fabric: what today's data centers run."
+          why: A virtual machine moves to another rack and keeps its address.
+          journey: leapix
+          lessons:
+            - {
+                title: Carrying LANs across a routed fabric,
+                family: none,
+                kind: article,
+                note: Chapter 24 uses Cisco ACI to illustrate abstraction.,
+              }
+        - id: servers-virtual-networks
+          title: Servers and virtual networks
+          summary: 'Hypervisor switches and container networking: networks inside a single server.'
+          why: Many "computers" share one physical server, each with its own network.
+          journey: leapix
+          lessons:
+            - { title: Hypervisor switches and container networking, family: none, kind: article }
+        - id: connecting-data-centers
+          title: Connecting data centers
+          summary: Data center interconnect, and links to the WAN and the cloud.
+          why: One data center fails and the service carries on from another.
+          journey: leapix
+          lessons:
+            - { title: 'Data center interconnect, the WAN and the cloud', family: none, kind: article }
+
+    - id: automating-the-network
+      title: Automating the network
+      chapters:
+        - id: devices-with-code
+          title: Talking to devices with code
+          summary: 'Python and Netmiko: sending commands and reading answers from code instead of a keyboard.'
+          why: Changing one device by hand is fine; changing five hundred isn't.
+          lessons:
+            - { title: Python and Netmiko, family: none, kind: article }
+        - id: many-devices
+          title: Many devices at once
+          summary: 'Nornir and Ansible: running one task across a whole network.'
+          why: The same change, everywhere, the same way, every time.
+          lessons:
+            - { title: Nornir and Ansible, family: none, kind: article }
+        - id: abstraction
+          title: Abstraction
+          summary: Describing what you want instead of configuring each device, with Cisco ACI as the worked example.
+          why: Saying what you want is easier, and safer, than configuring how, device by device.
+          lessons:
+            - { title: 'Describing what you want, not how', family: none, kind: article }
+            - { title: 'Cisco ACI as an example: tenants, endpoint groups and contracts', family: none, kind: article }
+        - id: testing-changes
+          title: Testing changes before and after
+          summary: 'Containerlab and SuzieQ: proving a change works before and after it goes live.'
+          why: Knowing a change worked before anyone calls to say it didn't.
+          lessons:
+            - { title: Containerlab and SuzieQ, family: none, kind: lab }
+
+    - id: beyond-the-protocols
+      title: Beyond the protocols
+      chapters:
+        - id: learned-early
+          title: What I learned early that helps me every day
+          summary: The skills from my first years that still help every day as a senior technical consultant and network engineer.
+          lessons:
+            - { title: What I learned early that helps me every day, family: none, kind: article }
+        - id: linux
+          title: Linux
+          summary: Learned to support DNS zone files, and useful every day since.
+          lessons:
+            - { title: Linux for network engineers, family: none, kind: article }
+        - id: git
+          title: Revision control with Git
+          summary: 'Keeping every change, and why: DNS zone files were under revision control from the start.'
+          lessons:
+            - { title: Revision control with Git, family: none, kind: article }
+        - id: python
+          title: Software development and Python
+          summary: Development concepts make Python easy to pick up, and a free course to start with.
+          lessons:
+            - { title: Software development and Python, family: none, kind: article }
+        - id: automate-twice
+          title: Automate what you do more than twice
+          summary: An Ops manager's rule that still holds. The tools are in Part 6.
+          lessons:
+            - { title: Automate what you do more than twice, family: none, kind: article }
+        - id: documentation
+          title: Documentation
+          summary: 'Document everything: come back when you have documentation.'
+          lessons:
+            - { title: Documentation, family: none, kind: article }
+        - id: troubleshooting
+          title: Troubleshooting methodology
+          summary: One-page troubleshooting plans that show your method and double as a method of procedure (MOP).
+          lessons:
+            - { title: Troubleshooting methodology, family: none, kind: article }
+        - id: structured-cabling
+          title: Structured cabling
+          summary: The physical layer everything else stands on.
+          lessons:
+            - { title: Structured cabling, family: none, kind: article }
+        - id: show-your-work
+          title: Show your work
+          summary: A free GitHub account, sample documentation and a small website.
+          lessons:
+            - { title: Show your work, family: none, kind: article }

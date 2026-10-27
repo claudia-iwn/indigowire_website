@@ -5,9 +5,10 @@
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { defineCollection } from 'astro:content';
+import { defineCollection, reference } from 'astro:content';
 import { glob, file } from 'astro/loaders';
 import { z } from 'astro/zod';
+import { JOURNEY } from './lib/path.js';
 
 export const SPARK_CATEGORIES = /** @type {const} */ (['working-on', 'saw-this', 'mood']);
 export const LEARN_CATEGORIES = /** @type {const} */ (['layer-2', 'layer-3', 'automation', 'security']);
@@ -128,6 +129,35 @@ const spark = defineCollection({
     }),
 });
 
+/** The learning path (spec section 12, R17): one entry, `course`, holding every part. */
+const lesson = z.object({
+  title: z.string(),
+  family: z.enum(['ipv4', 'ipv6', 'none']),
+  kind: z.enum(['game', 'article', 'lab']),
+  // An unknown learn entry id fails the build (like a foreign key).
+  entry: reference('learn').optional(),
+  next: z.literal(true).optional(),
+  note: z.string().optional(),
+});
+const chapter = z.object({
+  id: z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/),
+  title: z.string(),
+  summary: z.string().max(140),
+  why: z.string().optional(),
+  journey: z.enum(/** @type {[string, ...string[]]} */ (JOURNEY.map((step) => step.id))).optional(),
+  deeper: z.array(z.string()).optional(),
+  lessons: z.array(lesson).min(1),
+});
+// Not named `path`: that name is node:path, used by the spark ids above.
+const coursePath = defineCollection({
+  loader: file('src/content/path.yaml'),
+  schema: z.object({
+    title: z.string(),
+    question: z.string(),
+    parts: z.array(z.object({ id: z.string(), title: z.string(), chapters: z.array(chapter).min(1) })).min(1),
+  }),
+});
+
 export const SPEAKING_KINDS = /** @type {const} */ ([
   'keynote',
   'talk',
@@ -158,4 +188,4 @@ const speaking = defineCollection({
   }),
 });
 
-export const collections = { tags, pages, learn, spark, speaking };
+export const collections = { tags, pages, learn, spark, speaking, path: coursePath };

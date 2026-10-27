@@ -1,7 +1,8 @@
 /**
  * Collection queries shared by several routes.
  */
-import { getCollection } from 'astro:content';
+import { getCollection, getEntry } from 'astro:content';
+import { buildCourse } from './path.js';
 
 /** @typedef {import('astro:content').CollectionEntry<'spark'>} SparkEntry */
 /** @typedef {import('astro:content').CollectionEntry<'learn'>} LearnEntry */
@@ -67,4 +68,21 @@ export function categoryLabel(category) {
     { 'working-on': "What I'm working on", 'saw-this': 'Something I saw', mood: 'How I feel right now' }[category] ??
     category
   );
+}
+
+/**
+ * The course "How networking works" (spec section 12), built from path.yaml and the
+ * learn collection. Throws on a bad path.yaml, so the build fails.
+ * @returns {Promise<import('./path.js').Course>}
+ */
+export async function getCourse() {
+  const entry = await getEntry('path', 'course');
+  if (!entry) throw new Error('src/content/path.yaml is missing its `course` entry');
+  const pages = Object.fromEntries(
+    (await getLearn()).map((e) => [
+      e.id,
+      { id: e.id, title: e.data.title, href: learnHref(e), summary: e.data.summary, published: e.data.published },
+    ]),
+  );
+  return buildCourse(/** @type {import('./path.js').CourseData} */ (entry.data), pages);
 }
