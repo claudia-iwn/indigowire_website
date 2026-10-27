@@ -16,7 +16,15 @@ const learn = (await getLearn()).filter((entry) => entry.data.tags?.includes(tag
 const spark = (await getSpark()).filter((entry) => entry.data.tags?.includes(tag));
 ---
 
-<BaseLayout title={`Topic: ${name}`}>
+<BaseLayout
+  title={`Topic: ${name}`}
+  description={`Networking games, articles and Spark images about ${name} on Indigo Wire Networks.`}
+  pageType="CollectionPage"
+  breadcrumbs={[
+    { name: 'Topics', path: '/topics' },
+    { name, path: `/topics/${tag}` },
+  ]}
+>
   <h1>
     #{tag} <small>{name}</small>
   </h1>

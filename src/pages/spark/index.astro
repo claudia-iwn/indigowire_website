@@ -13,7 +13,13 @@ import { getSpark, categoryLabel } from '../../lib/content.js';
 const entries = await getSpark();
 ---
 
-<BaseLayout title="Spark" description="AI images from a DGX Spark." ogImage={shareCards.spark}>
+<BaseLayout
+  title="Spark: AI images from a DGX Spark"
+  description="A gallery of AI images Claudia de Luna makes on an NVIDIA DGX Spark, in three moods: what I'm working on, something I saw, and how I feel right now."
+  ogImage={shareCards.spark}
+  pageType="CollectionPage"
+  breadcrumbs={[{ name: 'Spark', path: '/spark' }]}
+>
   <h1>Spark</h1>
   <p class="lede">Images from a DGX Spark: what I'm working on, something I saw, how I feel right now.</p>
   <nav aria-label="Spark categories">

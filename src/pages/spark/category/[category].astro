@@ -15,7 +15,16 @@ const entries = (await getSpark()).filter((entry) => entry.data.category === cat
 const label = categoryLabel(category);
 ---
 
-<BaseLayout title={`Spark: ${label}`} ogImage={shareCards.spark}>
+<BaseLayout
+  title={`Spark: ${label}`}
+  description={`Spark images in “${label}”: AI images Claudia de Luna makes on an NVIDIA DGX Spark.`}
+  ogImage={shareCards.spark}
+  pageType="CollectionPage"
+  breadcrumbs={[
+    { name: 'Spark', path: '/spark' },
+    { name: label, path: `/spark/category/${category}` },
+  ]}
+>
   <h1>{label}</h1>
   <p>
     <a href="/spark">← All Spark images</a>

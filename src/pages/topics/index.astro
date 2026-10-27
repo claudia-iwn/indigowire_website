@@ -13,7 +13,12 @@ const topics = Object.entries(names).map(([id, name]) => ({
 }));
 ---
 
-<BaseLayout title="Topics" description="Every tag across games, articles and images.">
+<BaseLayout
+  title="Topics"
+  description="Browse Indigo Wire Networks by topic: every tag across the networking games, articles and Spark images."
+  pageType="CollectionPage"
+  breadcrumbs={[{ name: 'Topics', path: '/topics' }]}
+>
   <h1>Topics</h1>
   <ul class="tags">
     {topics.map((topic) => (

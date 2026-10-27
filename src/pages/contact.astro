@@ -7,7 +7,12 @@ import { linkById } from '../site.config.js';
 const linkedin = linkById('linkedin');
 ---
 
-<BaseLayout title="Contact" description="Contact Claudia de Luna through LinkedIn.">
+<BaseLayout
+  title="Contact"
+  description="Contact Claudia de Luna of Indigo Wire Networks about network architecture and automation work, through LinkedIn."
+  pageType="ContactPage"
+  breadcrumbs={[{ name: 'Contact', path: '/contact' }]}
+>
   <h1>Contact</h1>
   <p class="lede">
     Contact me through{' '}

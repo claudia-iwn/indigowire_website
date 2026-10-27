@@ -113,6 +113,112 @@ test.describe('Content Security Policy', () => {
   });
 });
 
+test.describe('Search and AI search (N11)', () => {
+  test('every route has a unique title and description, and a canonical URL that matches its link', async ({
+    page,
+  }) => {
+    /** @type {Set<string>} */
+    const titles = new Set();
+    /** @type {Set<string>} */
+    const descriptions = new Set();
+    for (const route of ROUTES) {
+      await page.goto(route);
+      const canonical = await page.locator('link[rel="canonical"]').getAttribute('href');
+      expect(canonical, route).toBe(`https://indigowire.net${route === '/' ? '/' : route}`);
+      expect(await page.locator('meta[property="og:url"]').getAttribute('content'), route).toBe(canonical);
+      const description = (await page.locator('meta[name="description"]').getAttribute('content')) ?? '';
+      expect(description.length, `${route} description length`).toBeGreaterThanOrEqual(70);
+      titles.add(await page.title());
+      descriptions.add(description);
+    }
+    expect(titles.size).toBe(ROUTES.length);
+    expect(descriptions.size).toBe(ROUTES.length);
+  });
+
+  test('every route has valid structured data naming the site, the company and the person', async ({ page }) => {
+    for (const route of ROUTES) {
+      await page.goto(route);
+      const blocks = await page.locator('script[type="application/ld+json"]').allTextContents();
+      expect(blocks, route).toHaveLength(1);
+      const graph = JSON.parse(blocks[0])['@graph'];
+      const types = graph.map((/** @type {any} */ node) => node['@type']);
+      expect(types, route).toEqual(expect.arrayContaining(['WebSite', 'Organization', 'Person']));
+      expect(
+        graph.some((/** @type {any} */ n) => String(n['@id'] ?? '').endsWith('#webpage')),
+        route,
+      ).toBe(true);
+    }
+    await page.goto('/learn/arp');
+    expect(await page.locator('script[type="application/ld+json"]').textContent()).toContain('"LearningResource"');
+    await page.goto('/spark/2026-10-25-1405-bgp-weather');
+    expect(await page.locator('script[type="application/ld+json"]').textContent()).toContain('"ImageObject"');
+  });
+
+  test.describe('without JavaScript', () => {
+    test.use({ javaScriptEnabled: false });
+
+    test('the ARP page carries its lesson as text, for readers and crawlers that run no scripts', async ({ page }) => {
+      await page.goto('/learn/arp');
+      const lesson = page.locator('.lesson-text');
+      await expect(lesson.getByRole('heading', { name: 'How ARP works, step by step' })).toBeVisible();
+      await lesson.getByText('Read the lesson as text').click();
+      await expect(lesson.locator('li')).toHaveCount(9);
+      await expect(lesson).toContainText('Ethernet delivers frames by MAC address');
+    });
+  });
+
+  test('the 404 page asks not to be indexed', async ({ page }) => {
+    await page.goto('/no-such-page');
+    await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'noindex');
+    await expect(page.locator('link[rel="canonical"]')).toHaveCount(0);
+  });
+
+  test('the sitemap lists every route, each of which loads', async ({ request }) => {
+    const response = await request.get('/sitemap.xml');
+    expect(response.status()).toBe(200);
+    expect(response.headers()['content-type']).toContain('xml');
+    const xml = await response.text();
+    const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
+    for (const route of ROUTES) expect(locs, route).toContain(`https://indigowire.net${route === '/' ? '/' : route}`);
+    expect(locs.some((loc) => /404|\.html/.test(loc))).toBe(false);
+    for (const loc of locs) expect((await request.get(new URL(loc).pathname)).status(), loc).toBe(200);
+  });
+
+  test('robots.txt welcomes search and AI search, turns away AI training, and names the sitemap', async ({
+    request,
+  }) => {
+    const robots = await (await request.get('/robots.txt')).text();
+    expect(robots).toContain('Sitemap: https://indigowire.net/sitemap.xml');
+    // Each group: its user-agent lines, then its rules (RFC 9309).
+    const groups = robots.split(/\n\s*\n/).map((g) => g.split('\n').filter((l) => !l.startsWith('#')));
+    /** @param {string} agent */
+    const rulesFor = (agent) =>
+      groups.find((g) => g.some((l) => l.toLowerCase() === `user-agent: ${agent.toLowerCase()}`)) ?? [];
+    for (const bot of ['GPTBot', 'ClaudeBot', 'Google-Extended', 'Applebot-Extended', 'CCBot', 'Meta-ExternalAgent']) {
+      expect(rulesFor(bot), bot).toContain('Disallow: /');
+    }
+    for (const bot of ['*', 'OAI-SearchBot', 'Claude-SearchBot', 'PerplexityBot']) {
+      expect(rulesFor(bot), bot).toContain('Allow: /');
+      expect(rulesFor(bot), bot).not.toContain('Disallow: /');
+    }
+  });
+
+  test('llms.txt introduces the site to AI assistants, with links to the main pages', async ({ request }) => {
+    const response = await request.get('/llms.txt');
+    expect(response.status()).toBe(200);
+    const text = await response.text();
+    expect(text).toMatch(/^# Indigo Wire Networks\n\n> /);
+    for (const path of ['/about', '/learn/arp', '/speaking', '/spark']) {
+      expect(text, path).toContain(`(https://indigowire.net${path})`);
+    }
+  });
+
+  test('the workers.dev copy is kept out of search once deployed', async ({ request, baseURL }) => {
+    test.skip(!baseURL?.includes('.workers.dev'), 'only the workers.dev host sends this header');
+    expect((await request.get('/')).headers()['x-robots-tag']).toBe('noindex');
+  });
+});
+
 test('every route has a share card: title, description and an image that loads, with its size and alt (N8)', async ({
   page,
   request,

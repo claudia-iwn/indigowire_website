@@ -97,6 +97,7 @@ Following one change from writing to reading:
 | Hosting | Cloudflare Workers static assets + Workers Builds | Free tier; see section 8. |
 | Analytics | Cloudflare Web Analytics + PostHog (cookieless) | Both free; see section 9. |
 | Security | Content Security Policy from Astro (`security.csp`) + `public/_headers` | No extra package; see section 9, "Security" (N10). |
+| Search | schema.org JSON-LD (`src/lib/seo.js`), `sitemap.xml`, `robots.txt`, `llms.txt` | No extra package; see section 9, "Search and AI search" (N11). |
 | Performance and accessibility audits | Lighthouse 13.5.0, run with `npx` (not a project dependency) | `npm run lighthouse` (`scripts/lighthouse.mjs`); see section 9, "About Lighthouse". |
 | Source control | GitHub, public repo `claudia-iwn/indigowire_website` | Workers Builds deploys `main`; see section 8. |
 | DNS | Cloudflare DNS (moving from GoDaddy in M0) | See section 8, "Domain". |
@@ -196,6 +197,9 @@ Rules are enforced twice: by `validate_spark.py` before a push, and at build tim
 | `tags` | string\[\] | no | Shared tag list |
 | `component` | string | games only | Name of the game module in `src/games/` |
 | `featured` | boolean | no | One featured item appears on Home |
+| `description` | string | no | ≤ 200 characters. The search-result and link-preview description, when the one-line summary is too short; falls back to `summary` (N11) |
+| `published` | date | no | First published (`YYYY-MM-DD`). Shown on the page and in structured data (N11) |
+| `updated` | date | no | Last meaningful change (`YYYY-MM-DD`). Update it by hand when the page changes in substance, not for typo fixes; it feeds the sitemap's `lastmod` (N11) |
 
 ### Collection: `speaking`
 
@@ -234,7 +238,10 @@ Every route is generated at build time; nothing renders on request.
 | `/spark/rss.xml` | Feed of latest 50 | `spark` collection; hand-built XML endpoint, no RSS package | R12 |
 | `/topics` | All tags with counts | `tags.yaml` + both collections | R10 |
 | `/topics/<tag>` | Everything with that tag | Both collections | R10 |
-| `/404` | Not-found page | Hard-coded | R14 |
+| `/404` | Not-found page; `noindex`, no canonical | Hard-coded | R14 |
+| `/sitemap.xml` | Every public page for search engines, with `lastmod` where content records a date | `src/lib/routes.js`; hand-built XML endpoint | N11 |
+| `/robots.txt` | Crawler policy: search and AI search allowed, AI training refused; names the sitemap | `public/robots.txt` | N11 |
+| `/llms.txt` | Plain-Markdown guide to the site for AI assistants (llmstxt.org format) | Built from the same collections as the pages | N11 |
 
 **External links:** all URLs live in one config file, `src/site.config.js`. The header shows Blog, LinkedIn and Bluesky; the footer shows all of them.
 
@@ -583,6 +590,7 @@ Live run on workers.dev, 27 October 2026 (Lighthouse 13.5.0, mobile): every page
 | N8 | SEO and sharing | Title, description and Open Graph image on every page; Spark permalinks use the image as the OG image | View source |
 | N9 | Maintainability | `npm run check` passes before every merge | Workers Builds log / local run |
 | N10 | Security | Every page carries a strict Content Security Policy (only the site's own, hashed scripts run; nothing loads from other sites) and the response headers in `public/_headers`; content written by the image pipeline can't inject markup or script links (section 9, "Security") | Playwright: CSP on every route, no violations while using the site, an injected script is blocked, and headers checked against the live site |
+| N11 | Search and AI search | Every page has a unique title, a description of at least 70 characters, a canonical URL that matches the site's links, and schema.org structured data; a sitemap, `robots.txt` and `llms.txt` describe the site to search engines and AI assistants (section 9, "Search and AI search") | Playwright "Search and AI search (N11)" tests; Vitest `src/lib/seo.test.js`; Lighthouse SEO |
 
 ### Visual identity
 
@@ -764,6 +772,52 @@ Three free layers, all cookieless, so the site needs no consent banner: Cloudfla
 **CSP (N10):** adding either script means adding its hosts to the CSP in `astro.config.mjs` (`script-src` and `connect-src`), and the Playwright CSP tests will fail until that is done. Use the beacon snippet in `BaseLayout`, not Cloudflare's automatic injection, which the CSP would block.
 
 **Trade-offs of cookieless mode:** no session replay, no visitor country in PostHog (Cloudflare Web Analytics still shows countries), and returning visitors look new each day. Ad blockers may block PostHog; routing it through a small Worker on `indigowire.net` is a later option that would count against the 100,000 daily Worker requests.
+
+### Search and AI search (N11)
+
+Designed 27 October 2026. The goal is to be found and described correctly by traditional search (Google, Bing) and by AI assistants that search the web and cite pages (ChatGPT search, Claude, Perplexity, Google's AI features). The two overlap: Bing's index also feeds ChatGPT search and Copilot, and Google's AI features use Google's index. Both reward the same things: pages that are fast and readable without JavaScript, one clear URL per page, accurate descriptions, and structured data saying who wrote what.
+
+**Canonical URLs.** The build writes `about.html`, but the site links to `/about`, so every page's `<link rel="canonical">` and `og:url` are the link form (`canonicalPath` in `src/lib/seo.js`). Before 27 October 2026 they ended in `.html`, which would have split each page across two addresses.
+
+**Titles and descriptions.** Every page has a unique `<title>` and a `<meta name="description">` of at least 70 characters that says what the page is in plain words. Learn entries can set a longer `description` than their one-line `summary`. Pages also carry `<meta name="author">` and `og:locale`; Spark permalinks are `og:type` `article` with `article:published_time`.
+
+**Structured data** (schema.org JSON-LD, one `@graph` per page, built by `src/lib/seo.js` and printed by `BaseLayout`):
+
+| On | Nodes |
+| --- | --- |
+| Every page | `WebSite`, `Organization` (Indigo Wire Networks, founded 2008, founder Claudia de Luna), `Person` (Claudia de Luna: job title, San Francisco Bay Area, Stanford, NASA Exceptional Achievement Medal, Cisco Certified DevNet Associate, Network Automation Forum, areas of expertise, and every profile in `site.config.js` as `sameAs`), and a `WebPage` of the right kind (`ProfilePage` for About, `ContactPage`, `CollectionPage` for listings) |
+| Inner pages | `BreadcrumbList` from Home down |
+| `/learn/arp` and other Learn entries | `LearningResource`: free, interactive, beginner, author, dates, keywords |
+| Spark permalinks | `ImageObject`: creator and copyright holder Claudia de Luna, credit text, licence (`CONTENT-LICENSE.md`), date, and the AI model as contributor |
+| `/speaking` | `ItemList` of `Event`s (talks, keynotes, panels, workshops, courses, Tech Field Day) and `PodcastEpisode`s |
+
+Every fact about the person and the company comes from the About page; add nothing that the site doesn't say. The JSON is printed with `<` escaped as `\u003c`, so content can't close the script element, and the CSP doesn't apply to it because it is data, not code. The 404 page has none, and `noindex`.
+
+**Sitemap, robots.txt and llms.txt.**
+
+- `/sitemap.xml` lists every public page (`src/lib/routes.js`): the fixed pages, every Learn entry and Spark image, the Spark categories, and each topic that has at least one entry (an empty topic page is thin content). `lastmod` appears only where the content records a real date: a Spark image's date, a Learn entry's `updated` or `published`. No 404, no drafts.
+- `/robots.txt` allows everything for ordinary crawlers and AI search, refuses AI training, and names the sitemap. Decided 27 October 2026 by the owner: allow search, block training, because the content is all rights reserved.
+
+  | Allowed (search and answers that cite the page) | Refused (model training) |
+  | --- | --- |
+  | Every crawler by default (`*`, which covers Googlebot and Bingbot), plus `OAI-SearchBot`, `ChatGPT-User` (OpenAI), `Claude-SearchBot`, `Claude-User` (Anthropic), `PerplexityBot`, `Perplexity-User` | `GPTBot` (OpenAI), `ClaudeBot` (Anthropic), `Google-Extended` (Gemini training and grounding in Gemini Apps; no effect on Google Search or its AI features), `Applebot-Extended`, `CCBot` (Common Crawl), `Meta-ExternalAgent`, `Bytespider` |
+
+  robots.txt is a request: reputable crawlers honour it, and OpenAI and Perplexity say their user-triggered fetchers may not. Check the vendors' crawler pages once a year; names change.
+- `/llms.txt` follows the llmstxt.org proposal: the site name, a one-line summary, a paragraph about the company, then links with one-line notes (About, Speaking, Contact, every Learn entry, the ten newest Spark images, the external profiles, the feed and sitemap). It is built from the collections, so it stays current.
+
+**One address.** The workers.dev copy sends `X-Robots-Tag: noindex` (a host rule in `public/_headers`), so only `indigowire.net` is indexed once the domain moves. Until then the site stays out of search on purpose. Side effect: Lighthouse's SEO score on workers.dev drops (it flags the `noindex`); measure SEO on `indigowire.net` after the move.
+
+**Content readable without JavaScript.** The ARP page prints the Learn lesson's nine steps as text ("How ARP works, step by step", folded under "Read the lesson as text"), from the same `LESSON` data as Learn mode. That doubled its readable text to about 700 words; crawlers and AI assistants mostly don't run the game.
+
+**Tests:** `src/lib/seo.test.js` (canonical paths, JSON-LD escaping and each node's fields) and the Playwright "Search and AI search (N11)" group: unique titles and descriptions of at least 70 characters, canonical equals `og:url` equals the link, one valid JSON-LD graph per page with the right types, the 404 page's `noindex`, every sitemap URL loading, the robots.txt groups, `llms.txt`, the lesson text without JavaScript, and (live only) the workers.dev `noindex` header.
+
+**Owner actions after the domain move** (M0):
+
+- [ ] Verify `indigowire.net` in Google Search Console (a DNS TXT record in Cloudflare) and submit `https://indigowire.net/sitemap.xml`.
+- [ ] Do the same in Bing Webmaster Tools, which can import the Search Console setup. Bing's index feeds ChatGPT search and Copilot.
+- [ ] Run Lighthouse against `indigowire.net` and confirm SEO 100.
+- [ ] Link back to `https://indigowire.net` from the LinkedIn, Bluesky and GitHub profiles, so the `sameAs` links point both ways.
+- [ ] Replace or mark `draft: true` the three sample Spark entries (placeholders) before the site is indexed, or they will appear in search and in `llms.txt`.
 
 ### Security (N10)
 

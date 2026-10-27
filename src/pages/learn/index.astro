@@ -59,7 +59,13 @@ const groups = LEARN_CATEGORIES.map((category) => ({
 })).filter((group) => group.entries.length > 0);
 ---
 
-<BaseLayout title="Learn" description="Interactive networking games and short articles." ogImage={shareCards.learn}>
+<BaseLayout
+  title="Learn: interactive networking games"
+  description="Interactive networking games and short articles by Claudia de Luna, starting with a hands-on simulator that shows how IPv4 ARP finds a MAC address, frame by frame."
+  ogImage={shareCards.learn}
+  pageType="CollectionPage"
+  breadcrumbs={[{ name: 'Learn', path: '/learn' }]}
+>
   <h1>Learn</h1>
   <p class="lede">Interactive networking games and short articles.</p>
   {groups.map((group) => (

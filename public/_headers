@@ -9,3 +9,8 @@
   Permissions-Policy: accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()
   Cross-Origin-Opener-Policy: same-origin
   Strict-Transport-Security: max-age=31536000
+
+# Keep the workers.dev copy (and version preview URLs) out of search, so indigowire.net
+# gets the ranking (N11). The placeholders match <worker>.<account>.workers.dev.
+https://:version.:subdomain.workers.dev/*
+  X-Robots-Tag: noindex

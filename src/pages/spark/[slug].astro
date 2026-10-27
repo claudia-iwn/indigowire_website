@@ -5,6 +5,7 @@ import { render } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import TagList from '../../components/TagList.astro';
 import { getSpark, categoryLabel } from '../../lib/content.js';
+import { imageObjectLd } from '../../lib/seo.js';
 
 export async function getStaticPaths() {
   const entries = await getSpark();
@@ -19,12 +20,20 @@ const { entry, newer, older } = Astro.props;
 const { title, image, alt, date, category, caption, tags, model, prompt } = entry.data;
 const { Content } = await render(entry);
 const og = await getImage({ src: image, width: 1200, format: 'jpeg' });
+const path = `/spark/${entry.id}`;
+const imageLd = imageObjectLd({ path, title, alt, caption, image: og.src, date, model });
 ---
 
 <BaseLayout
   title={title}
   description={caption ?? alt}
   ogImage={{ src: og.src, alt, width: Number(og.attributes.width), height: Number(og.attributes.height) }}
+  published={date}
+  breadcrumbs={[
+    { name: 'Spark', path: '/spark' },
+    { name: title, path },
+  ]}
+  jsonLd={[imageLd]}
 >
   <article>
     <h1>{title}</h1>

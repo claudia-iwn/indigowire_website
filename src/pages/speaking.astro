@@ -8,6 +8,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import BackHome from '../components/BackHome.astro';
 import Decrypt from '../components/Decrypt.astro';
 import { getSpeaking, formatPartialDate } from '../lib/content.js';
+import { speakingLd } from '../lib/seo.js';
 
 const today = new Date().toISOString().slice(0, 10);
 const entries = await getSpeaking();
@@ -34,6 +35,9 @@ const sections = [
 <BaseLayout
   title="Workshops, Talks & Takes · Speaking"
   description="Talks, keynotes, podcasts, workshops and courses by Claudia de Luna on network automation and design."
+  pageType="CollectionPage"
+  breadcrumbs={[{ name: 'Speaking', path: '/speaking' }]}
+  jsonLd={[speakingLd(entries.map((entry) => entry.data))]}
 >
   <h1 data-decrypt="hex" data-decrypt-ms="900" data-decrypt-hover>
     Workshops, Talks &amp; Takes

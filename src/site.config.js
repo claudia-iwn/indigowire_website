@@ -16,6 +16,8 @@ export const site = {
   domain: 'indigowire.net',
   url: 'https://indigowire.net',
   description: 'Network engineering, automation, interactive networking games and AI images from a DGX Spark.',
+  /** The content licence (images and writing all rights reserved), for structured data. */
+  contentLicense: 'https://github.com/claudia-iwn/indigowire_website/blob/main/CONTENT-LICENSE.md',
 };
 
 /**

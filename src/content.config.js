@@ -72,6 +72,11 @@ const learn = defineCollection({
     .object({
       title: z.string(),
       summary: z.string().max(140),
+      // For search results and link previews; falls back to the summary (N11).
+      description: z.string().max(200).optional(),
+      // First published and last meaningfully changed, shown on the page and in structured data.
+      published: z.coerce.date().optional(),
+      updated: z.coerce.date().optional(),
       category: z.enum(LEARN_CATEGORIES),
       kind: z.enum(['game', 'article']),
       tags: tagList,

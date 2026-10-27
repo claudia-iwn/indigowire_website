@@ -10,9 +10,26 @@ import TagList from '../../components/TagList.astro';
 import BackHome from '../../components/BackHome.astro';
 import { TOPOLOGY, DEFAULT_TTL_MS, MIN_TTL_MS, MAX_TTL_MS } from '../../games/arp/engine.js';
 import { shareCards } from '../../site.config.js';
+import { learningResourceLd } from '../../lib/seo.js';
+import { getTagNames } from '../../lib/content.js';
+import { LESSON } from '../../games/arp/lesson.js';
 
 const entry = await getEntry('learn', 'arp');
 if (!entry) throw new Error('src/content/learn/arp.md is missing');
+
+const description = entry.data.description ?? entry.data.summary;
+const tagNames = await getTagNames();
+/** @param {Date} date */
+const longDate = (date) => date.toLocaleDateString('en-US', { dateStyle: 'long', timeZone: 'UTC' });
+const resource = learningResourceLd({
+  path: '/learn/arp',
+  title: entry.data.title,
+  description,
+  published: entry.data.published,
+  updated: entry.data.updated,
+  keywords: (entry.data.tags ?? []).map((tag) => tagNames[tag] ?? tag),
+  image: shareCards.arp.src,
+});
 
 const hosts = TOPOLOGY.nodes.filter((node) => node.role !== 'attacker');
 const ttlSeconds = DEFAULT_TTL_MS / 1000;
@@ -24,10 +41,31 @@ const MODES = [
 ];
 ---
 
-<BaseLayout title={entry.data.title} description={entry.data.summary} ogImage={shareCards.arp}>
+<BaseLayout
+  title={entry.data.title}
+  {description}
+  ogImage={shareCards.arp}
+  breadcrumbs={[
+    { name: 'Learn', path: '/learn' },
+    { name: entry.data.title, path: '/learn/arp' },
+  ]}
+  jsonLd={[resource]}
+>
   <h1>{entry.data.title}</h1>
   <p class="lede">{entry.data.summary}</p>
   <TagList tags={entry.data.tags} />
+  {entry.data.published && (
+    <p class="dates">
+      First published{' '}
+      <time datetime={entry.data.published.toISOString().slice(0, 10)}>{longDate(entry.data.published)}</time>
+      {entry.data.updated && (
+        <>
+          {' '}
+          · Updated <time datetime={entry.data.updated.toISOString().slice(0, 10)}>{longDate(entry.data.updated)}</time>
+        </>
+      )}
+    </p>
+  )}
 
   <noscript>
     <p class="notice">The simulator needs JavaScript. Here is the network it simulates:</p>
@@ -259,6 +297,23 @@ const MODES = [
       <p class="live visually-hidden" aria-live="polite"></p>
     </section>
   </div>
+
+  <!-- The Learn lesson as plain text, outside the game: readable without JavaScript, and by
+       search engines and AI assistants (N11). Same text as Learn mode, from lesson.js. -->
+  <section class="lesson-text" aria-labelledby="lesson-text-title">
+    <h2 id="lesson-text-title">How ARP works, step by step</h2>
+    <details>
+      <summary>Read the lesson as text</summary>
+      <ol>
+        {LESSON.map((step) => (
+          <li>
+            <h3>{step.title}</h3>
+            <p>{step.caption}</p>
+          </li>
+        ))}
+      </ol>
+    </details>
+  </section>
   <BackHome />
 </BaseLayout>
 
@@ -272,6 +327,21 @@ const MODES = [
 <style>
   .notice {
     font-weight: 600;
+  }
+  .lesson-text ol {
+    padding-inline-start: 1.5em;
+  }
+  .lesson-text h3 {
+    margin: var(--space-3) 0 var(--space-1);
+    font-size: var(--text-base);
+  }
+  .lesson-text p {
+    margin: 0;
+  }
+  .dates {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
   }
   .arp {
     display: grid;

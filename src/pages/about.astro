@@ -10,7 +10,12 @@ if (!about) throw new Error('src/content/pages/about.md is missing');
 const { Content } = await render(about);
 ---
 
-<BaseLayout title={about.data.title} description={about.data.description}>
+<BaseLayout
+  title={about.data.title}
+  description={about.data.description}
+  pageType="ProfilePage"
+  breadcrumbs={[{ name: 'About', path: '/about' }]}
+>
   <h1 data-decrypt="hex" data-decrypt-ms="900" data-decrypt-hover>
     {about.data.title}
   </h1>
