@@ -24,6 +24,15 @@ describe('the Learn lesson', () => {
     }
   });
 
+  it('gives every step a short note pinned to a device on the diagram', () => {
+    const names = [...TOPOLOGY.nodes.map((n) => n.name), TOPOLOGY.switch.name];
+    for (const step of LESSON) {
+      expect(names).toContain(step.note.node);
+      expect(step.note.text.length).toBeGreaterThan(10);
+      expect(step.note.text.length).toBeLessThanOrEqual(60);
+    }
+  });
+
   it('stops each step on the event its caption describes', () => {
     const engine = createEngine();
     const seen = emits(engine);

@@ -365,6 +365,30 @@ test.describe('How IPv4 ARP works (R5, section 6)', () => {
     await expect(page.locator('.cache[data-host="H1"]')).toContainText('00:00:5e:00:53:12');
   });
 
+  test('Learn mode notes each step on the diagram, beside the device it is about', async ({ page }) => {
+    await page.goto('/learn/arp#learn');
+    const note = page.locator('.bubbles .step-note');
+    await expect(note).toContainText('no MAC');
+    await page.getByRole('button', { name: 'Start' }).click();
+    await page.getByRole('button', { name: 'Next' }).click();
+    await expect(note).toHaveCount(1);
+    await expect(note).toContainText('H1 is on Gi0/1');
+    await page.getByRole('button', { name: 'Back' }).click();
+    await expect(note).toContainText('Who has 192.0.2.12?');
+  });
+
+  test('on a wide screen the tables sit beside the diagram', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/learn/arp');
+    const stage = await page.locator('.stage').boundingBox();
+    const panels = await page.locator('.panels').boundingBox();
+    expect(panels?.x).toBeGreaterThan((stage?.x ?? 0) + (stage?.width ?? 0) - 1);
+    expect(panels?.y).toBeLessThan((stage?.y ?? 0) + (stage?.height ?? 0));
+    // Wider than the page column allows beside a sidebar, but never wider than the screen.
+    expect(stage?.width).toBeGreaterThan(700);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(1280);
+  });
+
   test("switching mode updates the URL and shows that mode's controls", async ({ page }) => {
     await page.goto('/learn/arp');
     await page.getByRole('radio', { name: 'Gratuitous ARP' }).check();

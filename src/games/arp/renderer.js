@@ -313,6 +313,30 @@ export function mountRenderer(parts, engine, { onInspect } = {}) {
     placeOverlay(el, { x: p.x, y: p.y + layout.box.h / 2 }, 'below');
   }
 
+  /** @type {{ node: string, text: string } | null} The Learn step's note, kept so a layout change can redraw it. */
+  let stepNoteShown = null;
+
+  /**
+   * Show the Learn step's note beside its device, replacing the last one; null clears it.
+   * On wide screens it goes to the right of the hosts in the left column and below the
+   * switch or router; on phones, below.
+   * @param {{ node: string, text: string } | null} next
+   */
+  function stepNote(next) {
+    stepNoteShown = next;
+    parts.bubbles.querySelector('.step-note')?.remove();
+    if (!next) return;
+    const p = place(next.node);
+    const el = html('div', { class: 'step-note', role: 'note' });
+    el.append(html('span', { class: 'step-note-node' }, next.node), ' ', next.text);
+    parts.bubbles.append(el);
+    const leftColumn = p.x < place('SW1').x;
+    if (layout === LAYOUTS.narrow) placeOverlay(el, { x: p.x, y: p.y + layout.box.h / 2 }, 'below');
+    else if (leftColumn) placeOverlay(el, { x: p.x + layout.box.w / 2, y: p.y }, 'right');
+    // Below and to the right: the open space under R1, clear of the hosts' links.
+    else placeOverlay(el, { x: p.x + layout.box.w / 2, y: p.y + layout.box.h / 2 }, 'below');
+  }
+
   // ---- Panels ----
 
   /** Rebuild every host's ARP cache table. */
@@ -535,6 +559,7 @@ export function mountRenderer(parts, engine, { onInspect } = {}) {
     drawTopology();
     parts.bubbles.replaceChildren();
     rewrites = [];
+    stepNote(stepNoteShown);
   };
   narrow.addEventListener('change', onLayout);
 
@@ -588,6 +613,7 @@ export function mountRenderer(parts, engine, { onInspect } = {}) {
     },
     /** Redraw the diagram, e.g. after a host takes a new address. */
     redraw: drawTopology,
+    stepNote,
     destroy() {
       for (const off of offs) off();
       narrow.removeEventListener('change', onLayout);

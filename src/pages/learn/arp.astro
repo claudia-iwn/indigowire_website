@@ -206,49 +206,52 @@ const MODES = [
       </button>
     </div>
 
-    <figure class="stage">
-      <svg
-        class="topology"
-        role="group"
-        aria-label="Network diagram: three user devices and the router R1 on switch SW1"
-      ></svg>
-      <div class="bubbles"></div>
-      <figcaption>
-        <ul class="legend">
-          <li>
-            <span class="swatch user" aria-hidden="true"></span> User device (where applications run)
-          </li>
-          <li>
-            <span class="swatch infra" aria-hidden="true"></span> Network infrastructure
-          </li>
-          <li>
-            <span class="swatch you" aria-hidden="true"></span> You
-          </li>
-          <li>
-            <span class="swatch request" aria-hidden="true"></span> ARP request
-          </li>
-          <li>
-            <span class="swatch reply" aria-hidden="true"></span> ARP reply
-          </li>
-          <li>
-            <span class="swatch data" aria-hidden="true"></span> IP data (ping, web, DNS)
-          </li>
-        </ul>
-      </figcaption>
-    </figure>
+    <!-- The diagram and the tables it changes, side by side on wide screens. -->
+    <div class="view">
+      <figure class="stage">
+        <svg
+          class="topology"
+          role="group"
+          aria-label="Network diagram: three user devices and the router R1 on switch SW1"
+        ></svg>
+        <div class="bubbles"></div>
+        <figcaption>
+          <ul class="legend">
+            <li>
+              <span class="swatch user" aria-hidden="true"></span> User device (where applications run)
+            </li>
+            <li>
+              <span class="swatch infra" aria-hidden="true"></span> Network infrastructure
+            </li>
+            <li>
+              <span class="swatch you" aria-hidden="true"></span> You
+            </li>
+            <li>
+              <span class="swatch request" aria-hidden="true"></span> ARP request
+            </li>
+            <li>
+              <span class="swatch reply" aria-hidden="true"></span> ARP reply
+            </li>
+            <li>
+              <span class="swatch data" aria-hidden="true"></span> IP data (ping, web, DNS)
+            </li>
+          </ul>
+        </figcaption>
+      </figure>
+
+      <div class="panels">
+        <section aria-labelledby="caches-title">
+          <h2 id="caches-title">ARP caches</h2>
+          <div class="caches"></div>
+        </section>
+        <section aria-labelledby="mac-title">
+          <h2 id="mac-title">SW1 MAC address table</h2>
+          <div class="mac-table"></div>
+        </section>
+      </div>
+    </div>
 
     <section class="packet" aria-labelledby="packet-title" tabindex="-1"></section>
-
-    <div class="panels">
-      <section aria-labelledby="caches-title">
-        <h2 id="caches-title">ARP caches</h2>
-        <div class="caches"></div>
-      </section>
-      <section aria-labelledby="mac-title">
-        <h2 id="mac-title">SW1 MAC address table</h2>
-        <div class="mac-table"></div>
-      </section>
-    </div>
 
     <section class="log" aria-labelledby="log-title">
       <h2 id="log-title">Event log</h2>
@@ -654,6 +657,30 @@ const MODES = [
     font-size: var(--text-sm);
     box-shadow: 0 0.25rem 1rem color-mix(in srgb, var(--color-heading) 20%, transparent);
   }
+  /* Learn mode's note for the current step, beside the device it is about. */
+  .bubbles :global(.step-note) {
+    position: absolute;
+    width: max-content;
+    max-width: min(15rem, 60%);
+    padding: var(--space-1) var(--space-2);
+    background: var(--color-bg);
+    border: 2px solid var(--color-accent);
+    border-radius: var(--radius);
+    font-size: var(--text-sm);
+    line-height: 1.35;
+    box-shadow: 0 0.25rem 1rem color-mix(in srgb, var(--color-heading) 20%, transparent);
+    animation: note-in 0.25s ease-out both;
+  }
+  .bubbles :global(.step-note-node) {
+    font-weight: 700;
+    color: var(--color-accent);
+  }
+  @keyframes note-in {
+    from {
+      opacity: 0;
+      transform: translateY(0.25rem);
+    }
+  }
   .bubbles :global(.bubble p) {
     margin: 0;
   }
@@ -971,6 +998,28 @@ const MODES = [
   .panels {
     display: grid;
     gap: var(--space-4);
+    align-content: start;
+  }
+  .view {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+  }
+  /*
+   * Wide screens: the tables go beside the diagram, so a change shows up next to the
+   * frame that caused it. The pair grows past the page column (up to 90rem) so the
+   * diagram keeps its size; the negative margins centre it on the column.
+   */
+  @media (width >= 72rem) {
+    .view {
+      --view-width: min(90rem, 100vw - 2 * var(--space-3));
+      width: var(--view-width);
+      margin-inline: calc((100% - var(--view-width)) / 2);
+      grid-template-columns: minmax(0, 1fr) 23rem;
+    }
+    .view .caches {
+      grid-template-columns: minmax(0, 1fr);
+    }
   }
   h2 {
     font-size: var(--text-lg);

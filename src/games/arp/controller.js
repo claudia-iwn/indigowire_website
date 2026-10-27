@@ -113,6 +113,7 @@ export function startSimulator(root) {
     stepPlaying = false;
     setPlaying(false);
     showStep();
+    view.stepNote(LESSON[0].note);
   }
 
   /** Finish the step that is playing at once, so Next never skips what it shows. */
@@ -127,10 +128,12 @@ export function startSimulator(root) {
     lessonStep += 1;
     const step = LESSON[lessonStep];
     stepPlaying = true;
+    view.stepNote(null);
     // Subscribe before starting: a step can end the moment it starts (H1's request leaves at once).
     offStep = watchStep(engine, step, () => {
       stepPlaying = false;
       setPlaying(false);
+      view.stepNote(step.note);
     });
     showStep();
     step.start?.(engine);
@@ -145,6 +148,7 @@ export function startSimulator(root) {
     stepPlaying = false;
     setPlaying(false);
     showStep();
+    view.stepNote(LESSON[target].note);
     view.update();
   }
 

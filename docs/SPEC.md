@@ -302,6 +302,7 @@ Every frame can be encoded to bytes for the inspector: Ethernet header (14 bytes
 - A radio group above the controls: Learn, Sandbox (the default), Gratuitous ARP. Switching mode resets the simulation. The URL hash names the mode (`#learn`, `#garp`), so a link opens straight into one.
 - Each mode shows only its controls (`data-modes` on the element). Learn hides the Send form, Step and the TTL slider; Gratuitous ARP keeps the Send form, so a visitor can ping 192.0.2.12 after a scenario.
 - **Learn** (`lesson.js`, DOM-free, tested): an introduction and 8 steps. H1 pings H2 with empty caches (why ARP, SW1 learns and floods, only H2 answers, the unicast reply, H1 sends the ping, H2's echo reply, the round trip done), then pings again with no ARP. Each step names the engine event it ends on. Next plays the clock until that event and pauses (finishing the current step first if it is still playing); Back rebuilds the lesson in a fresh engine and jumps to the step before. The engine is deterministic, so the rebuild is exact.
+- **Step notes** (decided 27 October 2026): each step also has a short note (60 characters at most) tied to one device. When the step's event fires, the note appears on the diagram beside that device ("SW1 H1 is on Gi0/1. Broadcast: flood it"), replacing the last one. On wide screens it sits right of a host and below-right of the switch or router, clear of the hosts' links; on phones, below the device. A screen reader gets the same content from the caption's live region.
 - Break it arrives with its own design pass; it is not in the switcher yet.
 
 ### View (`renderer.js`)
@@ -309,7 +310,7 @@ Every frame can be encoded to bytes for the inspector: Ethernet header (14 bytes
 - SVG topology with labelled nodes and links; frames are small envelopes that travel along links. Each frame's position is computed every animation frame from the engine clock, `(clock − at) / (arrivesAt − at)` along its hop, so the picture can never drift from the simulation (no animation library).
 - Broadcasts visibly fan out from the switch; dropped frames fade at the host with a short "not for me" label.
 - **Colour by frame kind**, one token each (`--color-arp-request` purple, `--color-arp-reply` copper-red, `--color-ip-data` teal, `--color-eth` slate for Ethernet headers). The moving envelope, its packet view, its hop-table rows and the legend all use the same colour. Decided October 2026, after the ipcisco.com ARP lesson's diagrams.
-- **Packet view** (`packet-view.js`), under the diagram. It shows the latest frame, or the one the visitor selects (which pins it and pauses).
+- **Packet view** (`packet-view.js`), under the diagram and its tables. It shows the latest frame, or the one the visitor selects (which pins it and pauses).
   - **Frame strip:** Destination MAC, Source MAC and Type, then ARP (28 B) or IPv4 header (20 B) plus the payload, then Padding and FCS. Blocks are sized by byte count and tinted by layer.
   - **The inner header in 32-bit rows**, with a 0–31 bit ruler, the way RFCs draw it. For data frames, IPv4 fields the game doesn't model are shown greyed ("·").
   - **Field tree and hex dump**, folded under "Bytes". Hovering or focusing a field highlights it in the strip, the rows and the bytes.
@@ -319,7 +320,7 @@ Every frame can be encoded to bytes for the inspector: Ethernet header (14 bytes
   - The switch rows say "unchanged".
   - R1's row highlights exactly what it rewrote: both MACs and the TTL.
 - **R1's before/after card:** when R1 forwards a packet, a card beside it shows the old Ethernet addresses and TTL struck through, the new ones fading in, and the IP addresses unchanged. It is timed on the simulation clock (3 hops), so Pause and Step hold it. It sits above R1 on wide screens and to its right on phones, kept inside the diagram.
-- Side panels: each host's ARP cache and the switch MAC table, updating live, with a countdown bar per entry.
+- Side panels: each host's ARP cache and the switch MAC table, updating live, with a countdown bar per entry. **Placement** (decided 27 October 2026, because stacked under the packet view a visitor missed the updates): the diagram and the panels share one wrapper (`.view`). From 72rem wide the panels sit in a 23rem column to the right of the diagram, and the wrapper grows past the page column, up to 90rem, so the diagram keeps its size. Narrower, they stack directly under the diagram, before the packet view.
 - Event log beneath, also announced through an `aria-live` region.
 - **Frame inspector:** clicking a moving frame pauses the timeline and opens a Wireshark-style decode (field tree) beside a hex dump; hovering a field highlights its bytes and vice versa.
 - Controls: Play/Pause, Step, Speed (0.25×–2×), Reset, TTL slider, mode switcher.
