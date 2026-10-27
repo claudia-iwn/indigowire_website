@@ -50,7 +50,7 @@ Each requirement has an ID that tasks, commits and tests can reference. Acceptan
 | R14 | Custom 404 | Unknown routes return the site's 404 page with HTTP status 404. |
 | R15 | Analytics | When a page loads, then Cloudflare Web Analytics records it; when a visitor does any action in the section 9 event table, then PostHog records that event with its properties; no cookies are set. |
 | R16 | Speaking page | `/speaking`, titled "Workshops, Talks & Takes" (the nav label stays "Speaking"), lists talks, keynotes, podcasts, workshops, courses and Tech Field Day appearances from `src/content/speaking.yaml`, upcoming first, then past by type, newest first. Links only, no embedded players. |
-| R17 | Learning path | The games and articles form one course, "How networking works", built around one question: what happens when I tap Send on a photo? Part 0, "How devices talk", tells that story for adult beginners; Parts 1 to 7 go deeper in 34 numbered chapters, with IPv4 and IPv6 lessons side by side. Defined in `src/content/path.yaml`. Lessons that don't exist yet are listed as "Not available yet", one is marked "Up next", and each lesson page shows its place in the course (section 12). |
+| R17 | Learning path | The games and articles form one course, "How networking works", built around one question: what happens when I upload a photo to Leapix (a made-up photo site, `leapix.example`)? Part 0, "How devices talk", tells that story for adult beginners; Parts 1 to 7 go deeper in 34 numbered chapters, with IPv4 and IPv6 lessons side by side. Defined in `src/content/path.yaml`. Lessons that don't exist yet are listed as "Not available yet", one is marked "Up next", and each lesson page shows its place in the course (section 12). |
 
 ## 3. Architecture
 
@@ -117,6 +117,7 @@ Following one change from writing to reading:
   - MAC addresses use RFC 7042 only: the documentation unicast range `00:00:5e:00:53:00`–`00:00:5e:00:53:ff`.
   - This applies to games, decrypt packets, tests, docs and blog examples. The ARP simulator's LAN is 192.0.2.0/24.
   - The `/learn` page has a section, "About the addresses in these games", with a table of these ranges, the RFC that reserves each one (linked) and what the site uses it for. Keep that table in step when a game starts using a new range.
+  - **Made-up domain names** use the `.example` top-level domain, reserved for documentation by RFC 2606 and RFC 6761, so they can never be real sites: for example `leapix.example`, the course's photo site.
   - **One exception: 8.8.8.8.** It stands for "an address on the internet", because it is the address most network engineers recognize as one. Use it only in that role (the ARP simulator's off-subnet example), never as a stand-in for an ordinary host.
 
 ## 4. Repository structure and content model
@@ -776,6 +777,8 @@ Three free layers, all cookieless, so the site needs no consent banner: Cloudfla
 
 **Bot Fight Mode stays off** (turned off by the owner, 27 October 2026). It forces Cloudflare's JavaScript Detections on, which injects an inline script whose content changes on every request (`window.__CF$cv$params`). A hash-based CSP can't allow it, and Cloudflare supports it only with per-request nonces in a CSP response header, which static files can't produce; the alternative, `'unsafe-inline'`, would let any inline script run. For a static site with no logins or forms, the bot protection buys little, and Cloudflare's DDoS protection stays on regardless. If a future plan needs bot protection, it needs a Worker that adds nonces.
 
+**JavaScript Detections can't be switched off on the free plan** (checked 27 October 2026). Turning Bot Fight Mode off did not stop the injection on `indigowire.net` or `www.indigowire.net`; Cloudflare's documentation says detections can't be disabled for Bot Fight Mode customers, and community reports of an API workaround (`enable_js: false`) are mixed. So the CSP keeps blocking the script, which is harmless with bot protection off: the fingerprinting simply doesn't run, and visitors see no difference, only one console error per page. `'report-sample'` in `script-src` puts the first 40 characters of any blocked script in the violation report, and the Playwright tests forgive only a blocked inline script that starts like Cloudflare's snippet (`CLOUDFLARE_JSD` in `tests/smoke.spec.js`); any other blocked script still fails them. If Cloudflare later lets the free plan turn detections off, delete that exception.
+
 **Trade-offs of cookieless mode:** no session replay, no visitor country in PostHog (Cloudflare Web Analytics still shows countries), and returning visitors look new each day. Ad blockers may block PostHog; routing it through a small Worker on `indigowire.net` is a later option that would count against the 100,000 daily Worker requests.
 
 ### Search and AI search (N11)
@@ -922,6 +925,7 @@ Seven milestones, each ending in a deployed, working site; hand Claude Code one 
 - [ ] `src/lib/path.js` (statuses, chapter numbers, previous/next available lesson) with Vitest tests
 - [ ] `/learn` as the course map: "Start here", the photo's journey strip, parts, chapters with their "why you'd care" lines, lesson statuses; the addresses table kept; the category grouping removed
 - [ ] Lesson pages show their place in the course and link to the previous and next available lessons; ARP first
+- [ ] Home's "How networking works" section: the journey picture with Leapix, the blurb, the latest game and "Up next" (section 12, "Home")
 - [ ] `Course` structured data on `/learn`; `isPartOf` on each lesson (N11)
 - [ ] ARP: the VLAN note in the "SW1 learns and floods" step (and so in the lesson text)
 - [ ] Playwright tests for the map, the statuses and the ARP page's place in the course
@@ -957,9 +961,9 @@ None. The spec is ready to export to `docs/SPEC.md` and start M0.
 
 Designed 27 October 2026 with the owner. The games and articles on `/learn` become one course, **"How networking works"**, for adults who have never heard of an IP address: curious people, career changers, and people in IT who never learned networking. It is built around one question:
 
-> **What happens when I tap Send on a photo?**
+> **What happens when I upload a photo to Leapix?**
 
-Following that photo gives every part of the network a purpose. Networks are like plumbing: hidden, and noticed only when the hot water stops. The course shows the pipes, starting each time from the tap.
+Leapix is a made-up photo-sharing site whose mascot is a leaping snow leopard. It lives at `leapix.example`, a name that can never be a real website because `.example` is reserved for documentation (RFC 2606; section 3, "Example addresses"). The learner's laptop joins the home network by Wi-Fi or by cable, and the photo leaps from there to Leapix's servers, where friends see it. Following that photo gives every part of the network a purpose. Networks are like plumbing: hidden, and noticed only when the hot water stops. The course shows the pipes, starting each time from the tap.
 
 **Part 0, "How devices talk"**, tells the photo's whole journey in plain language, using **delivery** as the analogy: devices exchange small messages, addresses help them find their way, and connecting equipment passes them along. A network is simply connected devices exchanging information and sharing things, not necessarily anything to do with the internet. **Parts 1 to 7** then go deeper, chapter by chapter, out to the internet, the enterprise, the data center, automation and the skills beyond protocols.
 
@@ -979,18 +983,17 @@ The course is a scaffold: most lessons are "Not available yet", and the owner fi
 
 ### The photo's journey
 
-The spine of `/learn`: a strip across the top of the map, each step linking to the chapters that explain it.
+The spine of `/learn`, and the picture in the Home section: a strip of steps, each linking to the chapters that explain it.
 
 | Step (`journey` id) | What happens |
 | --- | --- |
-| Your phone (`phone`) | The phone has an address, finds the service's name and packs the photo into messages |
-| Wi-Fi (`wifi`) | The messages cross the air to the access point and the local network |
+| Your laptop (`laptop`) | The laptop has an address, looks up `leapix.example` and packs the photo into messages |
+| Wi-Fi or cable (`link`) | The messages cross the air to the access point, or a cable to the switch, onto the home network |
 | Home router (`home-router`) | The router passes them out of the home network |
 | Your provider (`provider`) | The internet provider carries them onward |
 | The internet (`internet`) | Networks hand them from one to the next |
-| The messaging service (`service`) | They arrive, securely, at the service's servers in a data center or the cloud, where the photo waits |
-| Their network (`their-network`) | The service sends the photo on to the other person's network, at home or at work |
-| Their phone (`their-phone`) | The pieces are put back together and the photo appears |
+| Leapix (`leapix`) | They arrive, securely, at Leapix's servers in a data center or the cloud, where the photo is put back together and stored |
+| Your friends see it (`friends`) | Friends' devices, at home or at work, fetch the photo from Leapix over their own networks |
 
 ### Part 0: How devices talk
 
@@ -999,15 +1002,15 @@ Ten short lessons for adult beginners, numbered 0.1 to 0.10 so the chapters keep
 | Lesson | Problem first | Activity (in the browser) | Go deeper |
 | --- | --- | --- | --- |
 | 0.1 Why do we need a network? | Your device has something another device wants, or wants something another has | — | — |
-| 0.2 What's connected to what? | The phone isn't the network; it joins one. Connections are cables or wireless links | Build a small map of a home network | Ch. 1 |
+| 0.2 What's connected to what? | The laptop isn't the network; it joins one. Connections are cables or wireless links | Build a small map of a home network | Ch. 1 |
 | 0.3 Talking without a wire | Wi-Fi is another kind of link, not another kind of network | — | Ch. 1 |
 | 0.4 The connecting boxes | Local delivery and delivery to another neighbourhood: switch, access point, router, one job at a time | Deliver messages within one room, then to the next | Ch. 1, 6 |
 | 0.5 How does a message know where to go? | A letter with no address | Address the envelopes | Ch. 2 to 4 |
 | 0.6 How does a big picture travel? | Too big to send in one go: packets, and agreed rules (protocols) | Reassemble numbered pieces of a picture; what if one is missing? | Ch. 8 |
 | 0.7 Is our network the internet? | Sharing at home and reaching the world are different journeys | Join networks together, then zoom out | Ch. 10 to 12 |
-| 0.8 Who's on the other end? | One device asks, another provides: client and server | Request a picture from a picture library | Ch. 7, 8 |
+| 0.8 Who's on the other end? | One device asks, another provides: your laptop and Leapix's servers (client and server) | Ask Leapix for a picture and get it back | Ch. 7, 8 |
 | 0.9 Keeping it safe | Passwords, private information, secure connections | Sort messages into safe to share, private, and ask first | Ch. 9 |
-| 0.10 The whole journey | "You tap Send. Explain how your photo reaches someone else." | Point to each step of the journey | The map |
+| 0.10 The whole journey | "You click Upload. Explain how your photo reaches Leapix, and how your friends see it." | Point to each step of the journey | The map |
 
 Part 0 ends with a story, not an acronym quiz.
 
@@ -1017,27 +1020,27 @@ Families: **4** = IPv4, **6** = IPv6, **–** = no version. Kinds: game, article
 
 | Part | Ch. | Chapter | Lessons | Why you'd care (draft) | Journey |
 | --- | --- | --- | --- | --- | --- |
-| 1. Your local network | 1 | What is a network? | Devices, links, switches and routers (–, article) · Wireless: a link without the cable (–, article) · The real LAN in Containerlab (–, lab) | Wi-Fi shows full bars but nothing loads: which part is broken? | wifi |
-|  | 2 | Addresses | MAC addresses (–, article) · IPv4 addresses and masks: are we on the same network? (4, game) · IPv6 addresses and prefixes: reading and shortening them (6, game) · Toolbox: binary and hex (–, article) | A settings screen asks for an "IP address" and you have no idea what goes there. | phone |
-|  | 3 | Getting an address (DHCP, part 1) | DHCP: Discover, Offer, Request, Acknowledge (4, game) · SLAAC and DHCPv6 (6, game) | Connected to Wi-Fi, but no internet. | phone |
-|  | 4 | Finding your neighbours | How IPv4 ARP works (4, game) ✅ · Neighbor Discovery (6, game) ⏭ · Try it for real: ARP in Containerlab (–, lab) | Your phone and the printer are on the same Wi-Fi but can't find each other. | wifi |
-|  | 5 | Broadcasts and VLANs | Broadcast domains and VLANs (4, game) · Multicast instead of broadcast (6, game) | Guest Wi-Fi can't reach the office printer, on purpose. | wifi |
+| 1. Your local network | 1 | What is a network? | Devices, links, switches and routers (–, article) · Wireless: a link without the cable (–, article) · The real LAN in Containerlab (–, lab) | Wi-Fi shows full bars but nothing loads: which part is broken? | link |
+|  | 2 | Addresses | MAC addresses (–, article) · IPv4 addresses and masks: are we on the same network? (4, game) · IPv6 addresses and prefixes: reading and shortening them (6, game) · Toolbox: binary and hex (–, article) | A settings screen asks for an "IP address" and you have no idea what goes there. | laptop |
+|  | 3 | Getting an address (DHCP, part 1) | DHCP: Discover, Offer, Request, Acknowledge (4, game) · SLAAC and DHCPv6 (6, game) | Connected to Wi-Fi, but no internet. | laptop |
+|  | 4 | Finding your neighbours | How IPv4 ARP works (4, game) ✅ · Neighbor Discovery (6, game) ⏭ · Try it for real: ARP in Containerlab (–, lab) | Your laptop and the printer are on the same Wi-Fi but can't find each other. | link |
+|  | 5 | Broadcasts and VLANs | Broadcast domains and VLANs (4, game) · Multicast instead of broadcast (6, game) | Guest Wi-Fi can't reach the office printer, on purpose. | link |
 |  | 6 | Leaving the LAN | The default gateway (4, game) · Router advertisements (6, game) | You can print, but you can't reach the internet. | home-router |
-| 2. Names and conversations | 7 | Names: DNS | How a name becomes an address: A and AAAA records (–, game) · DHCP, part 2: learning the DNS servers (4, game: DHCP option 6) · DHCP, part 2: RDNSS and DHCPv6 (6, game). A "from the field" note: some of the worst outages the owner has troubleshot turned out to be DNS | Websites won't load by name, yet the network looks fine. | phone |
-|  | 8 | Conversations: ports, TCP and UDP | Ports, TCP and UDP (–, game) | One app works and another doesn't, over the same connection. | service |
-|  | 9 | Keeping it safe: firewalls and encrypted connections | Firewalls: which conversations are allowed (–, game) · Encrypted connections: TLS and the padlock (–, article) · Passwords and private information (–, article) | The padlock in the browser and the Wi-Fi password: what do they actually protect? | service |
+| 2. Names and conversations | 7 | Names: DNS | How a name becomes an address: A and AAAA records (–, game) · DHCP, part 2: learning the DNS servers (4, game: DHCP option 6) · DHCP, part 2: RDNSS and DHCPv6 (6, game). A "from the field" note: some of the worst outages the owner has troubleshot turned out to be DNS | Websites won't load by name, yet the network looks fine. | laptop |
+|  | 8 | Conversations: ports, TCP and UDP | Ports, TCP and UDP (–, game) | One app works and another doesn't, over the same connection. | leapix |
+|  | 9 | Keeping it safe: firewalls and encrypted connections | Firewalls: which conversations are allowed (–, game) · Encrypted connections: TLS and the padlock (–, article) · Passwords and private information (–, article) | The padlock in the browser and the Wi-Fi password: what do they actually protect? | leapix |
 | 3. Across the internet | 10 | Routing between networks | Routing tables and static routes (4, game) · IPv6 routing (6, game) · Routing protocols (–, article) | Your photo crosses many networks, and something has to choose the way at each one. | internet |
 |  | 11 | NAT | Sharing one address: NAT and PAT (4, game) · Why IPv6 doesn't need NAT (6, article) | Every device at home shares one public address. | home-router |
 |  | 12 | The internet | Internet providers and BGP (–, article) | One mistake somewhere makes popular sites vanish for everyone at once. | internet |
 |  | 13 | Segment routing | The source picks the path: segments and labels (–, article) · SR-MPLS (4, game) · SRv6: segments as IPv6 addresses (6, game) | Your provider steers traffic around a busy link without you noticing. | provider |
-| 4. The enterprise | 14 | Campus networks | Trunks and routing between VLANs (–, game) · Segmentation (–, article) · 802.1X: who gets on the network (–, article) | Plug in a laptop at work and only the right network lets you on. | their-network |
-|  | 15 | The WAN | Connecting sites: MPLS and SD-WAN (–, article) | A branch office reaches headquarters as if it were down the hall. | their-network |
-|  | 16 | The cloud | Virtual networks in the cloud (–, article) · Hybrid links back to the data center (–, article) | The photo service runs in someone else's data center. | service |
-| 5. The data center | 17 | Inside a data center | Racks, top-of-rack switches and east-west traffic (–, article) | Where your photo actually waits: a rack in a building you'll never see. | service |
-|  | 18 | Spine-leaf fabrics | Every leaf one hop from every spine: ECMP (–, game) | Thousands of servers talk to each other at once without a traffic jam. | service |
-|  | 19 | Overlays: VXLAN and EVPN | Carrying LANs across a routed fabric: what today's data centers run (–, article). Points to chapter 24, where Cisco ACI illustrates abstraction | A virtual machine moves to another rack and keeps its address. | service |
-|  | 20 | Servers and virtual networks | Hypervisor switches and container networking (–, article) | Many "computers" share one physical server, each with its own network. | service |
-|  | 21 | Connecting data centers | Data center interconnect, the WAN and the cloud (–, article) | One data center fails and the service carries on from another. | service |
+| 4. The enterprise | 14 | Campus networks | Trunks and routing between VLANs (–, game) · Segmentation (–, article) · 802.1X: who gets on the network (–, article) | Plug in a laptop at work and only the right network lets you on. | friends |
+|  | 15 | The WAN | Connecting sites: MPLS and SD-WAN (–, article) | A branch office reaches headquarters as if it were down the hall. | friends |
+|  | 16 | The cloud | Virtual networks in the cloud (–, article) · Hybrid links back to the data center (–, article) | Leapix runs in someone else's data center. | leapix |
+| 5. The data center | 17 | Inside a data center | Racks, top-of-rack switches and east-west traffic (–, article) | Where your photo actually waits: a rack in a building you'll never see. | leapix |
+|  | 18 | Spine-leaf fabrics | Every leaf one hop from every spine: ECMP (–, game) | Thousands of servers talk to each other at once without a traffic jam. | leapix |
+|  | 19 | Overlays: VXLAN and EVPN | Carrying LANs across a routed fabric: what today's data centers run (–, article). Points to chapter 24, where Cisco ACI illustrates abstraction | A virtual machine moves to another rack and keeps its address. | leapix |
+|  | 20 | Servers and virtual networks | Hypervisor switches and container networking (–, article) | Many "computers" share one physical server, each with its own network. | leapix |
+|  | 21 | Connecting data centers | Data center interconnect, the WAN and the cloud (–, article) | One data center fails and the service carries on from another. | leapix |
 | 6. Automating the network | 22 | Talking to devices with code | Python and Netmiko (–, article) | Changing one device by hand is fine; changing five hundred isn't. |  |
 |  | 23 | Many devices at once | Nornir and Ansible (–, article) | The same change, everywhere, the same way, every time. |  |
 |  | 24 | Abstraction | Describing what you want, not how: intent instead of device configuration (–, article) · Cisco ACI as an example: tenants, endpoint groups and contracts as abstractions of VLANs, subnets and access lists (–, article). The owner built many ACI fabrics; demand is lower now that today's data centers run VXLAN and EVPN, but building them taught the owner how to think about abstraction in network automation, which is why ACI is the example | Saying what you want is easier, and safer, than configuring how, device by device. |  |
@@ -1054,10 +1057,22 @@ Families: **4** = IPv4, **6** = IPv6, **–** = no version. Kinds: game, article
 
 Part 7 comes from advice the owner wrote to a new network engineer. Only the owner's own words are used; nothing from the other person goes on the site. Chapter 26 is about lessons that help every day, not a career history; it mentions only that the owner started in software development.
 
+### Home: the course on the front page
+
+Decided 27 October 2026 (option A of three). Home's "How networking works" section is a teaser for the course, not the whole map:
+
+- **Hook:** "What happens when you upload a photo to Leapix?"
+- **Picture:** the photo's journey as an inline SVG drawn with the site's tokens (sharp at any size, follows light and dark, almost no weight): a laptop with Wi-Fi and a dashed cable as the alternative, the home router, the internet, Leapix's servers with its snow leopard mascot (grey coat, indigo spots), and friends' devices. A small photo icon leaps along the path once, like the ARP frames; with reduced motion or the `>_` switch off it stays still. Decorative: `aria-hidden`, with the meaning carried by the text.
+- **Blurb**, two sentences: networks are the plumbing behind everything you do online; this course shows the pipes, one step at a time, starting from scratch.
+- **Latest game** as a card: the most recently `published` available lesson (ARP today), with its summary and a Play link, and below it one muted line, "Up next: …", from `path.yaml`.
+- **"Start the course"** links to `/learn`.
+
+Everything except the picture comes from `path.yaml` and the `learn` collection, so the section updates itself when a lesson ships or "Up next" moves. The section replaces today's featured-game block, and `featured` in the `learn` schema is no longer needed once it ships.
+
 ### Content changes that come with the scaffold
 
 - **ARP and VLANs.** The ARP game's "SW1 learns and floods" step says the switch floods a broadcast to every port in the same VLAN (this LAN has one), and points to chapter 5. The lesson text on the page follows, because it comes from the same `LESSON` data.
-- **ARP's place in the story.** The ARP page opens with its "why you'd care" line and its journey step ("the step where your phone finds the router on your Wi-Fi").
+- **ARP's place in the story.** The ARP page opens with its "why you'd care" line and its journey step ("the step where your laptop finds the router on your home network").
 
 ### Data: `src/content/path.yaml`
 
@@ -1071,7 +1086,7 @@ A `path` collection loaded with Astro's `file()` loader: a list of parts, each w
 | Chapter | `id`, `title` | unique id. Numbers are positions, never stored: Part 0's chapters are 0.1 to 0.10, and the chapters of Parts 1 to 7 count on from 1 across the whole course |
 | | `summary` | one line, at most 140 characters |
 | | `why` | Parts 1 to 7: one line, the moment someone notices this (the "why you'd care" column). Part 0: the problem it starts from |
-| | `journey` | optional: the step of the photo's journey it explains (`phone`, `wifi`, `home-router`, `provider`, `internet`, `service`, `their-network`, `their-phone`) |
+| | `journey` | optional: the step of the photo's journey it explains (`laptop`, `link`, `home-router`, `provider`, `internet`, `leapix`, `friends`) |
 | | `deeper` | Part 0 only: the ids of the chapters to "go deeper" into |
 | | `lessons` | non-empty list |
 | Lesson | `title` | as listed above |
@@ -1085,8 +1100,8 @@ A `path` collection loaded with Astro's `file()` loader: a list of parts, each w
 
 ### `/learn`
 
-- **Start here:** a short introduction: the question (tapping Send on a photo), the plumbing idea, that lessons build on each other, what the three statuses mean, and a button to the first available lesson (Part 0's first lesson once it exists; ARP until then).
-- **The photo's journey:** the strip of eight steps, each linking to its chapters on the map.
+- **Start here:** a short introduction: the question (uploading a photo to Leapix), the plumbing idea, that lessons build on each other, what the three statuses mean, and a button to the first available lesson (Part 0's first lesson once it exists; ARP until then).
+- **The photo's journey:** the strip of seven steps, each linking to its chapters on the map.
 - **The map:** each part as a section (`h2`), each chapter numbered (`h3`) with its summary and "why you'd care" line, then its lessons. IPv4 and IPv6 lessons sit side by side with a version badge. Available lessons are links; "Up next" has a badge in the accent colour; "Not available yet" is muted text, not a link. Statuses are words, not colour alone (WCAG).
 - **About the addresses in these games:** the existing table, kept at the bottom.
 - The grouping by `category` goes; the `category` field stays for tags and topics.

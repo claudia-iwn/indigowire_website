@@ -45,7 +45,7 @@ The header logo is `public/logo.svg` / `logo-dark.svg`, converted from the PDF m
 - **Plain CSS** with custom properties from `src/styles/tokens.css`. No CSS frameworks. Never hard-code a color; use a token. Color tokens are `light-dark(light, dark)`, so one token covers both themes; the manual toggle sets `data-theme` on `<html>`. For theme-specific images use the `.theme-light-only` / `.theme-dark-only` classes (with `loading="lazy"`), never a `prefers-color-scheme` media query, which ignores the toggle.
 - **Python only through uv.** Use `uv add` / `uv add --dev` and `uv run`. Never use pip, `python -m venv`, or a bare `python`.
 - **No new runtime dependency** unless it is in the spec's tech stack table (section 3). If one is needed, update that table first.
-- **Example addresses:** IPv4 only from RFC 5737 (192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24), IPv6 only from RFC 3849 (2001:db8::/32), MACs only from RFC 7042 (00:00:5e:00:53:xx), in code, tests, games and docs. Never real public or RFC 1918 addresses, except 8.8.8.8 as "the internet" (spec section 3).
+- **Example addresses:** IPv4 only from RFC 5737 (192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24), IPv6 only from RFC 3849 (2001:db8::/32), MACs only from RFC 7042 (00:00:5e:00:53:xx), and made-up domain names only under `.example` (RFC 2606; the course's photo site is `leapix.example`), in code, tests, games and docs. Never real public or RFC 1918 addresses, except 8.8.8.8 as "the internet" (spec section 3).
 - **Comments for a Python developer learning JS:** when JavaScript does something non-obvious, add a one-line comparison to Python (for example, "like a Python dict").
 
 ## Architecture rules
