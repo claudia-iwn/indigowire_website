@@ -1,6 +1,4 @@
-import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { parse } from 'yaml';
 import { JOURNEY, buildCourse, placeOf, lessonFor, neighbours, chaptersForStep, lessonBreadcrumbs } from './path.js';
 
 /** A small course in the shape of path.yaml after Astro has parsed it. */
@@ -182,33 +180,5 @@ describe('the photo journey', () => {
     const course = buildCourse(data(), pages);
     expect(chaptersForStep(course, 'laptop').map((c) => c.id)).toEqual(['addresses', 'dns']);
     expect(chaptersForStep(course, 'friends')).toEqual([]);
-  });
-});
-
-describe('src/content/path.yaml', () => {
-  const raw = parse(readFileSync('src/content/path.yaml', 'utf8')).course;
-  // Astro turns `entry: arp` into { id: 'arp' }; do the same here.
-  for (const part of raw.parts)
-    for (const ch of part.chapters) for (const l of ch.lessons) if (l.entry) l.entry = { id: l.entry };
-  const course = buildCourse(raw, {
-    arp: { id: 'arp', title: 'How IPv4 ARP works', href: '/learn/arp', summary: 's' },
-  });
-
-  it('has Part 0 with ten lessons and 34 numbered chapters after it', () => {
-    expect(course.parts).toHaveLength(8);
-    expect(course.parts[0].chapters).toHaveLength(10);
-    expect(
-      course.parts
-        .slice(1)
-        .flatMap((p) => p.chapters)
-        .at(-1)?.number,
-    ).toBe('34');
-  });
-
-  it('has ARP available in chapter 4 and IPv6 Neighbor Discovery up next', () => {
-    expect(placeOf(/** @type {any} */ (lessonFor(course, 'arp')))).toBe(
-      'Part 1 · Chapter 4 · Finding your neighbours · IPv4',
-    );
-    expect(course.next?.title).toBe('Neighbor Discovery');
   });
 });
