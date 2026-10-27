@@ -37,7 +37,13 @@ export default defineConfig({
         "base-uri 'self'",
         "form-action 'self'",
       ],
-      scriptDirective: { hashes: [sha256(BOOT_SCRIPT)] },
+      scriptDirective: {
+        // Cloudflare injects its Web Analytics beacon into every page of a proxied zone
+        // (automatic setup is the only option there); it reports to /cdn-cgi/rum on this
+        // site, so connect-src stays 'self'.
+        resources: ["'self'", 'https://static.cloudflareinsights.com'],
+        hashes: [sha256(BOOT_SCRIPT)],
+      },
     },
   },
 });

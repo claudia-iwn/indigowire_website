@@ -590,7 +590,7 @@ Live run on workers.dev, 27 October 2026 (Lighthouse 13.5.0, mobile): every page
 | N7 | Privacy | No cookies or browser storage for tracking; the only third-party scripts are Cloudflare Web Analytics and PostHog in cookieless mode | Network tab shows only the site's origin, Cloudflare Web Analytics and PostHog; Application tab shows no cookies |
 | N8 | SEO and sharing | Title, description and Open Graph image on every page; Spark permalinks use the image as the OG image | View source |
 | N9 | Maintainability | `npm run check` passes before every merge | Workers Builds log / local run |
-| N10 | Security | Every page carries a strict Content Security Policy (only the site's own, hashed scripts run; nothing loads from other sites) and the response headers in `public/_headers`; content written by the image pipeline can't inject markup or script links (section 9, "Security") | Playwright: CSP on every route, no violations while using the site, an injected script is blocked, and headers checked against the live site |
+| N10 | Security | Every page carries a strict Content Security Policy (only the site's own, hashed scripts run, plus Cloudflare's Web Analytics beacon; nothing else loads from other sites) and the response headers in `public/_headers`; content written by the image pipeline can't inject markup or script links (section 9, "Security") | Playwright: CSP on every route, no violations while using the site, an injected script is blocked, and headers checked against the live site |
 | N11 | Search and AI search | Every page has a unique title, a description of at least 70 characters, a canonical URL that matches the site's links, and schema.org structured data; a sitemap, `robots.txt` and `llms.txt` describe the site to search engines and AI assistants (section 9, "Search and AI search") | Playwright "Search and AI search (N11)" tests; Vitest `src/lib/seo.test.js`; Lighthouse SEO |
 
 ### Visual identity
@@ -770,7 +770,11 @@ Three free layers, all cookieless, so the site needs no consent banner: Cloudfla
 | `arp_learn_complete` | The last guided step is reached | `seconds` |
 | `spark_filter` | A gallery category or tag filter is used | `category`, `tag` |
 
-**CSP (N10):** adding either script means adding its hosts to the CSP in `astro.config.mjs` (`script-src` and `connect-src`), and the Playwright CSP tests will fail until that is done. Use the beacon snippet in `BaseLayout`, not Cloudflare's automatic injection, which the CSP would block.
+**CSP (N10):** adding a script means adding its hosts to the CSP in `astro.config.mjs` (`script-src` and `connect-src`), and the Playwright CSP tests fail until that is done.
+
+**Cloudflare Web Analytics uses automatic setup** (decided 27 October 2026). On a zone proxied through Cloudflare, the dashboard offers only automatic setup ("This hostname belongs to an existing website on your account. Deploy with automatic setup."), so Cloudflare injects the beacon into every HTML page as it is served; there is no snippet in `BaseLayout` and no token in the repo. The beacon is a fixed file with an integrity hash from `https://static.cloudflareinsights.com`, which is the one outside host in `script-src`; it reports to `/cdn-cgi/rum` on the site itself, so `connect-src` stays `'self'`. The workers.dev copy gets no beacon.
+
+**Bot Fight Mode stays off** (turned off by the owner, 27 October 2026). It forces Cloudflare's JavaScript Detections on, which injects an inline script whose content changes on every request (`window.__CF$cv$params`). A hash-based CSP can't allow it, and Cloudflare supports it only with per-request nonces in a CSP response header, which static files can't produce; the alternative, `'unsafe-inline'`, would let any inline script run. For a static site with no logins or forms, the bot protection buys little, and Cloudflare's DDoS protection stays on regardless. If a future plan needs bot protection, it needs a Worker that adds nonces.
 
 **Trade-offs of cookieless mode:** no session replay, no visitor country in PostHog (Cloudflare Web Analytics still shows countries), and returning visitors look new each day. Ad blockers may block PostHog; routing it through a small Worker on `indigowire.net` is a later option that would count against the 100,000 daily Worker requests.
 
@@ -826,7 +830,7 @@ Audited 27 October 2026. The site is static files on Cloudflare: no server code,
 
 **Controls in the site**
 
-- **Content Security Policy**, a `<meta>` tag on every page, built by Astro (`security.csp` in `astro.config.mjs`). Only scripts and styles whose SHA-256 hash is in the policy run, and nothing loads from another site (`default-src 'self'`, `object-src 'none'`, `base-uri 'self'`, `form-action 'self'`). There is no `'unsafe-inline'` or `'unsafe-eval'`.
+- **Content Security Policy**, a `<meta>` tag on every page, built by Astro (`security.csp` in `astro.config.mjs`). Only scripts and styles whose SHA-256 hash is in the policy run, and nothing loads from another site except Cloudflare's Web Analytics beacon (`https://static.cloudflareinsights.com` in `script-src`; section 9, "Analytics") (`default-src 'self'`, `object-src 'none'`, `base-uri 'self'`, `form-action 'self'`). There is no `'unsafe-inline'` or `'unsafe-eval'`.
   - Astro hashes its own scripts and styles. The one hand-written inline script, the theme script in `<head>`, lives in `src/lib/boot-script.js`; the page prints that string and the config hashes the same string, so the hash can't go stale.
   - Style changes made from JavaScript go through `el.style`, never a `style=""` attribute, which the policy blocks.
   - Markdown syntax highlighting is off, because Shiki uses inline styles.
@@ -870,7 +874,7 @@ Seven milestones, each ending in a deployed, working site; hand Claude Code one 
 - [x] Draft `pages/about.md` from the tailored-resume skill's career facts and the master CV; owner reviews before publishing (R2)
 - [x] Home, Contact and 404 pages (R3, R11 placeholder, R14)
 - [x] Playwright smoke test and Lighthouse baseline (N1, N3, N6). Baseline 2026-10-25, mobile, Lighthouse 13.5.0 on `astro preview`: all 10 scorable routes 100/100/100/100 (performance, accessibility, best practices, SEO), LCP 1.2 to 1.3 s, CLS 0. The 404 page cannot be scored because Lighthouse rejects non-200 responses. Fixes made for it: Spark card headings follow page heading order, and the LCP image gets `fetchpriority="high"`. Live check on workers.dev the same day: smoke tests 34/34, Lighthouse 100 on every route except 98 performance on `/spark/category/mood`, LCP 1.1 to 1.7 s. It also found every page except Home redirecting `/page` to `/page/`, fixed with `build.format: 'file'` and `trailingSlash: 'never'` in `astro.config.mjs`
-- [ ] Turn on Cloudflare Web Analytics; add PostHog in cookieless mode and `src/analytics.js` with `outbound_click` (R15)
+- [ ] Add PostHog in cookieless mode and `src/analytics.js` with `outbound_click` (R15). Cloudflare Web Analytics is on since 27 October 2026, by automatic setup on the proxied zone, with its beacon allowed in the CSP
 
 ### M2: Content model and topics
 

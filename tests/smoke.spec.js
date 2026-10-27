@@ -46,7 +46,7 @@ for (const route of ROUTES) {
 }
 
 test.describe('Content Security Policy', () => {
-  test('every route sets a strict policy: hashed scripts, no inline or eval, nothing from other sites', async ({
+  test('every route sets a strict policy: hashed scripts, no inline or eval, scripts only from the site and Cloudflare Web Analytics', async ({
     page,
   }) => {
     for (const route of ROUTES) {
@@ -54,7 +54,15 @@ test.describe('Content Security Policy', () => {
       const csp = await page.locator('meta[http-equiv="content-security-policy"]').getAttribute('content');
       expect(csp, route).toContain("default-src 'self'");
       expect(csp, route).toContain("object-src 'none'");
-      expect(csp, route).toMatch(/script-src 'self' 'sha256-/);
+      // Scripts: the site's own, hashed, plus the Web Analytics beacon Cloudflare injects (N10).
+      const scriptSrc = (csp?.match(/script-src ([^;]*)/) ?? ['', ''])[1].split(' ');
+      expect(scriptSrc, route).toContain("'self'");
+      expect(
+        scriptSrc.some((s) => s.startsWith("'sha256-")),
+        route,
+      ).toBe(true);
+      const hosts = scriptSrc.filter((s) => !s.startsWith("'"));
+      expect(hosts, route).toEqual(['https://static.cloudflareinsights.com']);
       expect(csp, route).not.toContain('unsafe-inline');
       expect(csp, route).not.toContain('unsafe-eval');
     }
