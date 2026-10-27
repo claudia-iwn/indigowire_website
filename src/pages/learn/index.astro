@@ -75,7 +75,7 @@ const RANGES = [
     courseLd({
       name: course.title,
       description: 'A free course from scratch: follow one photo from your laptop to Leapix and your friends.',
-      lessonPaths: course.lessons.filter((l) => l.page).map((l) => /** @type {any} */ l.page.href),
+      lessonPaths: course.lessons.flatMap((l) => (l.page ? [l.page.href] : [])),
     }),
   ]}
 >
@@ -256,10 +256,13 @@ const RANGES = [
   .status {
     color: var(--color-text-muted);
   }
-  /* Up next: the accent colour, and the word "Up next" (never colour alone). */
+  /* Up next: a badge in the accent colour, and the word "Up next" (never colour alone). */
   .lesson.next .status {
     color: var(--color-accent);
     font-weight: 600;
+    border: 1px solid var(--color-accent);
+    border-radius: var(--radius);
+    padding: 0 var(--space-1);
   }
   .note {
     flex-basis: 100%;

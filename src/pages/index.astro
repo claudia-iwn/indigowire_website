@@ -16,6 +16,13 @@ const { Content } = await render(home);
 const [latest] = await getSpark();
 const course = await getCourse();
 const { latest: latestLesson, next } = course;
+// The card's label and link follow the lesson's kind (spec section 12, "Home").
+const KIND_WORDS = {
+  game: { label: 'Latest game', link: 'Play' },
+  article: { label: 'Latest article', link: 'Read' },
+  lab: { label: 'Latest lab', link: 'Try it' },
+};
+const latestWords = latestLesson ? KIND_WORDS[latestLesson.kind] : null;
 ---
 
 <BaseLayout title={home.data.title} description={home.data.description}>
@@ -40,11 +47,14 @@ const { latest: latestLesson, next } = course;
       </p>
       {latestLesson?.page && (
         <div class="latest">
-          <p class="label">Latest game</p>
+          <p class="label">{latestWords?.label}</p>
           <h3>
             <a href={latestLesson.page.href}>{latestLesson.page.title}</a>
           </h3>
           <p>{latestLesson.page.summary}</p>
+          <p>
+            <a href={latestLesson.page.href}>{latestWords?.link} →</a>
+          </p>
         </div>
       )}
       {next && (

@@ -123,18 +123,18 @@
       transform: translate(250px, -14px);
     }
     to {
-      transform: translate(500px, 0);
+      transform: translate(500px, -14px);
     }
   }
   /* Still, at Leapix, with reduced motion or the >_ switch off (N4). */
   @media (prefers-reduced-motion: reduce) {
     .photo {
       animation: none;
-      transform: translate(500px, 0);
+      transform: translate(500px, -14px);
     }
   }
   :global(html[data-effects='off']) .photo {
     animation: none;
-    transform: translate(500px, 0);
+    transform: translate(500px, -14px);
   }
 </style>
