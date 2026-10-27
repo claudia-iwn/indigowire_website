@@ -288,7 +288,9 @@ test.describe('Home hero band (section 9)', () => {
       ['light', 'White cotton', 'Leaves of the indigo plant', 'doi.org/10.1126/sciadv.1501623'],
       ['dark', 'Leaves of the indigo plant', 'White cotton', 'attalus.org/pliny/hn35a.html'],
     ])) {
-      test(`a small info button explains the ${scheme} theme's background, with a sourced fact`, async ({ page }) => {
+      test(`a small info button explains the ${scheme} theme's background, with a sourced fact and the museum note`, async ({
+        page,
+      }) => {
         await page.emulateMedia({ colorScheme: scheme });
         await page.goto('/');
         const info = page.getByRole('button', { name: 'About the background video' });
@@ -300,9 +302,15 @@ test.describe('Home hero band (section 9)', () => {
         const text = await card.innerText();
         expect(text).toContain(shows);
         expect(text).not.toContain(hides);
-        const source = card.getByRole('link').filter({ visible: true });
-        await expect(source).toHaveCount(1);
-        await expect(source).toHaveAttribute('href', new RegExp(link.replace(/\./g, '\\.')));
+        const links = card.getByRole('link').filter({ visible: true });
+        // The theme's own source, then the museum note shared by both themes.
+        await expect(links).toHaveCount(2);
+        await expect(links.first()).toHaveAttribute('href', new RegExp(link.replace(/\./g, '\\.')));
+        expect(text).toContain('An Ocean in a Drop');
+        await expect(card.getByRole('link', { name: 'Indigo Art Museum website' })).toHaveAttribute(
+          'href',
+          'https://www.indigoartmuseum.org/',
+        );
         await page.keyboard.press('Escape');
         await expect(card).toBeHidden();
       });

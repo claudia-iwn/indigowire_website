@@ -68,6 +68,17 @@
       </a>
     </p>
   </div>
+  <!-- Shown in both themes. -->
+  <p class="inspiration">
+    This background was inspired by my visit to the exhibition “An Ocean in a Drop” at the Indigo Art Museum in
+    Ahmedabad, Gujarat, India. The museum, the world’s first institution solely dedicated to indigo, is near the
+    Kasturbhai Lalbhai Museum campus in Shahibaug. Read more about the space, its permanent collections and past
+    showcases on the{' '}
+    <a href="https://www.indigoartmuseum.org/" rel="noopener" target="_blank">
+      Indigo Art Museum website
+    </a>
+    .
+  </p>
   <button type="button" popovertarget="hero-info" popovertargetaction="hide">
     Close
   </button>
@@ -245,6 +256,9 @@
   /* The card. As a popover it sits in the top layer, centred by the browser. */
   .hero-info {
     max-width: min(24rem, calc(100vw - 2 * var(--space-3)));
+    /* On a short screen (a phone turned sideways) the card scrolls instead of being cut off. */
+    max-height: calc(100dvh - 2 * var(--space-3));
+    overflow-y: auto;
     padding: var(--space-3);
     background: var(--color-bg);
     color: var(--color-text);
@@ -257,6 +271,14 @@
   }
   .hero-info p {
     margin: 0 0 var(--space-2);
+  }
+  /* The museum note: set off from the theme story by a rule. */
+  .hero-info .inspiration {
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--color-border);
+    font-size: var(--text-sm);
+    font-style: italic;
+    color: var(--color-text-muted);
   }
   .hero-info .fact {
     font-size: var(--text-sm);
