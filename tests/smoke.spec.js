@@ -467,6 +467,29 @@ test.describe('Home hero band (section 9)', () => {
   });
 });
 
+test.describe('Home: the course teaser (section 12)', () => {
+  test('asks the Leapix question, shows the journey, the latest game, Up next and the way in', async ({ page }) => {
+    await page.goto('/');
+    const section = page.locator('section.course');
+    await expect(section.getByRole('heading', { name: 'How networking works' })).toBeVisible();
+    await expect(section).toContainText('What happens when you upload a photo to Leapix?');
+    await expect(section.locator('svg.journey-picture')).toHaveAttribute('aria-hidden', 'true');
+    await expect(section.locator('ol.journey li')).toHaveCount(7);
+    await expect(section.getByRole('link', { name: 'How IPv4 ARP works' })).toHaveAttribute('href', '/learn/arp');
+    await expect(section).toContainText('Up next: Neighbor Discovery (IPv6)');
+    await expect(section.getByRole('link', { name: 'Start the course' })).toHaveAttribute('href', '/learn');
+  });
+
+  test('the photo stays still with reduced motion', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/');
+    const animation = await page
+      .locator('svg.journey-picture .photo')
+      .evaluate((el) => getComputedStyle(el).animationName);
+    expect(animation).toBe('none');
+  });
+});
+
 test.describe('decrypt effects (N4)', () => {
   for (const route of ['/', '/about']) {
     test(`${route} packet paragraphs decrypt and leave the page as it was`, async ({ page }) => {

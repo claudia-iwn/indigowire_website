@@ -82,7 +82,6 @@ const learn = defineCollection({
       kind: z.enum(['game', 'article']),
       tags: tagList,
       component: z.string().optional(),
-      featured: z.boolean().optional(),
     })
     .refine((d) => d.kind !== 'game' || Boolean(d.component), {
       message: 'games must name their `component` in src/games/',

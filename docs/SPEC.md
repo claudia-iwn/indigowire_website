@@ -44,7 +44,7 @@ Each requirement has an ID that tasks, commits and tests can reference. Acceptan
 | R8 | Spark publishing by push | When the glue code places a valid image + sidecar in the clone and the publisher pushes it to `main`, then the image is live after the build finishes, with no manual step. |
 | R9 | Spark validation | When a sidecar is missing a required field, then the build fails, the previous version stays live, and the validation script reports the field. |
 | R10 | Shared tags | `/topics/<tag>` lists all games, topics and images carrying that tag. |
-| R11 | Home page | `/` shows a short intro, the latest Spark image, the featured game and the external links. |
+| R11 | Home page | `/` shows a short intro, the latest Spark image, the course teaser and the external links. |
 | R12 | Feeds | `/spark/rss.xml` lists the latest 50 Spark entries. |
 | R13 | Auto deploy | When a commit lands on `main`, then Workers Builds builds and deploys it; other branches get preview deploys. |
 | R14 | Custom 404 | Unknown routes return the site's 404 page with HTTP status 404. |
@@ -198,7 +198,6 @@ Rules are enforced twice: by `validate_spark.py` before a push, and at build tim
 | `kind` | enum | yes | `game` \| `article` |
 | `tags` | string\[\] | no | Shared tag list |
 | `component` | string | games only | Name of the game module in `src/games/` |
-| `featured` | boolean | no | One featured item appears on Home |
 | `description` | string | no | ≤ 200 characters. The search-result and link-preview description, when the one-line summary is too short; falls back to `summary` (N11) |
 | `published` | date | no | First published (`YYYY-MM-DD`). Shown on the page and in structured data (N11) |
 | `updated` | date | no | Last meaningful change (`YYYY-MM-DD`). Update it by hand when the page changes in substance, not for typo fixes; it feeds the sitemap's `lastmod` (N11) |
@@ -227,7 +226,7 @@ Every route is generated at build time; nothing renders on request.
 
 | Route | Purpose | Content source | Req. |
 | --- | --- | --- | --- |
-| `/` | Intro, latest Spark image, featured game, external links | `pages/home.md`, newest `spark`, `learn` with `featured: true` | R11 |
+| `/` | Intro, latest Spark image, the course teaser, external links | `pages/home.md`, newest `spark`, `getCourse()` | R11 |
 | `/about` | Bio | `pages/about.md` | R2 |
 | `/speaking` | Talks, podcasts, workshops, courses, Tech Field Day | `speaking` collection | R16 |
 | `/contact` | "Contact me through LinkedIn" + link | Hard-coded component | R3 |
@@ -920,7 +919,7 @@ Seven milestones, each ending in a deployed, working site; hand Claude Code one 
   - Reduced motion: frames sit 15% and 85% along each hop instead of gliding.
   - The mode switcher arrives with the other modes in M6.
   - Lighthouse on `/learn/arp`: 100 in every category. The game script is 7.7 KB gzipped.
-- [x] Feature it on Home (R11): under "How networking works", from `featured: true` in `learn/arp.md`
+- [x] Feature it on Home (R11): under "How networking works" (now the course teaser, section 12)
 - [ ] Fire `arp_send`, `arp_mode_change`, `arp_inspector_open` and `arp_learn_complete`; build a PostHog dashboard for game use (R15)
 
 ### M6: ARP modes and polish

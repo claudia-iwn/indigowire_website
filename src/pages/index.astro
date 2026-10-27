@@ -1,18 +1,21 @@
 ---
-/** Home: intro, latest Spark image, featured game, external links (R11). */
+/** Home: intro, the course teaser, latest Spark image, external links (R11, section 12). */
 import { getEntry, render } from 'astro:content';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import SparkCard from '../components/SparkCard.astro';
 import Decrypt from '../components/Decrypt.astro';
 import HeroBand from '../components/HeroBand.astro';
 import { externalLinks } from '../site.config.js';
-import { getSpark, getLearn, learnHref } from '../lib/content.js';
+import JourneyPicture from '../components/JourneyPicture.astro';
+import JourneyStrip from '../components/JourneyStrip.astro';
+import { getSpark, getCourse } from '../lib/content.js';
 
 const home = await getEntry('pages', 'home');
 if (!home) throw new Error('src/content/pages/home.md is missing');
 const { Content } = await render(home);
 const [latest] = await getSpark();
-const featured = (await getLearn()).find((entry) => entry.data.featured);
+const course = await getCourse();
+const { latest: latestLesson, next } = course;
 ---
 
 <BaseLayout title={home.data.title} description={home.data.description}>
@@ -26,15 +29,34 @@ const featured = (await getLearn()).find((entry) => entry.data.featured);
   </div>
 
   <div class="home-grid">
-    {featured && (
-      <section>
-        <h2 data-decrypt="mac">How networking works</h2>
-        <h3>
-          <a href={learnHref(featured)}>{featured.data.title}</a>
-        </h3>
-        <p>{featured.data.summary}</p>
-      </section>
-    )}
+    <section class="course">
+      <h2 data-decrypt="mac">How networking works</h2>
+      <p class="hook">What happens when you upload a photo to Leapix?</p>
+      <JourneyPicture />
+      <JourneyStrip />
+      <p>
+        Networks are the plumbing behind everything you do online: hidden, and noticed only when the hot water stops.
+        This course shows the pipes, one step at a time, starting from scratch.
+      </p>
+      {latestLesson?.page && (
+        <div class="latest">
+          <p class="label">Latest game</p>
+          <h3>
+            <a href={latestLesson.page.href}>{latestLesson.page.title}</a>
+          </h3>
+          <p>{latestLesson.page.summary}</p>
+        </div>
+      )}
+      {next && (
+        <p class="next">
+          Up next: {next.title}
+          {next.familyLabel && ` (${next.familyLabel})`}
+        </p>
+      )}
+      <p>
+        <a href="/learn">Start the course</a>
+      </p>
+    </section>
     {latest && (
       <section>
         <h2 data-decrypt="hex">Latest from the Spark</h2>
@@ -66,5 +88,30 @@ const featured = (await getLearn()).find((entry) => entry.data.featured);
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
     gap: var(--space-5);
+  }
+  /* The course teaser spans the grid; the Spark image follows below it. */
+  .home-grid > .course {
+    grid-column: 1 / -1;
+  }
+  .hook {
+    font-size: var(--text-lg);
+    color: var(--color-heading);
+    margin-block-end: 0;
+  }
+  .latest {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: var(--space-3);
+    max-width: 36rem;
+  }
+  .latest h3,
+  .latest p {
+    margin: 0 0 var(--space-1);
+  }
+  .label,
+  .next {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
   }
 </style>
