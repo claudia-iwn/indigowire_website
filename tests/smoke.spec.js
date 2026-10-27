@@ -329,6 +329,41 @@ test('/learn explains the documentation address ranges with links to the RFCs', 
   }
 });
 
+test.describe('/learn: the course map (R4, R17, section 12)', () => {
+  test('starts with the question and a way in, then the journey with links into the chapters', async ({ page }) => {
+    await page.goto('/learn');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('How networking works');
+    const start = page.getByRole('region', { name: 'Start here' });
+    await expect(start).toContainText('What happens when I upload a photo to Leapix?');
+    await expect(start.getByRole('link', { name: /How IPv4 ARP works/ })).toHaveAttribute('href', '/learn/arp');
+    const journey = page.getByRole('region', { name: 'The photo’s journey' });
+    await expect(journey.locator('ol.journey li')).toHaveCount(7);
+    await expect(journey.getByRole('link', { name: 'Your laptop' })).toHaveAttribute('href', '#chapter-addresses');
+  });
+
+  test('lists eight parts, Part 0’s ten lessons and 34 chapters, with exactly one Up next', async ({ page }) => {
+    await page.goto('/learn');
+    await expect(page.locator('section.part')).toHaveCount(8);
+    await expect(page.locator('#part-0 .chapter')).toHaveCount(10);
+    await expect(page.locator('section.part:not(#part-0) .chapter')).toHaveCount(34);
+    await expect(page.locator('#chapter-show-your-work .number')).toHaveText('34');
+    await expect(page.locator('.lesson.next')).toHaveCount(1);
+    await expect(page.locator('.lesson.next')).toContainText('Neighbor Discovery');
+    await expect(page.locator('.lesson.next')).toContainText('Up next');
+  });
+
+  test('links only available lessons; the rest say "Not available yet" in words', async ({ page }) => {
+    await page.goto('/learn');
+    const available = page.locator('.lesson.available');
+    await expect(available.getByRole('link')).toHaveCount(await available.count());
+    await expect(page.locator('.lesson.planned a')).toHaveCount(0);
+    await expect(page.locator('.lesson.planned').first()).toContainText('Not available yet');
+    await expect(page.locator('#chapter-finding-your-neighbours')).toContainText('Why you’d care');
+    await expect(page.locator('#chapter-why-a-network .deeper')).toHaveCount(0);
+    await expect(page.locator('#chapter-where-to-go .deeper a').first()).toHaveAttribute('href', '#chapter-addresses');
+  });
+});
+
 test('external links open in a new tab with rel=noopener (R1)', async ({ page }) => {
   await page.goto('/');
   const external = page.locator('a[data-outbound]');

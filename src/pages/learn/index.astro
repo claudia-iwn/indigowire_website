@@ -1,13 +1,23 @@
 ---
-/** Learn index: every game and topic grouped by category (R4), then the documentation address ranges the games use (spec section 3). */
+/** Learn: the course map for "How networking works" (R4, R17, spec section 12), then the documentation address ranges the games use (spec section 3). */
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { shareCards } from '../../site.config.js';
-import LearnList from '../../components/LearnList.astro';
 import BackHome from '../../components/BackHome.astro';
-import { LEARN_CATEGORIES } from '../../content.config.js';
-import { getLearn } from '../../lib/content.js';
+import JourneyPicture from '../../components/JourneyPicture.astro';
+import JourneyStrip from '../../components/JourneyStrip.astro';
+import { getCourse } from '../../lib/content.js';
+import { JOURNEY, chaptersForStep } from '../../lib/path.js';
 
-const entries = await getLearn();
+const course = await getCourse();
+/** Each journey step links to the first chapter that explains it (like a dict comprehension). */
+const stepHrefs = Object.fromEntries(
+  JOURNEY.map((step) => {
+    const [first] = chaptersForStep(course, step.id);
+    return [step.id, first ? `#${first.anchor}` : undefined];
+  }),
+);
+/** @type {Record<string, string>} */
+const STATUS = { available: 'Available', next: 'Up next', planned: 'Not available yet' };
 
 /** The documentation ranges used by the games and examples (spec section 3, "Example addresses"). */
 const RANGES = [
@@ -52,26 +62,93 @@ const RANGES = [
     use: 'Every simulated MAC address. The last byte echoes the host’s IP, so H1 (192.0.2.11) is 00:00:5e:00:53:11',
   },
 ];
-// Group by category, keeping the schema's category order. Like itertools.groupby over a fixed key list.
-const groups = LEARN_CATEGORIES.map((category) => ({
-  category,
-  entries: entries.filter((entry) => entry.data.category === category),
-})).filter((group) => group.entries.length > 0);
 ---
 
 <BaseLayout
-  title="Learn: interactive networking games"
-  description="Interactive networking games and short articles by Claudia de Luna, starting with a hands-on simulator that shows how IPv4 ARP finds a MAC address, frame by frame."
+  title="Learn: How networking works"
+  description="How networking works, a free course from scratch: follow one photo from your laptop to Leapix and your friends, with interactive games like the IPv4 ARP simulator."
   ogImage={shareCards.learn}
   pageType="CollectionPage"
   breadcrumbs={[{ name: 'Learn', path: '/learn' }]}
 >
-  <h1>Learn</h1>
-  <p class="lede">Interactive networking games and short articles.</p>
-  {groups.map((group) => (
-    <section>
-      <h2>{group.category}</h2>
-      <LearnList entries={group.entries} />
+  <h1>How networking works</h1>
+
+  <section class="start" aria-labelledby="start-title">
+    <h2 id="start-title">Start here</h2>
+    <p class="lede">{course.question}</p>
+    <p>
+      Networks are like plumbing: hidden, and noticed only when the hot water stops. This course follows one photo from
+      your laptop to Leapix, a made-up photo site, and on to your friends, and explains each part of the network as the
+      photo reaches it. Each lesson builds on the ones before it.
+    </p>
+    <p>
+      Lessons are <strong>Available</strong> (a link), <strong>Up next</strong> (being built now) or{' '}
+      <strong>Not available yet</strong>. New games arrive one at a time.
+    </p>
+    {course.start?.page && (
+      <p>
+        <a class="start-link" href={course.start.page.href}>
+          Start with {course.start.page.title} →
+        </a>
+      </p>
+    )}
+  </section>
+
+  <section class="journey-section" aria-labelledby="journey-title">
+    <h2 id="journey-title">The photo’s journey</h2>
+    <JourneyPicture />
+    <JourneyStrip hrefs={stepHrefs} />
+  </section>
+
+  {course.parts.map((part) => (
+    <section class="part" id={part.anchor} aria-labelledby={`${part.anchor}-title`}>
+      <h2 id={`${part.anchor}-title`}>
+        Part {part.number}: {part.title}
+      </h2>
+      <ol class="chapters" role="list">
+        {part.chapters.map((chapter) => (
+          <li class="chapter" id={chapter.anchor}>
+            <h3>
+              <span class="number">{chapter.number}</span> {chapter.title}
+            </h3>
+            <p>{chapter.summary}</p>
+            {chapter.why && (
+              <p class="why">
+                {part.number === 0 ? 'The problem: ' : 'Why you’d care: '}
+                {chapter.why}
+              </p>
+            )}
+            <ul class="lessons" role="list">
+              {chapter.lessons.map((lesson) => (
+                <li class={`lesson ${lesson.status}`}>
+                  {lesson.familyLabel && <span class="family">{lesson.familyLabel}</span>}
+                  {lesson.status === 'available' && lesson.page ? (
+                    <a href={lesson.page.href}>{lesson.title}</a>
+                  ) : (
+                    <span class="title">{lesson.title}</span>
+                  )}
+                  <span class="kind">{lesson.kind}</span>
+                  <span class="status">{STATUS[lesson.status]}</span>
+                  {lesson.note && <span class="note">{lesson.note}</span>}
+                </li>
+              ))}
+            </ul>
+            {chapter.deeper.length > 0 && (
+              <p class="deeper">
+                Go deeper:{' '}
+                {chapter.deeper.map((target, i) => (
+                  <>
+                    {i > 0 && ', '}
+                    <a href={`#${target.anchor}`}>
+                      Chapter {target.number}: {target.title}
+                    </a>
+                  </>
+                ))}
+              </p>
+            )}
+          </li>
+        ))}
+      </ol>
     </section>
   ))}
 
@@ -120,6 +197,71 @@ const groups = LEARN_CATEGORIES.map((category) => ({
 </BaseLayout>
 
 <style>
+  .chapters,
+  .lessons {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .chapter {
+    border-top: 1px solid var(--color-border);
+    padding-block: var(--space-3);
+  }
+  .chapter h3 {
+    margin: 0 0 var(--space-1);
+  }
+  .chapter p {
+    margin: 0 0 var(--space-1);
+  }
+  .number {
+    font-family: var(--font-mono);
+    color: var(--color-text-muted);
+    margin-inline-end: var(--space-1);
+  }
+  .why,
+  .deeper {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+  }
+  .lesson {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 var(--space-2);
+    padding-block: 0.15rem;
+  }
+  .lesson.planned .title {
+    color: var(--color-text-muted);
+  }
+  .family,
+  .kind,
+  .status {
+    font-size: var(--text-sm);
+  }
+  .family {
+    font-family: var(--font-mono);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: 0 var(--space-1);
+  }
+  .kind,
+  .status {
+    color: var(--color-text-muted);
+  }
+  /* Up next: the accent colour, and the word "Up next" (never colour alone). */
+  .lesson.next .status {
+    color: var(--color-accent);
+    font-weight: 600;
+  }
+  .note {
+    flex-basis: 100%;
+    font-size: var(--text-sm);
+    font-style: italic;
+    color: var(--color-text-muted);
+  }
+  .start-link {
+    font-weight: 600;
+  }
   .addresses {
     margin-top: var(--space-5);
   }
