@@ -55,9 +55,30 @@ Each requirement has an ID that tasks, commits and tests can reference. Acceptan
 
 Two writers feed one GitHub repo: the owner (code and pages, through Claude Code) and the Hermes skill on the DGX Spark (images). Every push to `main` triggers Workers Builds, which runs the Astro build and deploys the static output to Cloudflare Workers.
 
-&#91;embedded content: site architecture · 2 writers, 1 repo, 1 build\]
+```mermaid
+flowchart LR
+  owner["Owner + Claude Code<br/>code, pages, games"] -->|git push| repo[("GitHub repo<br/>claudia-iwn/indigowire_website")]
+  spark["DGX Spark<br/>Hermes skill writes<br/>.webp + .md pairs"] --> publisher["Spark publisher (M3)<br/>validate_spark.py"]
+  publisher -->|"push with deploy key"| repo
+  repo -->|"push to main"| build["Workers Builds<br/>npm clean-install, astro build"]
+  build -->|"dist/ + _headers"| workers["Cloudflare Workers<br/>static assets"]
+  dns["Cloudflare DNS<br/>indigowire.net (M0)"] -.-> workers
+  workers -->|HTTPS| browser["Visitor's browser"]
+  browser -.->|"beacon and events (M1/M5)"| analytics["Cloudflare Web Analytics<br/>PostHog, cookieless"]
+```
 
-A failed build deploys nothing, so the live site stays as it was until the next good push.
+Dashed lines are planned, not live yet. A failed build deploys nothing, so the live site stays as it was until the next good push.
+
+### Stack at a glance
+
+Following one change from writing to reading:
+
+1. **Writing.** The owner edits code and Markdown content with Claude Code. Images arrive from the DGX Spark, where the Hermes skill writes an image (`.webp`) and its sidecar (`.md`); the Spark publisher (M3) validates each pair and pushes it.
+2. **Checking.** Locally, `npm run check` runs the linters (ESLint, Prettier, ruff), unit tests (Vitest for the games, pytest for the Python scripts), the build and the browser tests (Playwright). Content is checked again during the build by the collection schemas, so a bad file fails the build instead of publishing.
+3. **Building.** Every push to `main` makes Cloudflare Workers Builds install the locked dependencies and run `astro build`, which turns the Astro pages, Markdown and images into plain HTML, CSS, a little JavaScript and resized images in `dist/`.
+4. **Serving.** Cloudflare serves `dist/` as static files from its edge network, adding the security headers from `_headers`. There is no server code, database or login.
+5. **In the browser.** Pages are mostly HTML and CSS. A few small scripts handle the theme, the text effects and the hero video; the ARP game page loads its own script. A strict Content Security Policy lets only the site's own scripts run.
+6. **Measuring.** Lighthouse checks speed, accessibility, best practices and SEO (section 9, "About Lighthouse"). Cloudflare Web Analytics and PostHog will measure visits and game use once they are added (M1, M5).
 
 ### Tech stack and conventions
 
@@ -75,6 +96,13 @@ A failed build deploys nothing, so the live site stays as it was until the next 
 | Content scripts | Python 3 | `scripts/validate_spark.py` for Hermes; the owner's primary language. Managed with uv through pyproject.toml and uv run; tested with pytest, linted with ruff. |
 | Hosting | Cloudflare Workers static assets + Workers Builds | Free tier; see section 8. |
 | Analytics | Cloudflare Web Analytics + PostHog (cookieless) | Both free; see section 9. |
+| Security | Content Security Policy from Astro (`security.csp`) + `public/_headers` | No extra package; see section 9, "Security" (N10). |
+| Performance and accessibility audits | Lighthouse 13.5.0, run with `npx` (not a project dependency) | `npm run lighthouse` (`scripts/lighthouse.mjs`); see section 9, "About Lighthouse". |
+| Source control | GitHub, public repo `claudia-iwn/indigowire_website` | Workers Builds deploys `main`; see section 8. |
+| DNS | Cloudflare DNS (moving from GoDaddy in M0) | See section 8, "Domain". |
+| Image source | DGX Spark running the Hermes skill, plus the Spark publisher (Python under systemd, M3) | See section 7. |
+| Python libraries | PyYAML and Pillow (the validator); pytest and ruff (dev); watchdog to come with the publisher (M3) | Managed by uv in `pyproject.toml`. |
+| Media tools (owner's Mac only) | ffmpeg and cwebp for the hero video and stills (`scripts/make_hero_video.sh`); Playwright with the installed Chrome for the share cards (`npm run og`) | Not project dependencies; the outputs are committed. |
 
 **Code conventions for Claude Code**
 
@@ -530,10 +558,23 @@ A failed build never replaces the live version. To roll back a bad deploy, rever
 
 The site should be fast, accessible and private by default, with targets Claude Code can check automatically.
 
+**About Lighthouse.** Lighthouse is Google's free, open-source page auditor, built into Chrome's developer tools and run here from the command line (`npm run lighthouse`, or with `BASE_URL=…` against a deployed site). It loads each page in Chrome as a mid-range phone on a slow mobile connection and scores four categories from 0 to 100:
+
+| Category | What it measures |
+| --- | --- |
+| Performance | How fast the page appears and becomes usable, from timings including LCP (when the largest element finishes drawing) and CLS (how much the layout shifts while loading; 0 is none) |
+| Accessibility | Automated checks: colour contrast, alt text, labels, heading order, button names. It catches only part of WCAG, so N3 also needs a keyboard walk-through |
+| Best practices | HTTPS, no console errors, no deprecated APIs, correctly sized images |
+| SEO | Titles, descriptions, crawlable links, nothing blocking indexing |
+
+`scripts/lighthouse.mjs` audits eleven pages, prints one row each, saves the full reports to `lighthouse-reports/` (not committed), and exits non-zero if Home, `/spark` or `/learn/arp` misses N1 or N3. Lighthouse sometimes fails to record a page load (`NO_NAVSTART`) and asks for a re-run, so the script retries a page up to three times before reporting the error.
+
+Live run on workers.dev, 27 October 2026 (Lighthouse 13.5.0, mobile): every page 100 in accessibility, best practices and SEO; performance 100 everywhere except Home at 99; LCP 1.0 to 1.7 s; CLS 0 on every page.
+
 | ID | Area | Target | How it is checked |
 | --- | --- | --- | --- |
 | N1 | Performance | Lighthouse Performance ≥ 95 on Home, `/spark` and `/learn/arp` (mobile) | `npm run lighthouse` (`scripts/lighthouse.mjs`) before each milestone closes; exits non-zero if N1 or N3 is missed |
-| N2 | JavaScript budget | 0 KB of loaded scripts on content pages. Allowed inline exceptions: the theme and text-effects scripts on every page (N5; about 2.9 KB raw, about 1 KB gzipped) and the locale-date script on Spark permalinks (section 7; UTC text is the no-JS fallback), and, as the one non-inline exception, the decorative "decrypt" script shared by Home, About and Speaking (`src/components/Decrypt.astro`; one cached file, about 2.5 KB gzipped, skipped with reduced motion or the header switch, no layout shift; section 9), and the Home hero band script (`src/components/HeroBand.astro`; one cached file, about 1 KB gzipped; section 9, "Home hero band"). ≤ 150 KB gzipped on a game page | Build output size check |
+| N2 | JavaScript budget | 0 KB of loaded scripts on content pages. Allowed inline exceptions: the theme and text-effects scripts on every page (N5): the `<head>` script that applies a saved choice before first paint (`src/lib/boot-script.js`, about 0.6 KB raw) and the header toggles (a bundled script that Astro prints inline because it is small, about 1 KB raw); together under 1 KB gzipped, and both hashed into the CSP (N10) and the locale-date script on Spark permalinks (section 7; UTC text is the no-JS fallback), and, as the one non-inline exception, the decorative "decrypt" script shared by Home, About and Speaking (`src/components/Decrypt.astro`; one cached file, about 2.5 KB gzipped, skipped with reduced motion or the header switch, no layout shift; section 9), and the Home hero band script (`src/components/HeroBand.astro`; one cached file, about 1 KB gzipped; section 9, "Home hero band"). ≤ 150 KB gzipped on a game page | Build output size check |
 | N3 | Accessibility | WCAG 2.2 AA; Lighthouse Accessibility = 100 | Lighthouse + keyboard walk-through |
 | N4 | Motion | All animation respects `prefers-reduced-motion`; decorative text effects also have an on-site off switch (header) | Manual check with the OS setting on |
 | N5 | Theming | Light and dark themes from `prefers-color-scheme`, plus a manual toggle in the header. A manual choice is stored in `localStorage` and applied by an inline `<head>` script before first paint; choosing the OS theme again clears it. Without JavaScript the toggle is hidden and the OS setting applies | Visual check in both themes; toggle, persistence and no-JS checked in headless Chrome |
@@ -633,7 +674,9 @@ A full-width band at the top of Home shows a short "how indigo is made" video be
   - **Light, dyeing with indigo:** white cotton goes into the vat, comes out yellow-green and turns blue as the indigo oxidizes. Fact: the oldest known indigo-dyed fabric is cotton about 6,000 years old from Huaca Prieta, Peru ([Splitstoser et al., Science Advances, 2016](https://doi.org/10.1126/sciadv.1501623)).
   - **Dark, making indigo:** leaves of the indigo plant soak and ferment until they release the dye; beating air in oxidizes it into indigo, which settles as a paste. Fact: Pliny the Elder described indigo, which reached Rome from India, as "a slime that adheres to the scum upon reeds" ([Natural History, book 35, section 46](https://www.attalus.org/pliny/hn35a.html)).
 
-  The card is a native `popover`, so it needs no JavaScript (N2) and closes with Esc, a click outside or its Close button. Any new fact needs a source a reader can check.
+  Below both stories, in both themes, a note (decided 27 October 2026, the owner's wording) says the background was inspired by the owner's visit to the exhibition "An Ocean in a Drop" at the Indigo Art Museum in Ahmedabad, Gujarat, India, the world's first institution solely dedicated to indigo, near the Kasturbhai Lalbhai Museum campus in Shahibaug. It links the [museum's website](https://www.indigoartmuseum.org/) only; its Exhibitions page (`exhibitions.html`) was dropped because it didn't render for the owner. Checked on the museum's site the same day: the "world's first" wording, the exhibition (21 February to 30 April 2026, from its artist-in-residence programme) and the address (Lalbaug, Shahibaug, Ahmedabad 380004); listings place it on the Kasturbhai Lalbhai Museum campus.
+
+  The card is a native `popover`, so it needs no JavaScript (N2) and closes with Esc, a click outside or its Close button. It scrolls if the screen is too short for it. Any new fact needs a source a reader can check.
 
   **Sources checked** (27 October 2026). The card links only the primary source for each fact; the rest are recorded here so the facts can be re-checked.
 
@@ -674,7 +717,9 @@ Lighthouse on Home must still meet N1 and N3.
 
 Measured 26 October 2026:
 
-- **Lighthouse:** Home scored 100 in every category, with LCP 1.5 s and CLS 0.
+- **Lighthouse:** Home scored 100 in every category, with LCP 1.5 s and CLS 0. Live on workers.dev, 27 October 2026: 99 performance and 100 in the rest, with LCP 1.7 s and CLS 0.
+- **The still is Home's LCP element.** Lighthouse names `div.hero-band > div.media > div.still` as the largest thing drawn during load (the first-frame still, since the video only starts after `load`), so it sets Home's speed score. Of the live 1.7 s, about 0.57 s was waiting for the server's first byte, 0.11 s before the browser found the image (it is a CSS background, found only once the stylesheet is read), and 0.06 s downloading it.
+- **Optional speed-up, not done:** a `<link rel="preload" as="image">` for the current theme's first-frame still would let the browser fetch it straight away. Lighthouse's "add fetchpriority=high" hint can't apply to a CSS background. Home already clears N1, so this is only worth doing if it drops below 95.
 - **Title contrast:** the worst single background pixel behind the title gave 5.6:1 (light theme at 360 px), against AA's 3:1 for large text. Recheck it if the clips change.
 
 ### Share cards (Open Graph, N8)

@@ -48,21 +48,32 @@ console.log('page'.padEnd(36), 'perf a11y   bp  seo  LCP     CLS');
 
 for (const page of PAGES) {
   const name = page === '/' ? 'home' : page.slice(1).replaceAll('/', '_');
-  spawnSync(
-    'npx',
-    [
-      '-y',
-      LIGHTHOUSE,
-      BASE + page,
-      '--quiet',
-      '--chrome-flags=--headless=new',
-      '--output=json',
-      '--output=html',
-      `--output-path=${OUT}/${name}`,
-    ],
-    { env: { ...process.env, CHROME_PATH: process.env.CHROME_PATH ?? CHROME }, stdio: 'ignore' },
-  );
-  const report = JSON.parse(readFileSync(`${OUT}/${name}.report.json`, 'utf8'));
+  // Lighthouse sometimes fails to record the page-load trace (e.g. NO_NAVSTART) and asks
+  // for a re-run, so try up to three times.
+  let report;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    spawnSync(
+      'npx',
+      [
+        '-y',
+        LIGHTHOUSE,
+        BASE + page,
+        '--quiet',
+        '--chrome-flags=--headless=new',
+        '--output=json',
+        '--output=html',
+        `--output-path=${OUT}/${name}`,
+      ],
+      { env: { ...process.env, CHROME_PATH: process.env.CHROME_PATH ?? CHROME }, stdio: 'ignore' },
+    );
+    report = JSON.parse(readFileSync(`${OUT}/${name}.report.json`, 'utf8'));
+    if (!report.runtimeError) break;
+  }
+  if (report.runtimeError) {
+    console.log(page.padEnd(36), `Lighthouse error: ${report.runtimeError.code}`);
+    failed = true;
+    continue;
+  }
   /** @param {string} key */
   const score = (key) => Math.round(report.categories[key].score * 100);
   const [perf, a11y] = [score('performance'), score('accessibility')];
