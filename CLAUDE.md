@@ -27,9 +27,9 @@ Prettier ignores all Markdown (`**/*.md`) so the spec and content keep their han
 
 ## Current state
 
-As of 27 October 2026, the site is built through M6 except for the items below; spec section 10 has the checklist. Live on workers.dev only: `indigowire.net` still serves the old GoDaddy site until the M0 DNS move, so share cards (which point at `site.url`) show no image in link previews yet.
+As of 27 October 2026, the site is built through M7 except for the items below; spec section 10 has the checklist. Live on workers.dev only: `indigowire.net` still serves the old GoDaddy site until the M0 DNS move, so share cards (which point at `site.url`) show no image in link previews yet.
 
-- **Done:** site shell, content collections and topics, the Spark gallery with permalinks, categories and RSS, the validator, the Speaking page (R16), Open Graph share cards (N8), and the ARP game: engine, frames, the `lesson.js` Learn lesson, the renderer and controller with Learn, Sandbox and Gratuitous ARP modes, the packet view and the hop table.
+- **Done:** site shell, content collections and topics, the Spark gallery with permalinks, categories and RSS, the validator, the Speaking page (R16), Open Graph share cards (N8), and the ARP game: engine, frames, the `lesson.js` Learn lesson, the renderer and controller with Learn, Sandbox and Gratuitous ARP modes, the packet view and the hop table; the learning path scaffold (M7: course map, Home teaser, lesson placement, Course structured data).
 - **Not done:**
   - M0: the DNS move to Cloudflare, the custom domain, the Hermes deploy key.
   - Analytics (R15): no `src/analytics.js` yet, and no beacon in `BaseLayout` (`TODO(M1)`). The ARP and Spark events wait on the PostHog key.
@@ -58,6 +58,7 @@ The header logo is `public/logo.svg` / `logo-dark.svg`, converted from the PDF m
 - **Home hero band:** `src/components/HeroBand.astro`, in `BaseLayout`'s `hero` slot (`<main>` is full width; the page column is `.page-body`). The video files in `public/video/` come from `scripts/make_hero_video.sh`. It plays once, and shows only a still with reduced motion, the `>_` switch off, data saver or no JS. Spec section 9, "Home hero band".
 - **Content Security Policy (N10, spec section 9 "Security"):** every page has a strict CSP built by Astro (`security.csp` in `astro.config.mjs`), plus headers in `public/_headers`. Never add an `is:inline` script (Astro can't hash it; the one exception is `src/lib/boot-script.js`, hashed in the config), a `style=""` attribute (set styles through `el.style`), `set:html` with content, or anything loaded from another site without adding its host to the policy. The Playwright "Content Security Policy" tests catch violations.
 - **Search (N11, spec section 9 "Search and AI search"):** every page passes `BaseLayout` a unique `title`, a `description` of at least 70 characters, its `pageType` and `breadcrumbs`, and any page-specific structured data from `src/lib/seo.js` (facts only from the About page). New routes appear in `sitemap.xml` and `llms.txt` through `src/lib/routes.js`; add a hand-written page there. The Playwright "Search and AI search (N11)" tests enforce this.
+- **Learning path:** the course is `src/content/path.yaml` (spec section 12). To ship a lesson, add its `learn` entry, set `entry:` on its lesson, and move `next: true` to the new up-next lesson; `/learn`, Home, breadcrumbs, structured data and `llms.txt` follow.
 - **Spark images:** the Hermes glue code writes `<name>.webp` + `<name>.md` pairs into `src/content/spark/YYYY/MM/`; `scripts/spark_publisher.py` commits and pushes them (spec section 7). The publisher adds only validated pairs by explicit path, never with `git add -A`.
 
 ## Quality bars (spec section 9)

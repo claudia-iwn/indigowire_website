@@ -631,7 +631,7 @@ Decorative "decryption" of headings and text, in `src/components/Decrypt.astro`.
 
 **Where it is used:**
 
-- **Home:** the title is hex (900 ms, replays on hover). The two intro paragraphs get the packet treatment described under About (IPv4/TCP, then IPv6/UDP). "How networking works" (the featured game) and "Elsewhere" are MAC addresses, and "Latest from the Spark" is hex. The "More about me" link is hex and replays on hover.
+- **Home:** the title is hex (900 ms, replays on hover). The two intro paragraphs get the packet treatment described under About (IPv4/TCP, then IPv6/UDP). "How networking works" (the course teaser) and "Elsewhere" are MAC addresses, and "Latest from the Spark" is hex. The "More about me" link is hex and replays on hover.
 - **About:** the title is hex (900 ms, replays on hover). Each paragraph starts as a Wireshark-style hex dump with a tcpdump-style summary line. The packet types rotate through IPv4/TCP, IPv6/UDP and ICMP echo request. The packets use documentation addresses (192.0.2.10, 198.51.100.7, 2001:db8::) and correct IPv4 and ICMP checksums, and each payload is the paragraph's own text, so the ASCII column shows it. One paragraph at a time, top to bottom, the dump turns into the paragraph in hex noise, which resolves left to right like the headings. Then there is a pause before the next paragraph.
 - **Speaking:** the title "Workshops, Talks & Takes" is hex (900 ms, replays on hover).
 
@@ -700,7 +700,7 @@ A full-width band at the top of Home shows a short "how indigo is made" video be
   | Pliny on indigo | Pliny the Elder, *Natural History*, book 35, section 46, translated by H. Rackham (1952), at [attalus.org](https://www.attalus.org/pliny/hn35a.html) (linked from the card) | The quote, word for word: indigo is "a product of India, being a slime that adheres to the scum upon reeds". The same passage gives its price as 20 denarii a pound |
 
   The process text (fermenting the leaves releases the dye; air oxidizes it into indigo; cloth leaves the vat yellow-green and turns blue in air) is standard dye chemistry and carries no link. "Indigo plant" rather than "tree": *Indigofera tinctoria* is usually a shrub.
-- The title keeps its decrypt effect and hover replay. Everything below the band (intro packets, featured game, latest image, Elsewhere) is unchanged.
+- The title keeps its decrypt effect and hover replay. Everything below the band (intro packets, the course teaser, latest image, Elsewhere) is unchanged.
 
 **Behaviour.**
 
@@ -931,14 +931,14 @@ Seven milestones, each ending in a deployed, working site; hand Claude Code one 
 
 ### M7: Learning path scaffold (R17, section 12)
 
-- [ ] `path` collection: `src/content/path.yaml` with Part 0 (ten lessons) and Parts 1 to 7 (34 chapters), including each chapter's `why` and `journey`; schema and build checks (an `entry` must exist; at most one `next`)
-- [ ] `src/lib/path.js` (statuses, chapter numbers, previous/next available lesson) with Vitest tests
-- [ ] `/learn` as the course map: "Start here", the photo's journey strip, parts, chapters with their "why you'd care" lines, lesson statuses; the addresses table kept; the category grouping removed
-- [ ] Lesson pages show their place in the course and link to the previous and next available lessons; ARP first
-- [ ] Home's "How networking works" section: the journey picture with Leapix, the blurb, the latest game and "Up next" (section 12, "Home")
-- [ ] `Course` structured data on `/learn`; `isPartOf` on each lesson (N11)
-- [ ] ARP: the VLAN note in the "SW1 learns and floods" step (and so in the lesson text)
-- [ ] Playwright tests for the map, the statuses and the ARP page's place in the course
+- [x] `path` collection: `src/content/path.yaml` with Part 0 (ten lessons) and Parts 1 to 7 (34 chapters), including each chapter's `why` and `journey`; schema and build checks (an `entry` must exist; at most one `next`). Done 27 October 2026: `path.yaml` (one `course` entry) with the `path` collection and build checks
+- [x] `src/lib/path.js` (statuses, chapter numbers, previous/next available lesson) with Vitest tests. Done 27 October 2026: `src/lib/path.js` with Vitest tests
+- [x] `/learn` as the course map: "Start here", the photo's journey strip, parts, chapters with their "why you'd care" lines, lesson statuses; the addresses table kept; the category grouping removed. Done 27 October 2026: `/learn` is the course map
+- [x] Lesson pages show their place in the course and link to the previous and next available lessons; ARP first. Done 27 October 2026: lesson pages show breadcrumbs, place line and previous/next links, ARP first
+- [x] Home's "How networking works" section: the journey picture with Leapix, the blurb, the latest game and "Up next" (section 12, "Home"). Done 27 October 2026: Home teaser with the journey picture, latest game and Up next
+- [x] `Course` structured data on `/learn`; `isPartOf` on each lesson (N11). Done 27 October 2026: `Course` structured data, `isPartOf` and the `llms.txt` outline
+- [x] ARP: the VLAN note in the "SW1 learns and floods" step (and so in the lesson text). Done 27 October 2026: the VLAN note in the ARP step and lesson text
+- [x] Playwright tests for the map, the statuses and the ARP page's place in the course. Done 27 October 2026: Playwright tests for the map, statuses and ARP placement
 
 ## 11. Open questions
 
@@ -1077,16 +1077,16 @@ Decided 27 October 2026 (option A of three). Home's "How networking works" secti
 - **Latest game** as a card: the most recently `published` available lesson (ARP today), with its summary and a Play link, and below it one muted line, "Up next: …", from `path.yaml`.
 - **"Start the course"** links to `/learn`.
 
-Everything except the picture comes from `path.yaml` and the `learn` collection, so the section updates itself when a lesson ships or "Up next" moves. The section replaces today's featured-game block, and `featured` in the `learn` schema is no longer needed once it ships.
+Everything except the picture comes from `path.yaml` and the `learn` collection, so the section updates itself when a lesson ships or "Up next" moves. The section replaced the old featured-game block. Done 27 October 2026: the teaser shipped, and `featured` is gone from the `learn` schema.
 
 ### Content changes that come with the scaffold
 
 - **ARP and VLANs.** The ARP game's "SW1 learns and floods" step says the switch floods a broadcast to every port in the same VLAN (this LAN has one), and points to chapter 5. The lesson text on the page follows, because it comes from the same `LESSON` data.
-- **ARP's place in the story.** The ARP page opens with its "why you'd care" line and its journey step ("the step where your laptop finds the router on your home network").
+- **ARP's place in the story.** The ARP page opens with its "why you'd care" line and its journey step, shown as "On the photo's journey: Wi-Fi or cable".
 
 ### Data: `src/content/path.yaml`
 
-A `path` collection loaded with Astro's `file()` loader: a list of parts, each with its chapters and lessons. Validated at build time like every collection, so a bad file fails the build.
+A `path` collection loaded with Astro's `file()` loader. As built, the file holds one entry, `course` (`title`, `question`, `parts`), and each part has its chapters and lessons; part numbers are positions. The collection constant in `content.config.js` is named `coursePath` (`path` is already the `node:path` import); the collection key is `path`. Validated at build time like every collection, so a bad file fails the build.
 
 | Level | Field | Rule |
 | --- | --- | --- |
@@ -1106,7 +1106,7 @@ A `path` collection loaded with Astro's `file()` loader: a list of parts, each w
 | | `next` | optional `true`. At most one lesson in the whole file; the build fails on two |
 | | `note` | optional, one line for the map (e.g. the DNS "from the field" note) |
 
-**Status** is derived, never stored: a lesson with an `entry` is **available**; the `next` lesson without an entry is **up next**; anything else is **not available yet**. When the up-next lesson ships, its `entry` is added and `next` moves to another lesson. Up next on 27 October 2026: IPv6 Neighbor Discovery (chapter 4). `src/lib/path.js` (DOM-free, Vitest-tested) computes statuses, chapter numbers, a lesson's place ("Part 1 · Chapter 4 · Finding your neighbours · IPv4"), the chapters for each journey step, and the previous and next available lessons.
+**Status** is derived, never stored: a lesson with an `entry` is **available**; the `next` lesson without an entry is **up next**; anything else is **not available yet**. When the up-next lesson ships, its `entry` is added and `next` moves to another lesson. Up next on 27 October 2026: IPv6 Neighbor Discovery (chapter 4). `buildCourse` in `src/lib/path.js` throws on two `next` lessons, a `next` lesson that is already available, an unknown `entry`, a duplicate chapter id or an unknown `deeper` id. No unit test reads `path.yaml` directly (owner's decision: it would need `yaml`, which is not a declared dependency); the build and the Playwright tests cover the real file. `src/lib/path.js` (DOM-free, Vitest-tested) computes statuses, chapter numbers, a lesson's place ("Part 1 · Chapter 4 · Finding your neighbours · IPv4"), the chapters for each journey step, and the previous and next available lessons.
 
 ### `/learn`
 
@@ -1118,7 +1118,7 @@ A `path` collection loaded with Astro's `file()` loader: a list of parts, each w
 
 ### Lesson pages
 
-- Under the title: the chapter's "why you'd care" line, and "Part 1 · Chapter 4 · Finding your neighbours · IPv4", linking to the chapter on `/learn` (an anchor), with its journey step.
+- Under the title: the chapter's "why you'd care" line, and "Part 1 · Chapter 4 · Finding your neighbours · IPv4", linking to the chapter on `/learn` (an anchor), with its journey step as built: "On the photo's journey: <step label>" (for ARP, "Wi-Fi or cable").
 - Breadcrumbs: Learn › Part › Chapter › Lesson (visible and in structured data).
 - At the foot: links to the previous and next **available** lessons in course order, and a link to the map.
 
