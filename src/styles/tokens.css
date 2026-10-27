@@ -27,6 +27,11 @@
   --color-link: light-dark(var(--iw-indigo), #9fb0ff);
   --color-accent: light-dark(var(--iw-copper), var(--iw-copper-light));
   --color-border: light-dark(#d6d9e8, #2e3766);
+  /* Section cards on Home and /learn. Light: a 12% tint of the hero photo's steel-blue dye
+     (#718da3), close to the white linen, with a 30% tint for the border, so the cards match the picture; dark: the
+     existing surface. Every text colour passes 4.5:1 on the light card. */
+  --color-card: light-dark(#eef1f4, #1a2148);
+  --color-card-border: light-dark(#d4dde3, #2e3766);
   --color-focus: light-dark(var(--iw-indigo), var(--iw-copper-light));
   /* Text on a solid brand-color fill (e.g. the switch in the ARP diagram) */
   --color-on-brand: #ffffff;
