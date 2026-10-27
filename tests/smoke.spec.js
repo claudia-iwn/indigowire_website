@@ -193,6 +193,8 @@ test.describe('Search and AI search (N11)', () => {
     }
     await page.goto('/learn/arp');
     expect(await page.locator('script[type="application/ld+json"]').textContent()).toContain('"LearningResource"');
+    await page.goto('/learn');
+    expect(await page.locator('script[type="application/ld+json"]').textContent()).toContain('"Course"');
     await page.goto('/spark/2026-10-25-1405-bgp-weather');
     expect(await page.locator('script[type="application/ld+json"]').textContent()).toContain('"ImageObject"');
   });
@@ -273,6 +275,9 @@ test.describe('Search and AI search (N11)', () => {
     for (const path of ['/about', '/learn/arp', '/speaking', '/spark']) {
       expect(text, path).toContain(`(https://indigowire.net${path})`);
     }
+    expect(text).toContain('## Learn: How networking works');
+    expect(text).toContain('### Part 0: How devices talk');
+    expect(text).toContain('- 4. Finding your neighbours:');
   });
 
   test('the workers.dev copy is kept out of search once deployed', async ({ request, baseURL }) => {

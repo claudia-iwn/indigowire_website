@@ -14,6 +14,7 @@ export const IDS = {
   website: `${site.url}/#website`,
   organization: `${site.url}/#organization`,
   person: `${site.url}/#person`,
+  course: `${site.url}/learn#course`,
 };
 
 /**
@@ -137,7 +138,7 @@ const day = (date) => date.toISOString().slice(0, 10);
 
 /**
  * A game or article on /learn.
- * @param {{ path: string, title: string, description: string, published?: Date, updated?: Date, keywords?: string[], image?: string, interactive?: boolean }} entry
+ * @param {{ path: string, title: string, description: string, published?: Date, updated?: Date, keywords?: string[], image?: string, interactive?: boolean, position?: number }} entry
  */
 export function learningResourceLd({
   path,
@@ -148,6 +149,7 @@ export function learningResourceLd({
   keywords,
   image,
   interactive = true,
+  position,
 }) {
   return {
     '@type': 'LearningResource',
@@ -165,6 +167,7 @@ export function learningResourceLd({
     ...(updated ? { dateModified: day(updated) } : {}),
     ...(keywords?.length ? { keywords: keywords.join(', ') } : {}),
     ...(image ? { image: absoluteUrl(image) } : {}),
+    ...(position ? { isPartOf: { '@id': IDS.course }, position } : {}),
   };
 }
 
@@ -221,5 +224,25 @@ export function speakingLd(entries) {
               ...(entry.url ? { url: entry.url } : {}),
             },
     })),
+  };
+}
+
+/**
+ * The course on /learn: "How networking works", with its available lessons.
+ * @param {{ name: string, description: string, lessonPaths: string[] }} course
+ */
+export function courseLd({ name, description, lessonPaths }) {
+  return {
+    '@type': 'Course',
+    '@id': IDS.course,
+    url: absoluteUrl('/learn'),
+    name,
+    description,
+    inLanguage: 'en',
+    isAccessibleForFree: true,
+    educationalLevel: 'beginner',
+    provider: { '@id': IDS.organization },
+    author: { '@id': IDS.person },
+    hasPart: lessonPaths.map((path) => ({ '@id': `${absoluteUrl(path)}#resource` })),
   };
 }

@@ -7,6 +7,7 @@ import {
   webPageLd,
   breadcrumbLd,
   learningResourceLd,
+  courseLd,
   imageObjectLd,
   speakingLd,
   IDS,
@@ -168,5 +169,27 @@ describe('page nodes', () => {
     expect(talk.performer).toEqual({ '@id': IDS.person });
     expect(podcast).toMatchObject({ '@type': 'PodcastEpisode', name: 'P', datePublished: '2024-03' });
     expect(podcast.partOfSeries).toEqual({ '@type': 'PodcastSeries', name: 'Some Show' });
+  });
+});
+
+describe('the course', () => {
+  it('describes "How networking works" as a free beginner course with its available lessons', () => {
+    const node = courseLd({ name: 'How networking works', description: 'd', lessonPaths: ['/learn/arp'] });
+    expect(node).toMatchObject({
+      '@type': 'Course',
+      '@id': IDS.course,
+      url: 'https://indigowire.net/learn',
+      name: 'How networking works',
+      isAccessibleForFree: true,
+      educationalLevel: 'beginner',
+      provider: { '@id': IDS.organization },
+      hasPart: [{ '@id': 'https://indigowire.net/learn/arp#resource' }],
+    });
+  });
+
+  it('marks a lesson as part of the course, at its position', () => {
+    const node = learningResourceLd({ path: '/learn/arp', title: 't', description: 'd', position: 23 });
+    expect(node.isPartOf).toEqual({ '@id': IDS.course });
+    expect(node.position).toBe(23);
   });
 });

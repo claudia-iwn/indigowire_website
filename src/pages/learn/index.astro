@@ -5,6 +5,7 @@ import { shareCards } from '../../site.config.js';
 import BackHome from '../../components/BackHome.astro';
 import JourneyPicture from '../../components/JourneyPicture.astro';
 import JourneyStrip from '../../components/JourneyStrip.astro';
+import { courseLd } from '../../lib/seo.js';
 import { getCourse } from '../../lib/content.js';
 import { JOURNEY, chaptersForStep } from '../../lib/path.js';
 
@@ -70,6 +71,13 @@ const RANGES = [
   ogImage={shareCards.learn}
   pageType="CollectionPage"
   breadcrumbs={[{ name: 'Learn', path: '/learn' }]}
+  jsonLd={[
+    courseLd({
+      name: course.title,
+      description: 'A free course from scratch: follow one photo from your laptop to Leapix and your friends.',
+      lessonPaths: course.lessons.filter((l) => l.page).map((l) => /** @type {any} */ l.page.href),
+    }),
+  ]}
 >
   <h1>How networking works</h1>
 

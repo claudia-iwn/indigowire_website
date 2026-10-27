@@ -6,7 +6,7 @@
  */
 import { getEntry } from 'astro:content';
 import { site, externalLinks } from '../site.config.js';
-import { getSpark, getLearn, learnHref, categoryLabel } from '../lib/content.js';
+import { getSpark, getCourse, categoryLabel } from '../lib/content.js';
 import { absoluteUrl } from '../lib/seo.js';
 
 /**
@@ -21,7 +21,7 @@ const item = (title, path, note) =>
 export async function GET() {
   const home = await getEntry('pages', 'home');
   const about = await getEntry('pages', 'about');
-  const learn = await getLearn();
+  const course = await getCourse();
   const spark = (await getSpark()).slice(0, 10);
 
   const text = `# ${site.name}
@@ -42,9 +42,22 @@ ${[
   item('Contact', '/contact', 'through LinkedIn'),
 ].join('\n')}
 
-## Learn: interactive networking games
+## Learn: ${course.title}
 
-${learn.map((entry) => item(entry.data.title, learnHref(entry), entry.data.description ?? entry.data.summary)).join('\n')}
+The course starts from one question: ${course.question} Part 0 tells the whole journey for beginners; later parts go deeper. Lessons not yet written are listed without links.
+
+${course.parts
+  .map((part) =>
+    [
+      `### Part ${part.number}: ${part.title}`,
+      ...part.chapters.map((chapter) => {
+        const ready = chapter.lessons.filter((l) => l.page);
+        const links = ready.map((l) => item(l.title, /** @type {any} */ (l.page).href, l.page?.summary)).join('\n');
+        return `- ${chapter.number}. ${chapter.title}: ${chapter.summary}${links ? `\n${links.replace(/^/gm, '  ')}` : ''}`;
+      }),
+    ].join('\n'),
+  )
+  .join('\n\n')}
 
 ## Spark: AI images
 

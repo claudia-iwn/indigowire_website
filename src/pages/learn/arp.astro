@@ -38,6 +38,7 @@ const resource = learningResourceLd({
   updated: entry.data.updated,
   keywords: (entry.data.tags ?? []).map((tag) => tagNames[tag] ?? tag),
   image: shareCards.arp.src,
+  position: lesson.position,
 });
 
 const hosts = TOPOLOGY.nodes.filter((node) => node.role !== 'attacker');
