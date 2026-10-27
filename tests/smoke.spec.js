@@ -212,6 +212,34 @@ test.describe('Home hero band (section 9)', () => {
       expect(files).toEqual([]);
     });
   }
+
+  test.describe('without JavaScript', () => {
+    test.use({ javaScriptEnabled: false });
+
+    for (const [scheme, shows, hides, link] of /** @type {const} */ ([
+      ['light', 'White cotton', 'Leaves of the indigo plant', 'doi.org/10.1126/sciadv.1501623'],
+      ['dark', 'Leaves of the indigo plant', 'White cotton', 'attalus.org/pliny/hn35a.html'],
+    ])) {
+      test(`a small info button explains the ${scheme} theme's background, with a sourced fact`, async ({ page }) => {
+        await page.emulateMedia({ colorScheme: scheme });
+        await page.goto('/');
+        const info = page.getByRole('button', { name: 'About the background video' });
+        const card = page.locator('#hero-info');
+        await expect(card).toBeHidden();
+        await info.click();
+        await expect(card).toBeVisible();
+        // innerText, unlike textContent, leaves out the other theme's hidden text.
+        const text = await card.innerText();
+        expect(text).toContain(shows);
+        expect(text).not.toContain(hides);
+        const source = card.getByRole('link').filter({ visible: true });
+        await expect(source).toHaveCount(1);
+        await expect(source).toHaveAttribute('href', new RegExp(link.replace(/\./g, '\\.')));
+        await page.keyboard.press('Escape');
+        await expect(card).toBeHidden();
+      });
+    }
+  });
 });
 
 test.describe('decrypt effects (N4)', () => {

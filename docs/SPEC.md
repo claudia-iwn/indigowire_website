@@ -627,6 +627,22 @@ A full-width band at the top of Home shows a short "how indigo is made" video be
 - `--hero-focus` in `HeroBand.astro` sets which part of the frame stays in view: `center 40%` for light, and `center 75%` for dark, which keeps the glowing pigment at the bottom of the vat in view.
 - The page `<h1>` ("Indigo Wire Networks", from `home.md`) sits at the bottom left of the band, inside the content column's width, at `clamp(2.25rem, 6vw, 3.5rem)`. Its padding is on a wrapper, not the `<h1>`, so the decrypt overlay lines up with the text.
 - A gradient from `--color-bg` at the bottom to transparent about halfway up blends the band into the page and gives the title near-solid colour behind it. The title must meet WCAG AA contrast against the stills in both themes.
+- **Info button** (decided 27 October 2026): a quiet ⓘ icon at the bottom right of the band, level with the title (`--color-text-muted`, accent on hover and focus; accessible name "About the background video"). It opens a small card about the theme on screen (`theme-light-only` / `theme-dark-only`, so it follows the manual toggle too), each with one fact from history and its source:
+  - **Light, dyeing with indigo:** white cotton goes into the vat, comes out yellow-green and turns blue as the indigo oxidizes. Fact: the oldest known indigo-dyed fabric is cotton about 6,000 years old from Huaca Prieta, Peru ([Splitstoser et al., Science Advances, 2016](https://doi.org/10.1126/sciadv.1501623)).
+  - **Dark, making indigo:** leaves of the indigo plant soak and ferment until they release the dye; beating air in oxidizes it into indigo, which settles as a paste. Fact: Pliny the Elder described indigo, which reached Rome from India, as "a slime that adheres to the scum upon reeds" ([Natural History, book 35, section 46](https://www.attalus.org/pliny/hn35a.html)).
+
+  The card is a native `popover`, so it needs no JavaScript (N2) and closes with Esc, a click outside or its Close button. Any new fact needs a source a reader can check.
+
+  **Sources checked** (27 October 2026). The card links only the primary source for each fact; the rest are recorded here so the facts can be re-checked.
+
+  | Fact | Source | What it confirms |
+  | --- | --- | --- |
+  | Oldest indigo-dyed fabric | Splitstoser et al., "Early pre-Hispanic use of indigo blue in Peru", *Science Advances*, 14 September 2016 ([doi.org/10.1126/sciadv.1501623](https://doi.org/10.1126/sciadv.1501623), which redirects to [science.org](https://www.science.org/doi/10.1126/sciadv.1501623); linked from the card) | The primary source: blue pigment on cotton fabric from Huaca Prieta, Peru, identified as indigo (indigotin), about 6,000 years old, the earliest known use of indigo. science.org refuses automated readers, so these details were confirmed through the coverage below and search results, not the article page itself |
+  | | ScienceDaily, "Researchers identify oldest textile dyed indigo, reflecting scientific knowledge from 6,200 years ago", September 2016 ([sciencedaily.com](https://www.sciencedaily.com/releases/2016/09/160914150426.htm)) | The press release, citing the same DOI: "the oldest known textile decorated with indigo blue", from Huaca Prieta. It rounds the age to 6,200 years; the card uses the paper's "about 6,000" |
+  | | GW Today, "GW Researcher Identifies Oldest Textile Dyed Indigo" ([gwtoday.gwu.edu](https://gwtoday.gwu.edu/gw-researcher-identifies-oldest-textile-dyed-indigo)) | George Washington University on its lead author, Jeffrey Splitstoser: the fabric is cotton (*Gossypium barbadense*), excavated at Huaca Prieta on Peru's north coast in 2009 |
+  | Pliny on indigo | Pliny the Elder, *Natural History*, book 35, section 46, translated by H. Rackham (1952), at [attalus.org](https://www.attalus.org/pliny/hn35a.html) (linked from the card) | The quote, word for word: indigo is "a product of India, being a slime that adheres to the scum upon reeds". The same passage gives its price as 20 denarii a pound |
+
+  The process text (fermenting the leaves releases the dye; air oxidizes it into indigo; cloth leaves the vat yellow-green and turns blue in air) is standard dye chemistry and carries no link. "Indigo plant" rather than "tree": *Indigofera tinctoria* is usually a shrub.
 - The title keeps its decrypt effect and hover replay. Everything below the band (intro packets, featured game, latest image, Elsewhere) is unchanged.
 
 **Behaviour.**
