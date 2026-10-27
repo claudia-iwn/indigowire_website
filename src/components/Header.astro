@@ -89,11 +89,11 @@ const isActive = (href) => (href === '/' ? current === '/' : current.startsWith(
   </div>
 </header>
 
-<script is:inline>
+<script>
   // Light/dark toggle (N5). aria-pressed="true" means dark. Choosing the theme the
   // OS already uses forgets the stored choice, so the site follows the OS again.
   (() => {
-    const button = document.getElementById('theme-toggle');
+    const button = /** @type {HTMLButtonElement} */ (document.getElementById('theme-toggle'));
     const root = document.documentElement;
     const osDark = matchMedia('(prefers-color-scheme: dark)');
     const osTheme = () => (osDark.matches ? 'dark' : 'light');
@@ -123,7 +123,7 @@ const isActive = (href) => (href === '/' ? current === '/' : current.startsWith(
   // default; turning them off is stored and set on <html> as data-effects="off" by the
   // <head> script. Hidden when the OS asks for reduced motion, which already turns them off.
   (() => {
-    const button = document.getElementById('effects-toggle');
+    const button = /** @type {HTMLButtonElement} */ (document.getElementById('effects-toggle'));
     const root = document.documentElement;
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const sync = () => button.setAttribute('aria-pressed', String(root.dataset.effects !== 'off'));

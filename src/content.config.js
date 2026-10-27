@@ -36,6 +36,21 @@ function checkRawDate(text) {
   return `is not an ISO 8601 datetime: ${line[1]}`;
 }
 
+/**
+ * Spark bodies are rendered as HTML and written by an automated pipeline, so raw markup
+ * and script-capable links are refused. validate_spark.py uses the same two patterns.
+ * @param {string} text Whole Markdown file.
+ * @returns {string | null} Error message, or null when the body is plain Markdown.
+ */
+function checkBody(text) {
+  const body = text.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '');
+  if (/<[A-Za-z!/?]/.test(body)) return 'raw HTML is not allowed; use plain Markdown';
+  if (/(\]\(|\]:)\s*<?\s*(javascript|vbscript|data):/i.test(body)) {
+    return 'javascript:, vbscript: and data: links are not allowed';
+  }
+  return null;
+}
+
 const tagList = z.array(z.enum(/** @type {[string, ...string[]]} */ (TAG_IDS))).optional();
 
 const tags = defineCollection({
@@ -75,15 +90,19 @@ const spark = defineCollection({
     base: './src/content/spark',
     // Permalink is /spark/<basename>, so ids drop the YYYY/MM/ folders.
     // This is also the one place that sees the file name, the data and the file
-    // itself, so it enforces the same-basename image rule and the date format.
+    // itself, so it enforces the same-basename image rule, the date format and the
+    // body safety rule.
     generateId: ({ entry, base, data }) => {
       const name = path.basename(entry, '.md');
       const image = typeof data.image === 'string' ? path.basename(data.image) : '';
       if (image !== `${name}.webp`) {
         throw new Error(`spark/${entry}: image must be ./${name}.webp (got "${data.image}")`);
       }
-      const dateError = checkRawDate(readFileSync(new URL(entry, base), 'utf8'));
+      const text = readFileSync(new URL(entry, base), 'utf8');
+      const dateError = checkRawDate(text);
       if (dateError) throw new Error(`spark/${entry}: date ${dateError}`);
+      const bodyError = checkBody(text);
+      if (bodyError) throw new Error(`spark/${entry}: body: ${bodyError}`);
       return name;
     },
   }),

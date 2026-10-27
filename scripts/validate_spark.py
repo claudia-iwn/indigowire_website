@@ -33,6 +33,11 @@ DATE_WITH_OFFSET_RE = re.compile(
     r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$"
 )
 DATE_NO_OFFSET_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?$")
+# The body is rendered as HTML, and sidecars come from an automated pipeline, so raw
+# markup and script-capable links are refused (spec section 7, "Body safety").
+# content.config.js applies the same two patterns at build time.
+HTML_TAG_RE = re.compile(r"<[A-Za-z!/?]")
+UNSAFE_LINK_RE = re.compile(r"(\]\(|\]:)\s*<?\s*(javascript|vbscript|data):", re.I)
 MAX_EDGE_PX = 2048
 MAX_BYTES = 25 * 1024 * 1024  # Workers per-file limit
 TARGET_BYTES = int(1.5 * 1024 * 1024)  # glue-code target; over it is a warning only
@@ -69,6 +74,18 @@ def check_date(text: str) -> str | None:
     if DATE_NO_OFFSET_RE.match(line.group(1)):
         return "needs a UTC offset, e.g. 2026-10-25T14:05:00-07:00"
     return f"not an ISO 8601 datetime: {line.group(1)!r}"
+
+
+def check_body(text: str) -> list[str]:
+    """Return errors for the Markdown body (everything after the frontmatter)."""
+    match = re.match(r"^---\r?\n.*?\r?\n---\r?\n?", text, re.S)
+    body = text[match.end() :] if match else text
+    errors = []
+    if HTML_TAG_RE.search(body):
+        errors.append("body: raw HTML is not allowed; use plain Markdown")
+    if UNSAFE_LINK_RE.search(body):
+        errors.append("body: javascript:, vbscript: and data: links are not allowed")
+    return errors
 
 
 def check_image(path: Path) -> tuple[list[str], list[str]]:
@@ -123,6 +140,8 @@ def validate(md: Path, allowed_tags: set[str]) -> tuple[list[str], list[str]]:
 
     if data.get("date") is not None and (msg := check_date(md.read_text(encoding="utf-8"))):
         errors.append(f"date: {msg}")
+
+    errors += check_body(md.read_text(encoding="utf-8"))
 
     category = data.get("category")
     if category is not None and category not in CATEGORIES:

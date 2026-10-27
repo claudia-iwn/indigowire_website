@@ -11,6 +11,7 @@ import '../styles/global.css';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import { site, shareCards } from '../site.config.js';
+import { BOOT_SCRIPT } from '../lib/boot-script.js';
 
 const { title, description = site.description, ogImage = shareCards.default } = Astro.props;
 const fullTitle = title === site.name ? title : `${title} · ${site.name}`;
@@ -22,19 +23,8 @@ const canonical = new URL(Astro.url.pathname, site.url);
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <script is:inline>
-      // Mark that JavaScript runs, so the header can show its JS-only buttons before first paint.
-      document.documentElement.classList.add('js');
-      // Apply a saved light/dark choice (and text effects off) before first paint so the page never flashes (N5).
-      try {
-        const theme = localStorage.getItem('theme');
-        if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
-        // Text effects turned off with the header toggle (Decrypt.astro checks this).
-        if (localStorage.getItem('effects') === 'off') document.documentElement.dataset.effects = 'off';
-      } catch {
-        // storage blocked: follow the OS theme
-      }
-    </script>
+    <!-- The theme script must run before first paint; its text and CSP hash live in boot-script.js. -->
+    <script is:inline set:html={BOOT_SCRIPT} />
     <title>{fullTitle}</title>
     <meta name="description" content={description} />
     <link rel="canonical" href={canonical} />

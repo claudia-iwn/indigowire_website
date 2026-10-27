@@ -201,13 +201,10 @@ export function mountRenderer(parts, engine, { onInspect } = {}) {
         ),
       );
       group.append(svg('text', { class: 'addr', x: p.x, y: p.y + 6, 'text-anchor': 'middle' }, node.ip));
-      group.append(
-        svg(
-          'text',
-          { class: 'addr mac', x: p.x, y: p.y + 24, 'text-anchor': 'middle', style: `font-size: ${layout.macSize}px` },
-          node.mac,
-        ),
-      );
+      const mac = svg('text', { class: 'addr mac', x: p.x, y: p.y + 24, 'text-anchor': 'middle' }, node.mac);
+      // Through el.style, not a style="" attribute: the CSP blocks inline style attributes.
+      mac.style.fontSize = `${layout.macSize}px`;
+      group.append(mac);
       if (node.name === you) {
         const badge = svg('g', { class: 'you' });
         badge.append(svg('rect', { x: p.x + w / 2 - 40, y: p.y - h / 2 - 11, width: 44, height: 20, rx: 10 }));

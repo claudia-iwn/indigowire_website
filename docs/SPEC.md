@@ -388,7 +388,7 @@ A Python service on the DGX Spark, run with uv under systemd, that turns new fil
 
 1. Take a lock file so two passes never overlap.
 2. List uncommitted files under `src/content/spark/` with `git status --porcelain`. Nothing new means exit.
-3. Pair files by basename, ignoring dotfiles and `*.tmp`. A pair is ready when both the `.webp` and `.md` exist and neither changed during the quiet period; incomplete pairs wait for the next pass.
+3. Pair files by basename, ignoring dotfiles and `*.tmp`. Refuse symbolic links and anything outside `src/content/spark/`, so a link can't publish a file from elsewhere on the Spark. A pair is ready when both the `.webp` and `.md` exist and neither changed during the quiet period; incomplete pairs wait for the next pass.
 4. Run `scripts/validate_spark.py` on each ready pair. An invalid pair stays in place, is logged with the validator's messages, and is skipped.
 5. `git pull --rebase` on `main`.
 6. `git add` only the valid pairs' paths, never `git add -A`, so stray edits in the clone are never published.
@@ -410,6 +410,7 @@ A Python service on the DGX Spark, run with uv under systemd, that turns new fil
 - Checks every rule in the section 4 `spark` table, that the image exists, is WebP, and is within the size limits, and that each tag is in `tags.yaml`. It also checks the file name and `YYYY/MM/` location, and warns (without failing) about unknown fields and images over 1.5 MB.
 - Accepts a sidecar, an image (its sidecar is found beside it) or a directory.
 - Exit code 0 on success; non-zero with one line per problem.
+- **Body safety:** the Markdown body is rendered as HTML, so it may not contain raw HTML (anything matching `<` followed by a letter, `!`, `/` or `?`) or `javascript:`, `vbscript:` or `data:` links. Plain Markdown, including ordinary links and text such as "< 5 ms", is fine.
 - The same rules are enforced again by the Astro schema at build time (R9), so a skipped validation still cannot publish a broken entry.
 
 ### Build and gallery behavior
@@ -540,6 +541,7 @@ The site should be fast, accessible and private by default, with targets Claude 
 | N7 | Privacy | No cookies or browser storage for tracking; the only third-party scripts are Cloudflare Web Analytics and PostHog in cookieless mode | Network tab shows only the site's origin, Cloudflare Web Analytics and PostHog; Application tab shows no cookies |
 | N8 | SEO and sharing | Title, description and Open Graph image on every page; Spark permalinks use the image as the OG image | View source |
 | N9 | Maintainability | `npm run check` passes before every merge | Workers Builds log / local run |
+| N10 | Security | Every page carries a strict Content Security Policy (only the site's own, hashed scripts run; nothing loads from other sites) and the response headers in `public/_headers`; content written by the image pipeline can't inject markup or script links (section 9, "Security") | Playwright: CSP on every route, no violations while using the site, an injected script is blocked, and headers checked against the live site |
 
 ### Visual identity
 
@@ -714,7 +716,36 @@ Three free layers, all cookieless, so the site needs no consent banner: Cloudfla
 | `arp_learn_complete` | The last guided step is reached | `seconds` |
 | `spark_filter` | A gallery category or tag filter is used | `category`, `tag` |
 
+**CSP (N10):** adding either script means adding its hosts to the CSP in `astro.config.mjs` (`script-src` and `connect-src`), and the Playwright CSP tests will fail until that is done. Use the beacon snippet in `BaseLayout`, not Cloudflare's automatic injection, which the CSP would block.
+
 **Trade-offs of cookieless mode:** no session replay, no visitor country in PostHog (Cloudflare Web Analytics still shows countries), and returning visitors look new each day. Ad blockers may block PostHog; routing it through a small Worker on `indigowire.net` is a later option that would count against the 100,000 daily Worker requests.
+
+### Security (N10)
+
+Audited 27 October 2026. The site is static files on Cloudflare: no server code, no forms, no logins, no cookies, no database, so there is nothing to break into on the site itself. The realistic risks are someone else's markup or script reaching a page, the site being framed by another site, and someone abusing the accounts and keys that can change it.
+
+**Controls in the site**
+
+- **Content Security Policy**, a `<meta>` tag on every page, built by Astro (`security.csp` in `astro.config.mjs`). Only scripts and styles whose SHA-256 hash is in the policy run, and nothing loads from another site (`default-src 'self'`, `object-src 'none'`, `base-uri 'self'`, `form-action 'self'`). There is no `'unsafe-inline'` or `'unsafe-eval'`.
+  - Astro hashes its own scripts and styles. The one hand-written inline script, the theme script in `<head>`, lives in `src/lib/boot-script.js`; the page prints that string and the config hashes the same string, so the hash can't go stale.
+  - Style changes made from JavaScript go through `el.style`, never a `style=""` attribute, which the policy blocks.
+  - Markdown syntax highlighting is off, because Shiki uses inline styles.
+- **Response headers** in `public/_headers` (Workers reads the file and never serves it): `frame-ancestors 'none'` and `X-Frame-Options: DENY` (no clickjacking), `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, a `Permissions-Policy` that turns off camera, microphone, location and other device APIs, `Cross-Origin-Opener-Policy: same-origin`, and `Strict-Transport-Security: max-age=31536000` (without `includeSubDomains` until every subdomain is known to have HTTPS).
+- **No HTML from content.** Pages print content as text (Astro escapes it); no `set:html` with content and no `innerHTML` anywhere. Spark bodies are refused if they contain raw HTML or script-capable links (section 7, "Body safety"), checked by both the validator and the build. The RSS feed escapes every field.
+- **External links** open with `rel="noopener"`.
+- **Stored settings** (`theme`, `effects` in `localStorage`) are only compared with fixed values, never written into the page.
+- **Dependencies:** one runtime dependency (Astro); `npm audit` reported 0 vulnerabilities on 27 October 2026. Workers Builds installs with `npm clean-install` from the committed lockfile. YAML is read with `yaml.safe_load`.
+- **Secrets:** none in the repo or its history (scanned 27 October 2026); `.env*` is ignored.
+
+**Tests** (`tests/smoke.spec.js`, "Content Security Policy"): every route has the strict policy; using the home info card, the simulator and a Spark permalink causes no violation; an injected inline script does not run; and, against the live site only, the `_headers` headers are present. `tests/test_validate_spark.py` covers the body rules.
+
+**Owner actions, outside the code** (not done in the audit, because they change GitHub, Cloudflare or DNS settings):
+
+- [ ] Two-factor authentication on the GitHub, Cloudflare and GoDaddy accounts.
+- [ ] GitHub: turn on Dependabot alerts and secret scanning (free for public repos), and a branch rule on `main` that blocks force pushes and deletion.
+- [ ] Hermes deploy key (M0): it can write anything in the repo, not just `src/content/spark/`, so a compromised Spark could change the whole site. Before M3, decide between accepting that (the body rules and the CSP limit what a bad sidecar can do) and having Hermes push to a separate branch that a check merges only when every change is a valid pair under `src/content/spark/`.
+- [ ] DNS move (M0): turn DNSSEC back on in Cloudflare; add CAA records naming the certificate authorities Cloudflare uses; keep SPF, DKIM and DMARC in place, and move DMARC to `p=quarantine` or `p=reject` once reports look clean, so no one can send convincing mail as `@indigowire.net`.
+- [ ] After the domain move, check the live headers again (`BASE_URL=https://indigowire.net npm run test:e2e`).
 
 ## 10. Implementation plan
 

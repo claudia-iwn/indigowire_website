@@ -56,6 +56,7 @@ The header logo is `public/logo.svg` / `logo-dark.svg`, converted from the PDF m
 - **External links:** defined once in `src/site.config.js`. Never hard-code profile URLs in components.
 - **Decrypt effects:** `src/components/Decrypt.astro`, opted into with `data-decrypt*` attributes. The timings are the constants at the top of its script (`DEFAULT_MS`, `HOVER_MS`, `PARAGRAPH_MS`, `PAUSE_MS`, `FIRST_HOLD_MS`) plus `data-decrypt-ms` on each page title. The attributes, tuning table and rules are in spec section 9, "Decrypt effects"; keep that table in step when timings change. Every effect must keep the real text in place (no layout shift) and respect both `prefers-reduced-motion` and the header `>_` switch (`data-effects="off"` on `<html>`).
 - **Home hero band:** `src/components/HeroBand.astro`, in `BaseLayout`'s `hero` slot (`<main>` is full width; the page column is `.page-body`). The video files in `public/video/` come from `scripts/make_hero_video.sh`. It plays once, and shows only a still with reduced motion, the `>_` switch off, data saver or no JS. Spec section 9, "Home hero band".
+- **Content Security Policy (N10, spec section 9 "Security"):** every page has a strict CSP built by Astro (`security.csp` in `astro.config.mjs`), plus headers in `public/_headers`. Never add an `is:inline` script (Astro can't hash it; the one exception is `src/lib/boot-script.js`, hashed in the config), a `style=""` attribute (set styles through `el.style`), `set:html` with content, or anything loaded from another site without adding its host to the policy. The Playwright "Content Security Policy" tests catch violations.
 - **Spark images:** the Hermes glue code writes `<name>.webp` + `<name>.md` pairs into `src/content/spark/YYYY/MM/`; `scripts/spark_publisher.py` commits and pushes them (spec section 7). The publisher adds only validated pairs by explicit path, never with `git add -A`.
 
 ## Quality bars (spec section 9)
@@ -69,7 +70,7 @@ The header logo is `public/logo.svg` / `logo-dark.svg`, converted from the PDF m
 ## Working agreement
 
 - Work one milestone from spec section 10 at a time. Tick each task (`- [x]`) in `docs/SPEC.md` when it is done and `npm run check` passes.
-- Reference requirement IDs (R1–R15, N1–N9) in commit messages, for example `feat(spark): gallery filters (R6)`.
+- Reference requirement IDs (R1–R16, N1–N10) in commit messages, for example `feat(spark): gallery filters (R6)`.
 - Never commit secrets, tokens or keys. Future secrets belong in Cloudflare Workers settings.
 - **Ask before** creating a remote repository, pushing, changing Cloudflare or DNS settings, or deleting files.
 - Tests that touch git must use a temporary repo with a local bare remote. Never push to GitHub from a test.

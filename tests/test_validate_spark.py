@@ -98,3 +98,46 @@ def test_date_format_matches_build_rule(tmp_path, date, ok):
     (dst_dir / src.name).write_text(text + "\n", encoding="utf-8")
     result = run(dst_dir / src.name)
     assert (result.returncode == 0) is ok, result.stdout
+
+
+def copy_sample_with_body(tmp_path: Path, body: str) -> Path:
+    """Copy a valid sample pair into tmp_path with `body` as its Markdown body."""
+    src = next(SAMPLES.rglob("*.md"))
+    dst_dir = tmp_path / "2026" / "10"
+    dst_dir.mkdir(parents=True)
+    shutil.copy(src.with_suffix(".webp"), dst_dir)
+    text = src.read_text(encoding="utf-8")
+    end = text.index("\n---", 3) + len("\n---\n")
+    (dst_dir / src.name).write_text(text[:end] + body, encoding="utf-8")
+    return dst_dir / src.name
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "<script>alert(1)</script>\n",
+        'Nice picture <img src=x onerror="alert(1)">\n',
+        "<iframe src='https://example.com'></iframe>\n",
+        "<!-- hidden -->\n",
+        "[click](javascript:alert(1))\n",
+        "[click]( JavaScript:alert(1) )\n",
+        "![x](data:image/svg+xml;base64,PHN2Zz4=)\n",
+    ],
+)
+def test_body_with_html_or_script_links_fails(tmp_path, body):
+    """The body is rendered as HTML, so an automated pipeline must not be able to inject markup."""
+    result = run(copy_sample_with_body(tmp_path, body))
+    assert result.returncode == 1
+    assert "body:" in result.stdout
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "A plain sentence about BGP, with *emphasis* and a [link](https://example.com).\n",
+        "Latency < 5 ms and 2 > 1 are fine as text.\n",
+        "",
+    ],
+)
+def test_plain_markdown_body_passes(tmp_path, body):
+    assert run(copy_sample_with_body(tmp_path, body)).returncode == 0

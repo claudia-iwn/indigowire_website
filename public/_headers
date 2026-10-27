@@ -1,0 +1,11 @@
+# Security headers for every response (spec N10). Workers static assets read this file
+# and never serve it. The main Content Security Policy is a <meta> tag that Astro builds
+# with script hashes (astro.config.mjs); this header adds what a <meta> policy can't do.
+/*
+  Content-Security-Policy: frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()
+  Cross-Origin-Opener-Policy: same-origin
+  Strict-Transport-Security: max-age=31536000

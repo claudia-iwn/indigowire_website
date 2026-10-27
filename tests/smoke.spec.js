@@ -45,6 +45,74 @@ for (const route of ROUTES) {
   });
 }
 
+test.describe('Content Security Policy', () => {
+  test('every route sets a strict policy: hashed scripts, no inline or eval, nothing from other sites', async ({
+    page,
+  }) => {
+    for (const route of ROUTES) {
+      await page.goto(route);
+      const csp = await page.locator('meta[http-equiv="content-security-policy"]').getAttribute('content');
+      expect(csp, route).toContain("default-src 'self'");
+      expect(csp, route).toContain("object-src 'none'");
+      expect(csp, route).toMatch(/script-src 'self' 'sha256-/);
+      expect(csp, route).not.toContain('unsafe-inline');
+      expect(csp, route).not.toContain('unsafe-eval');
+    }
+  });
+
+  test('the interactive parts run without a single violation', async ({ page }) => {
+    /** @type {string[]} */
+    const violations = [];
+    await page.exposeFunction('reportViolation', (/** @type {string} */ v) => violations.push(v));
+    await page.addInitScript(() =>
+      document.addEventListener('securitypolicyviolation', (e) =>
+        /** @type {any} */ (window).reportViolation(`${e.violatedDirective} ${e.blockedURI}`),
+      ),
+    );
+    await page.goto('/');
+    await page.getByRole('button', { name: 'About the background video' }).click();
+    await page.keyboard.press('Escape');
+    await page.goto('/learn/arp');
+    await page.getByRole('button', { name: 'Send', exact: true }).click();
+    await expect(page.locator('.cache[data-host="H1"]')).toContainText('00:00:5e:00:53:12', { timeout: 10_000 });
+    await page.getByRole('radio', { name: 'Learn' }).check();
+    await page.getByRole('button', { name: 'Start' }).click();
+    await page.getByRole('button', { name: 'Next' }).click();
+    await page.goto('/spark/2026-10-25-1405-bgp-weather');
+    await page.waitForLoadState('networkidle');
+    expect(violations).toEqual([]);
+  });
+
+  test('the deployed site sends the security headers from public/_headers (N10)', async ({ request, baseURL }) => {
+    // astro preview ignores _headers, so this runs only against Cloudflare (BASE_URL=https://…).
+    test.skip(!baseURL?.startsWith('https://'), 'headers are applied by Cloudflare, not astro preview');
+    for (const path of ['/', '/learn/arp', '/no-such-page']) {
+      const headers = (await request.get(path)).headers();
+      expect(headers['content-security-policy'], path).toContain("frame-ancestors 'none'");
+      expect(headers['x-frame-options'], path).toBe('DENY');
+      expect(headers['x-content-type-options'], path).toBe('nosniff');
+      expect(headers['referrer-policy'], path).toBe('strict-origin-when-cross-origin');
+      expect(headers['permissions-policy'], path).toContain('camera=()');
+      expect(headers['strict-transport-security'], path).toContain('max-age=');
+    }
+  });
+
+  test('an injected inline script is blocked', async ({ page }) => {
+    const errors = trackErrors(page);
+    await page.goto('/');
+    // Simulate an attacker's markup reaching the page: the browser must refuse to run it.
+    const ran = await page.evaluate(async () => {
+      const s = document.createElement('script');
+      s.textContent = 'window.__pwned = true';
+      document.body.append(s);
+      await new Promise((r) => setTimeout(r, 50));
+      return /** @type {any} */ (window).__pwned === true;
+    });
+    expect(ran).toBe(false);
+    expect(errors.join(' ')).toContain('Content Security Policy');
+  });
+});
+
 test('every route has a share card: title, description and an image that loads, with its size and alt (N8)', async ({
   page,
   request,
