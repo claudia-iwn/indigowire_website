@@ -354,6 +354,30 @@ test('/learn explains the documentation address ranges with links to the RFCs', 
 });
 
 test.describe('/learn: the course map (R4, R17, section 12)', () => {
+  test('each part is a card that folds; the part holding Up next starts open, with its counts in the header', async ({
+    page,
+  }) => {
+    await page.goto('/learn');
+    await expect(page.locator('#part-1 > details')).toHaveAttribute('open', '');
+    for (const n of [0, 2, 3, 4, 5, 6, 7])
+      await expect(page.locator(`#part-${n} > details`)).not.toHaveAttribute('open');
+    await expect(page.locator('#part-1 summary')).toContainText('6 chapters · 1 available');
+    await page.locator('#part-2 summary').click();
+    await expect(page.locator('#chapter-dns')).toBeVisible();
+  });
+
+  test('a link to a chapter in a closed part opens it, on arrival and from a link on the page', async ({ page }) => {
+    await page.goto('/learn#chapter-abstraction');
+    await expect(page.locator('#part-6 > details')).toHaveAttribute('open', '');
+    await expect(page.locator('#chapter-abstraction')).toBeInViewport();
+    // Part 0's "go deeper" link from lesson 0.9 points into Part 2, which starts closed.
+    await page.goto('/learn');
+    await page.locator('#part-0 summary').click();
+    await page.locator('#chapter-keeping-safe .deeper a').click();
+    await expect(page.locator('#part-2 > details')).toHaveAttribute('open', '');
+    await expect(page.locator('#chapter-keeping-it-safe')).toBeInViewport();
+  });
+
   test('starts with the question and a way in, then the journey with links into the chapters', async ({ page }) => {
     await page.goto('/learn');
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('How networking works');
@@ -543,6 +567,13 @@ test.describe('Home: the course teaser (section 12)', () => {
     await expect(section.getByRole('link', { name: /^Play/ })).toHaveAttribute('href', '/learn/arp');
     await expect(section).toContainText('Up next: Neighbor Discovery (IPv6)');
     await expect(section.getByRole('link', { name: 'Start the course' })).toHaveAttribute('href', '/learn');
+  });
+
+  test('each Home section is a card', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('section.card')).toHaveCount(3);
+    const border = await page.locator('section.course').evaluate((el) => getComputedStyle(el).borderTopStyle);
+    expect(border).toBe('solid');
   });
 
   test('the photo stays still with reduced motion', async ({ page }) => {

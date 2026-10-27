@@ -19,6 +19,21 @@ const stepHrefs = Object.fromEntries(
 );
 /** @type {Record<string, string>} */
 const STATUS = { available: 'Available', next: 'Up next', planned: 'Not available yet' };
+/** The part that starts open: the one holding "Up next", else the first available lesson. */
+const openPart = (course.next ?? course.start)?.part.number ?? 0;
+/**
+ * "6 chapters · 1 available" for a part's header.
+ * @param {import('../../lib/path.js').Part} part
+ */
+function partCounts(part) {
+  const lessons = part.chapters.flatMap((chapter) => chapter.lessons);
+  const available = lessons.filter((lesson) => lesson.status === 'available').length;
+  const unit = part.number === 0 ? 'lesson' : 'chapter';
+  const count = part.chapters.length;
+  const parts = [`${count} ${unit}${count === 1 ? '' : 's'}`, `${available} available`];
+  if (lessons.some((lesson) => lesson.status === 'next')) parts.push('Up next inside');
+  return parts.join(' · ');
+}
 
 /** The documentation ranges used by the games and examples (spec section 3, "Example addresses"). */
 const RANGES = [
@@ -81,7 +96,7 @@ const RANGES = [
 >
   <h1>How networking works</h1>
 
-  <section class="start" aria-labelledby="start-title">
+  <section class="start card" aria-labelledby="start-title">
     <h2 id="start-title">Start here</h2>
     <p class="lede">{course.question}</p>
     <p>
@@ -102,65 +117,71 @@ const RANGES = [
     )}
   </section>
 
-  <section class="journey-section" aria-labelledby="journey-title">
+  <section class="journey-section card" aria-labelledby="journey-title">
     <h2 id="journey-title">The photo’s journey</h2>
     <JourneyPicture />
     <JourneyStrip hrefs={stepHrefs} />
   </section>
 
   {course.parts.map((part) => (
-    <section class="part" id={part.anchor} aria-labelledby={`${part.anchor}-title`}>
-      <h2 id={`${part.anchor}-title`}>
-        Part {part.number}: {part.title}
-      </h2>
-      <ol class="chapters" role="list">
-        {part.chapters.map((chapter) => (
-          <li class="chapter" id={chapter.anchor}>
-            <h3>
-              <span class="number">{chapter.number}</span> {chapter.title}
-            </h3>
-            <p>{chapter.summary}</p>
-            {chapter.why && (
-              <p class="why">
-                {part.number === 0 ? 'The problem: ' : 'Why you’d care: '}
-                {chapter.why}
-              </p>
-            )}
-            <ul class="lessons" role="list">
-              {chapter.lessons.map((lesson) => (
-                <li class={`lesson ${lesson.status}`}>
-                  {lesson.familyLabel && <span class="family">{lesson.familyLabel}</span>}
-                  {lesson.status === 'available' && lesson.page ? (
-                    <a href={lesson.page.href}>{lesson.title}</a>
-                  ) : (
-                    <span class="title">{lesson.title}</span>
-                  )}
-                  <span class="kind">{lesson.kind}</span>
-                  <span class="status">{STATUS[lesson.status]}</span>
-                  {lesson.note && <span class="note">{lesson.note}</span>}
-                </li>
-              ))}
-            </ul>
-            {chapter.deeper.length > 0 && (
-              <p class="deeper">
-                Go deeper:{' '}
-                {chapter.deeper.map((target, i) => (
-                  <>
-                    {i > 0 && ', '}
-                    <a href={`#${target.anchor}`}>
-                      Chapter {target.number}: {target.title}
-                    </a>
-                  </>
+    <section class="part card" id={part.anchor} aria-labelledby={`${part.anchor}-title`}>
+      {/* A native expander: no script needed to open or close it. */}
+      <details open={part.number === openPart}>
+        <summary>
+          <h2 id={`${part.anchor}-title`}>
+            Part {part.number}: {part.title}
+          </h2>
+          <span class="part-counts">{partCounts(part)}</span>
+        </summary>
+        <ol class="chapters" role="list">
+          {part.chapters.map((chapter) => (
+            <li class="chapter" id={chapter.anchor}>
+              <h3>
+                <span class="number">{chapter.number}</span> {chapter.title}
+              </h3>
+              <p>{chapter.summary}</p>
+              {chapter.why && (
+                <p class="why">
+                  {part.number === 0 ? 'The problem: ' : 'Why you’d care: '}
+                  {chapter.why}
+                </p>
+              )}
+              <ul class="lessons" role="list">
+                {chapter.lessons.map((lesson) => (
+                  <li class={`lesson ${lesson.status}`}>
+                    {lesson.familyLabel && <span class="family">{lesson.familyLabel}</span>}
+                    {lesson.status === 'available' && lesson.page ? (
+                      <a href={lesson.page.href}>{lesson.title}</a>
+                    ) : (
+                      <span class="title">{lesson.title}</span>
+                    )}
+                    <span class="kind">{lesson.kind}</span>
+                    <span class="status">{STATUS[lesson.status]}</span>
+                    {lesson.note && <span class="note">{lesson.note}</span>}
+                  </li>
                 ))}
-              </p>
-            )}
-          </li>
-        ))}
-      </ol>
+              </ul>
+              {chapter.deeper.length > 0 && (
+                <p class="deeper">
+                  Go deeper:{' '}
+                  {chapter.deeper.map((target, i) => (
+                    <>
+                      {i > 0 && ', '}
+                      <a href={`#${target.anchor}`}>
+                        Chapter {target.number}: {target.title}
+                      </a>
+                    </>
+                  ))}
+                </p>
+              )}
+            </li>
+          ))}
+        </ol>
+      </details>
     </section>
   ))}
 
-  <section class="addresses" aria-labelledby="addresses-title">
+  <section class="addresses card" aria-labelledby="addresses-title">
     <h2 id="addresses-title">About the addresses in these games</h2>
     <p>
       Every address in the games and examples on this site comes from a range reserved for documentation. These ranges
@@ -203,6 +224,23 @@ const RANGES = [
   </section>
   <BackHome />
 </BaseLayout>
+
+<script>
+  // Open the folded part that holds the linked chapter (or the linked part), then scroll to it:
+  // on arrival with a #chapter-… or #part-… link, and when a link on the page changes the hash.
+  // Chrome opens <details> for fragment links itself; other browsers need this (spec N2).
+  function openLinkedPart() {
+    const id = decodeURIComponent(location.hash.slice(1));
+    const target = id ? document.getElementById(id) : null;
+    // Like Python's `a or b`: the expander around a chapter, or the one inside a part.
+    const details = target?.closest('details') ?? target?.querySelector('details');
+    if (!target || !details) return;
+    if (!details.open) details.open = true;
+    target.scrollIntoView();
+  }
+  openLinkedPart();
+  addEventListener('hashchange', openLinkedPart);
+</script>
 
 <style>
   .chapters,
@@ -273,8 +311,51 @@ const RANGES = [
   .start-link {
     font-weight: 600;
   }
-  .addresses {
-    margin-top: var(--space-5);
+  /* Each section is a card, so the map reads as distinct pieces (spec section 12). */
+  .card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: var(--space-3) var(--space-4);
+    margin-block-start: var(--space-4);
+  }
+  .card > h2 {
+    margin-block-start: 0;
+  }
+  /* A part's header is the expander's button: title, counts, and a turning arrow. */
+  /* Arrow in the first column; the title and its counts stacked beside it. */
+  .part summary {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: baseline;
+    gap: 0 var(--space-2);
+    cursor: pointer;
+    list-style: none;
+  }
+  .part summary > * {
+    grid-column: 2;
+  }
+  .part summary::-webkit-details-marker {
+    display: none;
+  }
+  .part summary::before {
+    content: '▸' / '';
+    font-size: var(--text-xl);
+    line-height: 1;
+    color: var(--color-accent);
+  }
+  .part details[open] > summary::before {
+    content: '▾' / '';
+  }
+  .part summary h2 {
+    margin: 0;
+  }
+  .part-counts {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+  }
+  .part details[open] > summary {
+    margin-block-end: var(--space-2);
   }
   .table-wrap {
     overflow-x: auto;
