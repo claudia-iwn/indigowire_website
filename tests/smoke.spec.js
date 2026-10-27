@@ -45,6 +45,28 @@ for (const route of ROUTES) {
   });
 }
 
+test('every route has a share card: title, description and an image that loads, with its size and alt (N8)', async ({
+  page,
+  request,
+}) => {
+  for (const route of ROUTES) {
+    await page.goto(route);
+    /** @param {string} key */
+    const meta = (key) => page.locator(`meta[property="${key}"], meta[name="${key}"]`).getAttribute('content');
+    expect(await meta('og:title'), route).toBeTruthy();
+    expect(await meta('og:description'), route).toBeTruthy();
+    expect(await meta('og:image:alt'), route).toBeTruthy();
+    expect(await meta('twitter:card'), route).toBe('summary_large_image');
+    // The tag names the live domain; fetch the same path from the server under test.
+    const image = new URL(/** @type {string} */ (await meta('og:image')));
+    expect(image.origin, route).toBe('https://indigowire.net');
+    const response = await request.get(image.pathname);
+    expect(response.status(), `${route} ${image.pathname}`).toBe(200);
+    expect(response.headers()['content-type'], route).toBe('image/jpeg');
+    expect(Number(await meta('og:image:width')), route).toBeGreaterThanOrEqual(1200);
+  }
+});
+
 test('every header link reaches a page', async ({ page }) => {
   await page.goto('/');
   const hrefs = await page

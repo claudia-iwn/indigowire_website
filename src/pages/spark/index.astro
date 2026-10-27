@@ -4,6 +4,7 @@
  * without JavaScript. TODO(M3): tag filter as progressive enhancement + spark_filter event.
  */
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import { shareCards } from '../../site.config.js';
 import SparkGrid from '../../components/SparkGrid.astro';
 import BackHome from '../../components/BackHome.astro';
 import { SPARK_CATEGORIES } from '../../content.config.js';
@@ -12,7 +13,7 @@ import { getSpark, categoryLabel } from '../../lib/content.js';
 const entries = await getSpark();
 ---
 
-<BaseLayout title="Spark" description="AI images from a DGX Spark.">
+<BaseLayout title="Spark" description="AI images from a DGX Spark." ogImage={shareCards.spark}>
   <h1>Spark</h1>
   <p class="lede">Images from a DGX Spark: what I'm working on, something I saw, how I feel right now.</p>
   <nav aria-label="Spark categories">

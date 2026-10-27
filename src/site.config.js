@@ -18,6 +18,43 @@ export const site = {
   description: 'Network engineering, automation, interactive networking games and AI images from a DGX Spark.',
 };
 
+/**
+ * An Open Graph image: what a link preview on Bluesky, LinkedIn or Slack shows (N8).
+ * @typedef {{ src: string, alt: string, width: number, height: number }} ShareImage
+ */
+
+/**
+ * The share cards in public/og/, made by `npm run og` (scripts/make_og_images.mjs).
+ * Pages without their own pick one of these; Spark permalinks share their own image.
+ * @type {Record<'default' | 'learn' | 'arp' | 'spark', ShareImage>}
+ */
+export const shareCards = {
+  default: {
+    src: '/og/default.jpg',
+    alt: 'The Indigo Wire Networks logo beside indigo dye spreading through wet linen.',
+    width: 1200,
+    height: 630,
+  },
+  learn: {
+    src: '/og/learn.jpg',
+    alt: 'How networking works: the ARP simulator’s diagram, with an ARP request flooding from switch SW1 to H2, H3 and R1.',
+    width: 1200,
+    height: 630,
+  },
+  arp: {
+    src: '/og/arp.jpg',
+    alt: 'How IPv4 ARP works: the simulator’s diagram, with an ARP request flooding from switch SW1 to H2, H3 and R1.',
+    width: 1200,
+    height: 630,
+  },
+  spark: {
+    src: '/og/spark.jpg',
+    alt: 'Spark: indigo pigment swirling in a dark vat.',
+    width: 1200,
+    height: 630,
+  },
+};
+
 /** Internal navigation, in header order (R1). */
 export const nav = [
   { label: 'Home', href: '/' },

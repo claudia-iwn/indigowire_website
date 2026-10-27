@@ -658,6 +658,24 @@ Measured 26 October 2026:
 - **Lighthouse:** Home scored 100 in every category, with LCP 1.5 s and CLS 0.
 - **Title contrast:** the worst single background pixel behind the title gave 5.6:1 (light theme at 360 px), against AA's 3:1 for large text. Recheck it if the clips change.
 
+### Share cards (Open Graph, N8)
+
+Decided October 2026, M6. A link to any page shows a preview card on Bluesky, LinkedIn, Slack and the like.
+
+- **Tags on every page** (`BaseLayout`): `og:title`, `og:description`, `og:url`, `og:type`, `og:site_name`, `og:image` with its `width`, `height` and `alt`, and `twitter:card` = `summary_large_image`. Image URLs are absolute on `site.url` (`https://indigowire.net`).
+- **Which image:** Spark permalinks share their own image, as a 1200 px JPEG from `getImage` (LinkedIn does not reliably take WebP). Every other page uses one of four cards, listed with their alt text in `shareCards` in `src/site.config.js`:
+
+| Card | Used by | Picture |
+| --- | --- | --- |
+| `default` | Home, About, Speaking, Contact, Topics, 404 | The light hero still (dye on wet linen) |
+| `learn` | `/learn` and Learn articles | A snapshot of the ARP simulator mid-broadcast |
+| `arp` | `/learn/arp` | The same snapshot, titled "How IPv4 ARP works" |
+| `spark` | `/spark` and its category pages | The dark hero still (pigment in a vat). Not a mosaic of Spark images, which would go stale with every new image |
+
+- **How they are made:** `npm run og` builds the site and runs `scripts/make_og_images.mjs`. It draws each card as an HTML page from the tokens and logo (logo, title, one line, `indigowire.net`, the copper bar) and photographs it in Chrome with Playwright at 1200 × 630, as a JPEG of about 60–90 KB in `public/og/`. The cards are committed, like the hero video. Re-run it when a card's title, the logo, the hero stills or the simulator's look change. No new dependency.
+- **Test:** a Playwright smoke test checks every route has the tags and that its image loads as a JPEG at least 1200 px wide.
+- **Until the domain moves** (M0), `indigowire.net` does not serve this site, so previews of `workers.dev` links show no image.
+
 ### Analytics
 
 Three free layers, all cookieless, so the site needs no consent banner: Cloudflare's built-in metrics, Cloudflare Web Analytics for traffic and speed, and PostHog for what visitors do inside the games and gallery.
@@ -744,7 +762,7 @@ Seven milestones, each ending in a deployed, working site; hand Claude Code one 
 - [x] Learn and Gratuitous ARP modes, the mode switcher, and answers to every request (replies, including back through R1). Done 26 October 2026: `lesson.js` with Vitest tests, `fail`/`primeCache` in the engine, the Failover and "Meanwhile" scenarios, and Playwright tests for each mode
 - [ ] Break-it mode
 - [ ] Accessibility and Lighthouse pass on all pages (N1–N3)
-- [ ] Open Graph images and metadata (N8)
+- [x] Open Graph images and metadata (N8). Done 26 October 2026: four share cards from `npm run og`, Spark permalinks share their own image (section 9, "Share cards")
 
 ## 11. Open questions
 

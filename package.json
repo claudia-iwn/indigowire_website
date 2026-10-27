@@ -15,7 +15,8 @@
     "format": "prettier --write . && uv run ruff format scripts tests",
     "check": "npm run lint && npm run test && uv run pytest && astro build && npm run test:e2e",
     "test:e2e": "playwright test",
-    "lighthouse": "astro build && node scripts/lighthouse.mjs"
+    "lighthouse": "astro build && node scripts/lighthouse.mjs",
+    "og": "astro build && node scripts/make_og_images.mjs"
   },
   "dependencies": {
     "astro": "^7.4.2"

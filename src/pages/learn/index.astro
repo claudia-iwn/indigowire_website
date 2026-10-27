@@ -1,6 +1,7 @@
 ---
 /** Learn index: every game and topic grouped by category (R4), then the documentation address ranges the games use (spec section 3). */
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import { shareCards } from '../../site.config.js';
 import LearnList from '../../components/LearnList.astro';
 import BackHome from '../../components/BackHome.astro';
 import { LEARN_CATEGORIES } from '../../content.config.js';
@@ -58,7 +59,7 @@ const groups = LEARN_CATEGORIES.map((category) => ({
 })).filter((group) => group.entries.length > 0);
 ---
 
-<BaseLayout title="Learn" description="Interactive networking games and short articles.">
+<BaseLayout title="Learn" description="Interactive networking games and short articles." ogImage={shareCards.learn}>
   <h1>Learn</h1>
   <p class="lede">Interactive networking games and short articles.</p>
   {groups.map((group) => (
