@@ -1,0 +1,140 @@
+---
+/**
+ * The photo's journey as a picture (spec section 12, "Home"): laptop, Wi-Fi or cable,
+ * home router, provider, internet, Leapix (a made-up photo site, leapix.example, whose
+ * mascot is a snow leopard) and friends. Decorative: the text beside it carries the
+ * meaning. The photo leaps along once, in CSS; still with reduced motion or the >_ switch.
+ */
+---
+
+<svg class="journey-picture" viewBox="0 0 700 120" aria-hidden="true" focusable="false">
+  <line class="path" x1="50" y1="62" x2="650" y2="62"></line>
+  <!-- Your laptop -->
+  <g transform="translate(50 62)">
+    <rect class="box" x="-22" y="-20" width="44" height="28" rx="3"></rect>
+    <rect class="box" x="-28" y="8" width="56" height="6" rx="2"></rect>
+  </g>
+  <!-- Wi-Fi or cable: radio arcs above, a dashed cable below -->
+  <g transform="translate(150 62)">
+    <path class="wave" d="M-18 -10 A 26 26 0 0 1 18 -10"></path>
+    <path class="wave" d="M-11 -3 A 16 16 0 0 1 11 -3"></path>
+    <circle class="dot" cx="0" cy="3" r="3"></circle>
+    <line class="cable" x1="-30" y1="24" x2="30" y2="24"></line>
+  </g>
+  <!-- Home router -->
+  <g transform="translate(250 62)">
+    <rect class="box" x="-24" y="-8" width="48" height="18" rx="4"></rect>
+    <line class="stroke" x1="-14" y1="-8" x2="-18" y2="-22"></line>
+    <line class="stroke" x1="14" y1="-8" x2="18" y2="-22"></line>
+    <circle class="dot" cx="-12" cy="1" r="2"></circle>
+    <circle class="dot" cx="-4" cy="1" r="2"></circle>
+  </g>
+  <!-- Your provider: a tower -->
+  <g transform="translate(350 62)">
+    <path class="stroke" d="M0 -26 L-14 18 M0 -26 L14 18 M-9 2 L9 2 M-5 -10 L5 -10"></path>
+    <circle class="dot" cx="0" cy="-26" r="3"></circle>
+  </g>
+  <!-- The internet: a cloud -->
+  <g transform="translate(450 62)">
+    <path
+      class="box"
+      d="M-26 12 A 12 12 0 0 1 -18 -8 A 16 16 0 0 1 10 -14 A 13 13 0 0 1 26 2 A 10 10 0 0 1 22 12 Z"
+    ></path>
+  </g>
+  <!-- Leapix: a server with the snow leopard's head -->
+  <g transform="translate(550 62)">
+    <rect class="box" x="-16" y="-6" width="32" height="30" rx="3"></rect>
+    <line class="stroke" x1="-10" y1="4" x2="10" y2="4"></line>
+    <line class="stroke" x1="-10" y1="13" x2="10" y2="13"></line>
+    <g class="leopard" transform="translate(0 -20)">
+      <path class="coat" d="M-11 -6 L-8 -14 L-3 -9 L3 -9 L8 -14 L11 -6 A 12 11 0 1 1 -11 -6 Z"></path>
+      <circle class="spot" cx="-6" cy="-2" r="1.6"></circle>
+      <circle class="spot" cx="6" cy="-2" r="1.6"></circle>
+      <circle class="spot" cx="-8" cy="4" r="1.3"></circle>
+      <circle class="spot" cx="8" cy="4" r="1.3"></circle>
+      <circle class="spot" cx="0" cy="5" r="1.4"></circle>
+    </g>
+  </g>
+  <!-- Your friends see it: two phones -->
+  <g transform="translate(650 62)">
+    <rect class="box" x="-22" y="-16" width="16" height="28" rx="3"></rect>
+    <rect class="box" x="4" y="-16" width="16" height="28" rx="3"></rect>
+  </g>
+  <!-- The photo, leaping from the laptop to Leapix -->
+  <g class="photo">
+    <rect x="38" y="20" width="24" height="18" rx="2"></rect>
+    <path d="M41 35 L48 27 L53 32 L56 29 L60 35 Z"></path>
+  </g>
+</svg>
+
+<style>
+  .journey-picture {
+    display: block;
+    width: 100%;
+    max-width: 44rem;
+    height: auto;
+    margin-block: var(--space-3) 0;
+  }
+  .path {
+    stroke: var(--color-border);
+    stroke-width: 2;
+  }
+  .box {
+    fill: var(--color-surface);
+    stroke: var(--color-heading);
+    stroke-width: 2;
+  }
+  .stroke,
+  .wave {
+    fill: none;
+    stroke: var(--color-heading);
+    stroke-width: 2;
+    stroke-linecap: round;
+  }
+  .cable {
+    stroke: var(--color-heading);
+    stroke-width: 2;
+    stroke-dasharray: 5 4;
+  }
+  .dot {
+    fill: var(--color-accent);
+  }
+  .coat {
+    fill: var(--color-text-muted);
+  }
+  .spot {
+    fill: var(--iw-indigo);
+  }
+  .photo rect {
+    fill: var(--color-accent);
+  }
+  .photo path {
+    fill: var(--color-bg);
+  }
+  /* One leap, laptop to Leapix (500 units), then the photo stays there. */
+  .photo {
+    animation: leap 2.4s ease-in-out 0.6s 1 both;
+  }
+  @keyframes leap {
+    from {
+      transform: translate(0, 0);
+    }
+    50% {
+      transform: translate(250px, -14px);
+    }
+    to {
+      transform: translate(500px, 0);
+    }
+  }
+  /* Still, at Leapix, with reduced motion or the >_ switch off (N4). */
+  @media (prefers-reduced-motion: reduce) {
+    .photo {
+      animation: none;
+      transform: translate(500px, 0);
+    }
+  }
+  :global(html[data-effects='off']) .photo {
+    animation: none;
+    transform: translate(500px, 0);
+  }
+</style>

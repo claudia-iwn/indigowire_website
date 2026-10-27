@@ -1,0 +1,35 @@
+---
+/**
+ * The photo's journey as text (spec section 12): seven steps in order. On /learn each
+ * step links to the first chapter that explains it; on Home they are plain text.
+ * @typedef {object} Props
+ * @property {Record<string, string | undefined>} [hrefs]  Step id → link.
+ */
+import { JOURNEY } from '../lib/path.js';
+
+const { hrefs = {} } = Astro.props;
+---
+
+<ol class="journey">
+  {JOURNEY.map((step) => (
+    <li>{hrefs[step.id] ? <a href={hrefs[step.id]}>{step.label}</a> : <span>{step.label}</span>}</li>
+  ))}
+</ol>
+
+<style>
+  .journey {
+    list-style: none;
+    margin: var(--space-2) 0 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-2);
+    font-size: var(--text-sm);
+  }
+  /* An arrow between steps; decoration, so screen readers skip it. */
+  .journey li:not(:last-child)::after {
+    content: '→' / '';
+    margin-inline-start: var(--space-2);
+    color: var(--color-text-muted);
+  }
+</style>
