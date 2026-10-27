@@ -41,7 +41,9 @@ export default defineConfig({
         // Cloudflare injects its Web Analytics beacon into every page of a proxied zone
         // (automatic setup is the only option there); it reports to /cdn-cgi/rum on this
         // site, so connect-src stays 'self'.
-        resources: ["'self'", 'https://static.cloudflareinsights.com'],
+        // 'report-sample' puts the first 40 characters of a blocked script in the violation
+        // report, so the tests can tell Cloudflare's injected script from anything else.
+        resources: ["'self'", 'https://static.cloudflareinsights.com', "'report-sample'"],
         hashes: [sha256(BOOT_SCRIPT)],
       },
     },

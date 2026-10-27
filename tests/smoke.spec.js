@@ -17,22 +17,53 @@ const ROUTES = [
 ];
 
 /**
- * Collect console errors and uncaught exceptions for one page.
+ * The start of the inline script Cloudflare's JavaScript Detections injects on the proxied
+ * domain. It can't be switched off on the free plan, and the CSP blocks it, harmlessly
+ * (spec section 9, "Analytics"). Only this exact script is forgiven: the CSP's
+ * 'report-sample' gives the first 40 characters of anything it blocks.
+ */
+const CLOUDFLARE_JSD = /^\(function\(\)\{function c\(\)\{var b=a\.contentD/;
+
+/**
+ * Report blocked inline scripts with their first characters, skipping Cloudflare's.
+ * @param {import('@playwright/test').Page} page
+ * @param {(text: string) => void} report
+ */
+async function watchInlineViolations(page, report) {
+  await page.exposeFunction(
+    'reportInlineViolation',
+    (/** @type {string} */ directive, /** @type {string} */ sample) => {
+      if (!CLOUDFLARE_JSD.test(sample)) report(`Content Security Policy violation: ${directive} "${sample}"`);
+    },
+  );
+  await page.addInitScript(() =>
+    document.addEventListener('securitypolicyviolation', (e) => {
+      if (e.blockedURI === 'inline') /** @type {any} */ (window).reportInlineViolation(e.violatedDirective, e.sample);
+    }),
+  );
+}
+
+/**
+ * Collect console errors, uncaught exceptions and blocked inline scripts for one page.
  * @param {import('@playwright/test').Page} page
  */
-function trackErrors(page) {
+async function trackErrors(page) {
   /** @type {string[]} */
   const errors = [];
   page.on('console', (msg) => {
-    if (msg.type() === 'error') errors.push(`console: ${msg.text()}`);
+    // Blocked inline scripts are reported by watchInlineViolations, which can tell them apart.
+    if (msg.type() === 'error' && !msg.text().startsWith('Executing inline script violates')) {
+      errors.push(`console: ${msg.text()}`);
+    }
   });
   page.on('pageerror', (err) => errors.push(`pageerror: ${err.message}`));
+  await watchInlineViolations(page, (text) => errors.push(text));
   return errors;
 }
 
 for (const route of ROUTES) {
   test(`${route} loads cleanly`, async ({ page }) => {
-    const errors = trackErrors(page);
+    const errors = await trackErrors(page);
     const response = await page.goto(route);
     expect(response?.status()).toBe(200);
     await expect(page.locator('h1')).toBeVisible();
@@ -73,10 +104,13 @@ test.describe('Content Security Policy', () => {
     const violations = [];
     await page.exposeFunction('reportViolation', (/** @type {string} */ v) => violations.push(v));
     await page.addInitScript(() =>
-      document.addEventListener('securitypolicyviolation', (e) =>
-        /** @type {any} */ (window).reportViolation(`${e.violatedDirective} ${e.blockedURI}`),
-      ),
+      document.addEventListener('securitypolicyviolation', (e) => {
+        // Blocked inline scripts are checked by watchInlineViolations, which forgives only Cloudflare's.
+        if (e.blockedURI !== 'inline')
+          /** @type {any} */ (window).reportViolation(`${e.violatedDirective} ${e.blockedURI}`);
+      }),
     );
+    await watchInlineViolations(page, (text) => violations.push(text));
     await page.goto('/');
     await page.getByRole('button', { name: 'About the background video' }).click();
     await page.keyboard.press('Escape');
@@ -106,7 +140,7 @@ test.describe('Content Security Policy', () => {
   });
 
   test('an injected inline script is blocked', async ({ page }) => {
-    const errors = trackErrors(page);
+    const errors = await trackErrors(page);
     await page.goto('/');
     // Simulate an attacker's markup reaching the page: the browser must refuse to run it.
     const ran = await page.evaluate(async () => {
