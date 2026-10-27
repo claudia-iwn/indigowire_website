@@ -20,9 +20,10 @@ const ROUTES = [
  * The start of the inline script Cloudflare's JavaScript Detections injects on the proxied
  * domain. It can't be switched off on the free plan, and the CSP blocks it, harmlessly
  * (spec section 9, "Analytics"). Only this exact script is forgiven: the CSP's
- * 'report-sample' gives the first 40 characters of anything it blocks.
+ * 'report-sample' gives the first 40 characters of anything it blocks, and the
+ * pattern is all 40 of them.
  */
-const CLOUDFLARE_JSD = /^\(function\(\)\{function c\(\)\{var b=a\.contentD/;
+const CLOUDFLARE_JSD = /^\(function\(\)\{function c\(\)\{var b=a\.content/;
 
 /**
  * Report blocked inline scripts with their first characters, skipping Cloudflare's.
