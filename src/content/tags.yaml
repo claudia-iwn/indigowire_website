@@ -3,6 +3,10 @@
 # Keys are lowercase kebab-case; `name` is the display name.
 arp:
   name: ARP
+ipv6:
+  name: IPv6
+neighbor-discovery:
+  name: Neighbor Discovery
 layer-2:
   name: Layer 2
 layer-3:

@@ -9,6 +9,7 @@ const ROUTES = [
   '/learn',
   '/speaking',
   '/learn/arp',
+  '/learn/nd',
   '/spark',
   '/spark/2026-10-25-1405-bgp-weather',
   '/spark/category/working-on',
@@ -121,6 +122,9 @@ test.describe('Content Security Policy', () => {
     await page.getByRole('radio', { name: 'Learn' }).check();
     await page.getByRole('button', { name: 'Start' }).click();
     await page.getByRole('button', { name: 'Next' }).click();
+    await page.goto('/learn/nd');
+    await page.getByRole('button', { name: 'Send', exact: true }).click();
+    await expect(page.locator('.cache[data-host="H1"]')).toContainText('00:00:5e:00:53:12', { timeout: 10_000 });
     await page.goto('/spark/2026-10-25-1405-bgp-weather');
     await page.waitForLoadState('networkidle');
     expect(violations).toEqual([]);
@@ -225,7 +229,10 @@ test.describe('Search and AI search (N11)', () => {
       await expect(page.locator('.lesson-why')).toContainText('Your laptop and the printer are on the same Wi-Fi');
       const nav = page.getByRole('navigation', { name: 'Course' });
       await expect(nav.getByRole('link', { name: 'The course map' })).toHaveAttribute('href', '/learn');
-      await expect(nav).toContainText('Up next in the course: Neighbor Discovery');
+      await expect(nav.getByRole('link', { name: /How IPv6 Neighbor Discovery works/ })).toHaveAttribute(
+        'href',
+        '/learn/nd',
+      );
       await page.getByText('Read the lesson as text').click();
       await expect(page.locator('.lesson-text')).toContainText('in the same VLAN');
     });
@@ -361,7 +368,7 @@ test.describe('/learn: the course map (R4, R17, section 12)', () => {
     await expect(page.locator('#part-1 > details')).toHaveAttribute('open', '');
     for (const n of [0, 2, 3, 4, 5, 6, 7])
       await expect(page.locator(`#part-${n} > details`)).not.toHaveAttribute('open');
-    await expect(page.locator('#part-1 summary')).toContainText('6 chapters · 1 available');
+    await expect(page.locator('#part-1 summary')).toContainText('6 chapters · 2 available');
     await page.locator('#part-2 summary').click();
     await expect(page.locator('#chapter-dns')).toBeVisible();
   });
@@ -400,7 +407,7 @@ test.describe('/learn: the course map (R4, R17, section 12)', () => {
     await expect(page.locator('#chapter-broadcasts-and-vlans .number')).toHaveText('5');
     await expect(page.locator('#chapter-abstraction .number')).toHaveText('24');
     await expect(page.locator('.lesson.next')).toHaveCount(1);
-    await expect(page.locator('.lesson.next')).toContainText('Neighbor Discovery');
+    await expect(page.locator('.lesson.next')).toContainText('Try it for real: ARP in Containerlab');
     await expect(page.locator('.lesson.next')).toContainText('Up next');
   });
 
@@ -562,10 +569,13 @@ test.describe('Home: the course teaser (section 12)', () => {
     await expect(section).toContainText('What happens when you upload a photo to Leapix?');
     await expect(section.locator('svg.journey-picture')).toHaveAttribute('aria-hidden', 'true');
     await expect(section.locator('ol.journey li')).toHaveCount(7);
-    await expect(section.getByRole('link', { name: 'How IPv4 ARP works' })).toHaveAttribute('href', '/learn/arp');
+    await expect(section.getByRole('link', { name: 'How IPv6 Neighbor Discovery works' })).toHaveAttribute(
+      'href',
+      '/learn/nd',
+    );
     await expect(section.locator('.label')).toHaveText('Latest game');
-    await expect(section.getByRole('link', { name: /^Play/ })).toHaveAttribute('href', '/learn/arp');
-    await expect(section).toContainText('Up next: Neighbor Discovery (IPv6)');
+    await expect(section.getByRole('link', { name: /^Play/ })).toHaveAttribute('href', '/learn/nd');
+    await expect(section).toContainText('Up next: Try it for real: ARP in Containerlab');
     await expect(section.getByRole('link', { name: 'Start the course' })).toHaveAttribute('href', '/learn');
   });
 
@@ -814,5 +824,120 @@ test.describe('How IPv4 ARP works (R5, section 6)', () => {
     await page.getByRole('button', { name: 'Send', exact: true }).click();
     // At the start of its hop a gliding frame sits on H1 (x 110); a jumping one is already 15% along.
     await expect(page.locator('.frame').first()).toHaveAttribute('transform', /^translate\(156\.5,/);
+  });
+});
+
+test.describe('How IPv6 Neighbor Discovery works (R18, section 13)', () => {
+  /**
+   * Pause, send from H1, then step until the log shows `until`.
+   * @param {import('@playwright/test').Page} page
+   * @param {string} address
+   * @param {string} until
+   */
+  async function sendAndStep(page, address, until) {
+    await page.goto('/learn/nd');
+    await page.getByRole('button', { name: 'Pause' }).click();
+    await page.getByLabel('To IPv6 address').fill(address);
+    await page.getByRole('button', { name: 'Send', exact: true }).click();
+    const step = page.getByRole('button', { name: 'Step' });
+    for (let i = 0; i < 40 && (await step.isEnabled()); i++) {
+      if ((await page.locator('.log').textContent())?.includes(until)) break;
+      await step.click();
+    }
+  }
+
+  test('a first ping fills both neighbor caches, H3’s card drops the solicitation', async ({ page }) => {
+    await sendAndStep(page, '2001:db8:0:1::12', 'H1 learns that 2001:db8:0:1::12');
+    await expect(page.locator('.cache[data-host="H1"]')).toContainText('REACHABLE');
+    await expect(page.locator('.cache[data-host="H2"]')).toContainText('STALE');
+    await expect(page.locator('.log')).toContainText('solicited-node group, ff02::1:ff00:12 (33:33:ff:00:00:12)');
+    await expect(page.locator('.mac-table tr[data-key="00:00:5e:00:53:11"]')).toContainText('Gi0/1');
+  });
+
+  test('Inspect shows a Neighbor Solicitation’s 86 bytes, its rows and its notes', async ({ page }) => {
+    await sendAndStep(page, '2001:db8:0:1::12', 'H2 has 2001:db8:0:1::12');
+    await page.locator('.log .inspect').first().click();
+    const packet = page.locator('.packet');
+    await expect(packet.locator('h2')).toHaveText('Neighbor Solicitation: who has 2001:db8:0:1::12?');
+    await expect(packet).toHaveAttribute('data-kind', 'request');
+    await expect(packet.locator('.strip .label')).toHaveText([
+      'Destination MAC',
+      'Source MAC',
+      'Type',
+      'IPv6 header',
+      'ICMPv6 NS',
+      'FCS',
+    ]);
+    await expect(packet.locator('.packet-notes')).toContainText('Hop limit 255');
+    await packet.getByText('Bytes: all 86').click();
+    await expect(packet.locator('.byte')).toHaveCount(86);
+  });
+
+  test('the internet: R1 answers for fe80::1 and rewrites the hop limit', async ({ page }) => {
+    await sendAndStep(page, '2001:db8:8888::8', 'new frame for its upstream link');
+    await expect(page.locator('.log')).toContainText('default router, R1 (fe80::1)');
+    const card = page.locator('.rewrite');
+    await expect(card).toContainText('Hop limit');
+    await expect(card.locator('s')).toHaveText(['R1', 'H1', '64']);
+  });
+
+  test('an unused address: three solicitations, then "address unreachable"', async ({ page }) => {
+    await page.goto('/learn/nd');
+    await page.getByLabel('Speed').selectOption('2');
+    await page.getByRole('button', { name: 'an unused address' }).click();
+    await expect(page.locator('.bubble')).toContainText('address unreachable', { timeout: 15_000 });
+  });
+
+  test('a bad or multicast address shows an error instead of sending', async ({ page }) => {
+    await page.goto('/learn/nd');
+    await page.getByLabel('To IPv6 address').fill('2001:db8::12::1');
+    await page.getByRole('button', { name: 'Send', exact: true }).click();
+    await expect(page.locator('#nd-dest-error')).toContainText('Enter an IPv6 address');
+    await page.getByLabel('To IPv6 address').fill('ff02::1');
+    await page.getByRole('button', { name: 'Send', exact: true }).click();
+    await expect(page.locator('#nd-dest-error')).toContainText('unicast');
+  });
+
+  test('Learn mode walks through the exchange with Next and Back', async ({ page }) => {
+    await page.goto('/learn/nd#learn');
+    await page.getByRole('button', { name: 'Start' }).click();
+    await expect(page.locator('#lesson-title')).toHaveText('Why Neighbor Discovery?');
+    const next = page.getByRole('button', { name: 'Next' });
+    for (let i = 0; i < 8; i++) await next.click();
+    await expect(page.locator('#lesson-title')).toHaveText('Ping again: no Neighbor Discovery');
+    await page.getByRole('button', { name: 'Back' }).click();
+    await expect(page.locator('#lesson-title')).toHaveText('H2’s check is answered');
+    await expect(page.locator('.cache[data-host="H2"]')).toContainText('REACHABLE');
+  });
+
+  test('DAD: a defended address is refused and no cache changes', async ({ page }) => {
+    await page.goto('/learn/nd#dad');
+    await page.getByLabel('Speed').selectOption('2');
+    await page.getByRole('button', { name: 'Duplicate address' }).click();
+    await expect(page.locator('.bubble')).toContainText('Duplicate address', { timeout: 10_000 });
+    await expect(page.locator('[data-node="H3"]')).toContainText('duplicate');
+    await expect(page.locator('.cache[data-host="H1"]')).toContainText('00:00:5e:00:53:12');
+  });
+
+  test('Failover: caches move to H3 as STALE', async ({ page }) => {
+    await page.goto('/learn/nd#dad');
+    await page.getByLabel('Speed').selectOption('2');
+    await page.getByRole('button', { name: /^Failover/ }).click();
+    await expect(page.locator('[data-node="H2"]')).toContainText('(down)');
+    await expect(page.locator('.cache[data-host="H1"]')).toContainText('00:00:5e:00:53:13', { timeout: 10_000 });
+    await expect(page.locator('.cache[data-host="H1"]')).toContainText('STALE');
+  });
+
+  test('a host can be failed from Sandbox', async ({ page }) => {
+    await page.goto('/learn/nd');
+    await page.getByLabel('Fail a host').selectOption('H3');
+    await page.getByRole('button', { name: 'Fail', exact: true }).click();
+    await expect(page.locator('[data-node="H3"]')).toContainText('(down)');
+  });
+
+  test('the ARP vs ND table and the addressing note are on the page', async ({ page }) => {
+    await page.goto('/learn/nd');
+    await expect(page.getByRole('table', { name: /ARP and Neighbor Discovery/ })).toBeVisible();
+    await expect(page.getByText('RFC 7217')).toBeVisible();
   });
 });

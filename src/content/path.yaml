@@ -116,8 +116,8 @@ course:
           journey: link
           lessons:
             - { title: How IPv4 ARP works, family: ipv4, kind: game, entry: arp }
-            - { title: Neighbor Discovery, family: ipv6, kind: game, next: true }
-            - { title: 'Try it for real: ARP in Containerlab', family: none, kind: lab }
+            - { title: How IPv6 Neighbor Discovery works, family: ipv6, kind: game, entry: nd }
+            - { title: 'Try it for real: ARP in Containerlab', family: none, kind: lab, next: true }
         - id: broadcasts-and-vlans
           title: Broadcasts and VLANs
           summary: Who hears a broadcast, and how VLANs split one switch into separate networks. IPv6 uses multicast instead.

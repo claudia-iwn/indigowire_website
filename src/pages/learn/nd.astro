@@ -1,0 +1,346 @@
+---
+/**
+ * Neighbor Discovery simulator (R18, spec section 13). The page holds the empty stage,
+ * panels and controls; src/games/nd/controller.js starts the engine and renderer in the
+ * browser. Without JavaScript it shows the addressing table and a note.
+ */
+import { getEntry } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import TagList from '../../components/TagList.astro';
+import BackHome from '../../components/BackHome.astro';
+import LanSimulator from '../../games/lan/LanSimulator.astro';
+import { TOPOLOGY, DEFAULT_REACHABLE_MS, MIN_REACHABLE_MS, MAX_REACHABLE_MS } from '../../games/nd/engine.js';
+import { shareCards } from '../../site.config.js';
+import { learningResourceLd } from '../../lib/seo.js';
+import { getCourse, getTagNames } from '../../lib/content.js';
+import { LESSON } from '../../games/nd/lesson.js';
+import LessonBreadcrumbs from '../../components/LessonBreadcrumbs.astro';
+import LessonPlace from '../../components/LessonPlace.astro';
+import LessonNav from '../../components/LessonNav.astro';
+import { lessonFor, lessonBreadcrumbs } from '../../lib/path.js';
+
+const entry = await getEntry('learn', 'nd');
+if (!entry) throw new Error('src/content/learn/nd.md is missing');
+
+const course = await getCourse();
+const lesson = lessonFor(course, 'nd');
+if (!lesson) throw new Error('path.yaml has no lesson with entry: nd');
+const crumbs = lessonBreadcrumbs(lesson);
+
+const description = entry.data.description ?? entry.data.summary;
+const tagNames = await getTagNames();
+/** @param {Date} date */
+const longDate = (date) => date.toLocaleDateString('en-US', { dateStyle: 'long', timeZone: 'UTC' });
+const resource = learningResourceLd({
+  path: '/learn/nd',
+  title: entry.data.title,
+  description,
+  published: entry.data.published,
+  updated: entry.data.updated,
+  keywords: (entry.data.tags ?? []).map((tag) => tagNames[tag] ?? tag),
+  image: shareCards.default.src,
+  position: lesson.position,
+});
+
+const hosts = TOPOLOGY.nodes;
+const hostOptions = hosts.map((node) => ({ name: node.name, label: `${node.name} (${node.global})` }));
+const reachableSeconds = DEFAULT_REACHABLE_MS / 1000;
+/** The mode switcher's choices; the value is also the URL hash (#learn, #dad). */
+const MODES = [
+  { value: 'learn', label: 'Learn' },
+  { value: 'sandbox', label: 'Sandbox' },
+  { value: 'dad', label: 'DAD and unsolicited NA' },
+];
+---
+
+<BaseLayout
+  title={entry.data.title}
+  {description}
+  ogImage={shareCards.default}
+  breadcrumbs={crumbs}
+  jsonLd={[resource]}
+>
+  <LessonBreadcrumbs crumbs={crumbs} />
+  <h1>{entry.data.title}</h1>
+  <p class="lede">{entry.data.summary}</p>
+  <TagList tags={entry.data.tags} />
+  {entry.data.published && (
+    <p class="dates">
+      First published{' '}
+      <time datetime={entry.data.published.toISOString().slice(0, 10)}>{longDate(entry.data.published)}</time>
+      {entry.data.updated && (
+        <>
+          {' '}
+          · Updated <time datetime={entry.data.updated.toISOString().slice(0, 10)}>{longDate(entry.data.updated)}</time>
+        </>
+      )}
+    </p>
+  )}
+  <LessonPlace lesson={lesson} />
+
+  <noscript>
+    <p class="notice">The simulator needs JavaScript. Here is the network it simulates:</p>
+    <table>
+      <tr>
+        <th scope="col">Node</th>
+        <th scope="col">Global address</th>
+        <th scope="col">Link-local</th>
+        <th scope="col">MAC</th>
+        <th scope="col">Switch port</th>
+      </tr>
+      {hosts.map((node) => (
+        <tr>
+          <td>{node.name}</td>
+          <td>{node.global}/64</td>
+          <td>{node.linkLocal}</td>
+          <td>{node.mac}</td>
+          <td>{node.port}</td>
+        </tr>
+      ))}
+    </table>
+  </noscript>
+
+  <LanSimulator
+    prefix="nd"
+    modes={MODES}
+    sendModes="sandbox dad"
+    hosts={hostOptions}
+    dest={{ label: 'To IPv6 address', value: '2001:db8:0:1::12', inputmode: 'text' }}
+    quick={[
+      { label: 'H2', value: '2001:db8:0:1::12' },
+      { label: 'H3', value: '2001:db8:0:1::13' },
+      { label: 'R1 (fe80::1)', value: 'fe80::1' },
+      { label: 'an unused address', value: '2001:db8:0:1::99' },
+      { label: 'the internet (2001:db8:8888::8)', value: '2001:db8:8888::8' },
+    ]}
+    ttl={{
+      label: 'Reachable time',
+      min: MIN_REACHABLE_MS / 1000,
+      max: MAX_REACHABLE_MS / 1000,
+      value: reachableSeconds,
+    }}
+    legend={[
+      { kind: 'request', label: 'Neighbor Solicitation' },
+      { kind: 'reply', label: 'Neighbor Advertisement' },
+      { kind: 'data', label: 'IPv6 data (ping, web, DNS)' },
+    ]}
+    diagramLabel="Network diagram: three user devices and the router R1 on switch SW1, in IPv6"
+    cacheTitle="Neighbor caches"
+  >
+    <section slot="mode-panels" class="nd-fail lan-panel" data-modes="sandbox">
+      <label for="nd-fail-host">Fail a host</label>
+      <select id="nd-fail-host">
+        {hosts.map((node) => (
+          <option value={node.name}>{node.name}</option>
+        ))}
+      </select>
+      <button id="nd-fail" type="button">
+        Fail
+      </button>
+    </section>
+    <section slot="mode-panels" class="dad lan-panel" data-modes="dad" aria-labelledby="dad-title" hidden>
+      <h2 id="dad-title">DAD and unsolicited NA</h2>
+      <p>
+        Before a host uses a new IPv6 address, it asks whether anyone else has it: Duplicate Address Detection, a
+        Neighbor Solicitation sent from the unspecified address ::. An owner defends the address and the newcomer gives
+        it up, before any traffic goes astray. A host taking over an address tells everyone with an unsolicited Neighbor
+        Advertisement.
+      </p>
+      <div class="dad-row">
+        <button id="dad-join" type="button">
+          H3 joins
+        </button>
+        <button id="dad-failover" type="button">
+          Failover: H2 fails, H3 takes over 2001:db8:0:1::12
+        </button>
+        <button id="dad-duplicate" type="button">
+          Duplicate address
+        </button>
+      </div>
+      <p class="dad-status" aria-live="polite"></p>
+      <p class="dad-note">
+        <strong>Note:</strong> Neighbor Discovery has no authentication of its own, so these messages can be forged, as
+        ARP's can. Switches defend with RA Guard and ND Inspection; SEND (RFC 3971) signs the messages, but few networks
+        use it.
+      </p>
+    </section>
+  </LanSimulator>
+
+  <!-- The Learn lesson as plain text, outside the game: readable without JavaScript, and by
+       search engines and AI assistants (N11). Same text as Learn mode, from lesson.js. -->
+  <section class="lesson-text" aria-labelledby="lesson-text-title">
+    <h2 id="lesson-text-title">How Neighbor Discovery works, step by step</h2>
+    <details>
+      <summary>Read the lesson as text</summary>
+      <ol>
+        {LESSON.map((step) => (
+          <li>
+            <h3>{step.title}</h3>
+            <p>{step.caption}</p>
+          </li>
+        ))}
+      </ol>
+    </details>
+  </section>
+
+  <section class="nd-notes" aria-labelledby="nd-notes-title">
+    <h2 id="nd-notes-title">About these addresses</h2>
+    <p>
+      The game gives each device a short interface ID (::11, ::12, …) so the addresses are easy to read. Real hosts pick
+      a stable random ID (RFC 7217) or temporary ones that change (RFC 8981), so their addresses look more like
+      2001:db8:0:1:8f3a:21c4:9b7e:5d10.
+    </p>
+    <div class="table-wrap">
+      <table>
+        <caption>ARP and Neighbor Discovery side by side</caption>
+        <tr>
+          <th scope="col"></th>
+          <th scope="col">IPv4 ARP</th>
+          <th scope="col">IPv6 Neighbor Discovery</th>
+        </tr>
+        <tr>
+          <th scope="row">Who hears the question</th>
+          <td>Everyone: a broadcast</td>
+          <td>One solicited-node group: multicast</td>
+        </tr>
+        <tr>
+          <th scope="row">Carried in</th>
+          <td>Its own EtherType, 0x0806</td>
+          <td>ICMPv6 inside IPv6 (EtherType 0x86dd)</td>
+        </tr>
+        <tr>
+          <th scope="row">Cache entries</th>
+          <td>Expire after a timeout</td>
+          <td>Turn STALE, and are checked when next used</td>
+        </tr>
+        <tr>
+          <th scope="row">Announcing an address</th>
+          <td>Gratuitous ARP</td>
+          <td>Unsolicited Neighbor Advertisement</td>
+        </tr>
+        <tr>
+          <th scope="row">Catching a duplicate</th>
+          <td>Afterwards, when a host sees its own address claimed</td>
+          <td>Before use: Duplicate Address Detection</td>
+        </tr>
+      </table>
+    </div>
+  </section>
+  <LessonNav course={course} lesson={lesson} />
+  <BackHome />
+</BaseLayout>
+
+<script>
+  import { startSimulator } from '../../games/nd/controller.js';
+
+  const root = document.querySelector('[data-nd]');
+  if (root instanceof HTMLElement) startSimulator(root);
+</script>
+
+<style>
+  .notice {
+    font-weight: 600;
+  }
+  .lesson-text ol {
+    padding-inline-start: 1.5em;
+  }
+  .lesson-text h3 {
+    margin: var(--space-3) 0 var(--space-1);
+    font-size: var(--text-base);
+  }
+  .lesson-text p {
+    margin: 0;
+  }
+  .dates {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+  }
+
+  .nd-fail {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+  }
+  .nd-fail label {
+    font-weight: 600;
+  }
+  .dad {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+    padding: var(--space-3) var(--space-4);
+  }
+  .dad h2 {
+    margin: 0 0 var(--space-2);
+    font-size: var(--text-lg);
+  }
+  .dad p {
+    margin: 0 0 var(--space-3);
+  }
+  .dad-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-block-end: var(--space-3);
+  }
+  .dad-status:empty {
+    display: none;
+  }
+  .dad-status {
+    font-weight: 600;
+  }
+  .dad .dad-note {
+    font-size: var(--text-sm);
+    border-inline-start: 4px solid var(--color-accent);
+    padding-inline-start: var(--space-3);
+    margin-block-end: 0;
+  }
+
+  /*
+   * A neighbor-cache row (an IPv6 address, a MAC, the state and its countdown) is wider than
+   * an ARP row, so the countdown may wrap under the state, and on phones a cell may break
+   * inside an address. :global() because the shared renderer draws these, not this page.
+   */
+  :global(.nd .cache .expires) {
+    white-space: normal;
+  }
+  :global(.nd .cache .secs) {
+    white-space: nowrap;
+  }
+  /* The router's rewrite card shows two IPv6 addresses; let them break rather than leave the card. */
+  :global(.nd .rewrite) {
+    overflow-wrap: anywhere;
+  }
+  @media (width < 40rem) {
+    :global(.nd .cache td) {
+      overflow-wrap: anywhere;
+    }
+  }
+
+  .table-wrap {
+    overflow-x: auto;
+  }
+  .nd-notes table {
+    border-collapse: collapse;
+  }
+  .nd-notes caption {
+    text-align: start;
+    font-weight: 600;
+    padding-block-end: var(--space-2);
+  }
+  .nd-notes th,
+  .nd-notes td {
+    border: 1px solid var(--color-border);
+    padding: var(--space-1) var(--space-2);
+    text-align: start;
+    vertical-align: top;
+  }
+
+  /* The heading rule again, for this page's own h2s (the lesson-text heading); LanSimulator has its own copy. */
+  h2 {
+    font-size: var(--text-lg);
+    margin: 0 0 var(--space-2);
+  }
+</style>
