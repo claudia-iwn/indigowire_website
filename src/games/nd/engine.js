@@ -389,7 +389,8 @@ export function createEngine({ reachableMs = DEFAULT_REACHABLE_MS } = {}) {
    * Ask the target's solicited-node group for its MAC; ask again a second later, up to 3 times.
    * @param {Host} host
    * @param {string} target
-   * @param {string} src  The address the waiting packet uses (RFC 4861 §7.2.2).
+   * @param {string} src  The waiting packet's source. RFC 4861 §7.2.2: used as the solicitation's source only if
+   *   the host owns it; otherwise (a forwarded packet) one of the host's own addresses.
    * @param {number} flow
    * @param {number} attempt
    */
@@ -399,7 +400,7 @@ export function createEngine({ reachableMs = DEFAULT_REACHABLE_MS } = {}) {
       dst: multicastMac(group),
       src: host.mac,
       type: ETHERTYPE_IPV6,
-      ip: { src, dst: group, ttl: ND_HOP_LIMIT },
+      ip: { src: owns(host, src) ? src : sourceFor(host, target), dst: group, ttl: ND_HOP_LIMIT },
       nd: { type: ND_NS, target, lla: host.mac },
       flow,
     });

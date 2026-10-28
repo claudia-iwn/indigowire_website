@@ -218,6 +218,16 @@ describe('off the link, through R1', () => {
     expect(r.text()).toMatch(/lowers the Hop limit from 64 to 63/);
     expect(r.text()).toMatch(/H1 receives the ICMPv6 echo reply from 2001:db8:8888::8/);
   });
+  it("R1 solicits from its own address, not from the forwarded packet's far-away source", () => {
+    const engine = createEngine();
+    const r = record(engine);
+    engine.primeCache('H1', 'fe80::1');
+    engine.send('H1', '2001:db8:8888::8');
+    engine.runUntilIdle();
+    const ns = r.sent().find((hop) => hop.from === 'R1' && hop.frame.nd?.type === 135)?.frame;
+    expect(ns.ip.src).toBe('2001:db8:0:1::1');
+    expect(engine.state.hosts.H1.neighbors.has('2001:db8:8888::8')).toBe(false);
+  });
 });
 
 describe('rules and settings', () => {
