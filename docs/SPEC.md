@@ -39,6 +39,7 @@ Each requirement has an ID that tasks, commits and tests can reference. Acceptan
 | R3 | Contact page | `/contact` says to make contact through LinkedIn and links to the LinkedIn profile. No form. |
 | R4 | Learn index | `/learn` shows the learning path (R17): every part, chapter and lesson in course order, with each lesson's status. Available lessons link to their page with title and one-line summary. |
 | R5 | ARP simulator ("How IPv4 ARP works") | `/learn/arp` meets every acceptance criterion in section 6. |
+| R18 | Neighbor Discovery simulator ("How IPv6 Neighbor Discovery works") | `/learn/nd` meets every acceptance criterion in section 13. |
 | R6 | Spark gallery | `/spark` shows images newest first; filter by category (`working-on`, `saw-this`, `mood`) and tag. |
 | R7 | Spark permalinks | Each image has `/spark/<slug>` with full image, caption, date, category, tags and alt text. |
 | R8 | Spark publishing by push | When the glue code places a valid image + sidecar in the clone and the publisher pushes it to `main`, then the image is live after the build finishes, with no manual step. |
@@ -232,6 +233,7 @@ Every route is generated at build time; nothing renders on request.
 | `/contact` | "Contact me through LinkedIn" + link | Hard-coded component | R3 |
 | `/learn` | The learning path: course map with "Start here", parts, chapters and lesson statuses, then the address ranges | `path.yaml` + `learn` collection | R4, R17 |
 | `/learn/arp` | How IPv4 ARP works (the ARP simulator) | `learn/arp.md` + `src/games/arp/` | R5 |
+| `/learn/nd` | How IPv6 Neighbor Discovery works (the ND simulator) | `learn/nd.md` + `src/games/nd/` + `src/games/lan/` | R18 |
 | `/learn/<slug>` | Other games and articles | `learn` collection; entries with a `component` get their own page (`src/pages/learn/<component>.astro`) and are skipped here | R4 |
 | `/spark` | Gallery, newest first, filters | `spark` collection | R6 |
 | `/spark/<slug>` | Image permalink | `spark` entry | R7 |
@@ -258,7 +260,7 @@ Every route is generated at build time; nothing renders on request.
 
 ## 6. Feature spec: ARP simulator
 
-The page is titled **"How IPv4 ARP works"** (title in `src/content/learn/arp.md`; the URL stays `/learn/arp`). ARP is IPv4's address resolution; IPv6 uses Neighbor Discovery instead, which a later game could cover.
+The page is titled **"How IPv4 ARP works"** (title in `src/content/learn/arp.md`; the URL stays `/learn/arp`). ARP is IPv4's address resolution; IPv6 uses Neighbor Discovery instead: the ND simulator (section 13) runs on the same LAN, and the parts of this game that are not about ARP live in a shared core, `src/games/lan/` (section 13, "Stage 1").
 
 The visitor plays a host on a switched LAN: they send traffic, watch ARP resolve the address, and can freeze any frame to inspect its fields and bytes.
 
@@ -940,6 +942,15 @@ Seven milestones, each ending in a deployed, working site; hand Claude Code one 
 - [x] ARP: the VLAN note in the "SW1 learns and floods" step (and so in the lesson text). Done 27 October 2026: the VLAN note in the ARP step and lesson text
 - [x] Playwright tests for the map, the statuses and the ARP page's place in the course. Done 27 October 2026: Playwright tests for the map, statuses and ARP placement
 
+### M8: IPv6 Neighbor Discovery (R18, section 13)
+
+- [ ] Stage 1: the shared LAN core in `src/games/lan/` with ARP unchanged (tests, screenshots, bundle size); reviewed and merged first
+- [ ] `nd/frames.js`: address helpers, encoding, checksum, `breakdown()`, Scapy vectors
+- [ ] `nd/engine.js`: NS/NA, REACHABLE/STALE and probes, retries and "address unreachable", off-link via `fe80::1`, DAD, unsolicited NA, scenarios
+- [ ] `nd/lesson.js`: the 9 Learn steps
+- [ ] `/learn/nd`: page, three modes, cache columns, ARP vs ND table, tags, Playwright tests
+- [ ] Ship: `entry: nd` and `next: true` moved in `path.yaml`, share card, Lighthouse
+
 ## 11. Open questions
 
 ### Decided
@@ -1137,6 +1148,109 @@ A `path` collection loaded with Astro's `file()` loader. As built, the file hold
 - Vitest (`src/lib/path.test.js`): statuses; numbering (0.1 to 0.10, then 1 to 34 across parts); a lesson's place; journey steps to chapters; previous and next skipping unavailable lessons; at most one `next`.
 - Playwright: `/learn` shows the journey strip, all eight parts (0 to 7), Part 0's ten lessons and 34 chapters; exactly one "Up next"; only available lessons are links; the ARP page shows "Part 1 · Chapter 4", its "why you'd care" line and its breadcrumb; the ARP lesson text mentions VLANs.
 - Build: a lesson whose `entry` names a missing `learn` entry fails the build.
+
+## 13. Feature spec: IPv6 Neighbor Discovery ("How IPv6 Neighbor Discovery works")
+
+Designed 28 October 2026. The IPv6 counterpart of the ARP simulator (section 6), on the same LAN, at `/learn/nd`: the "Neighbor Discovery" lesson in chapter 4 of the course (section 12). It follows RFC 4861 (Neighbor Discovery) and RFC 4862 (Duplicate Address Detection). Everything section 6 says about the view, time, controls, accessibility and the packet view applies here unless this section says otherwise.
+
+### Stage 1: the shared LAN core (`src/games/lan/`)
+
+Built first, as a refactor only: ARP must behave exactly as before. The parts of the ARP game that are not about ARP move to `src/games/lan/`; each game assembles them and adds its protocol.
+
+| Module | What it holds | Taken from |
+| --- | --- | --- |
+| `sim.js` | Clock, timed-action queue, `on`/`emit`/`log`, `schedule`, `tick`, `runUntilIdle`, `isIdle` | `arp/engine.js` |
+| `switch.js` | SW1: MAC learning on the ingress port, table ageing, forwarding. Floods any frame whose destination has the group bit set (broadcast or multicast) and any unknown unicast | `switchReceive` |
+| `nic.js` | A host's network-card filter: accepts its own MAC, broadcast and the groups it has joined; anything else is dropped as "not for me" (unicast) or "not my group (network card)" (multicast) | `hostReceive` |
+| `upstream.js` | R1 → next hop → "the internet" and back, with the hop rows; the game names the hop field ("TTL" or "Hop limit") | `routeOut`, `upstreamReceive`, `hops.js` |
+| `renderer.js` | Diagram, moving frames, notes, bubbles, MAC table, log, R1's before/after card; the game supplies its cache columns | `arp/renderer.js` |
+| `packet-view.js` | The packet-view shell; the game supplies `breakdown(frame)` and its frame kinds | `arp/packet-view.js` |
+| `controller.js` | Playback, mode switcher, Learn step navigation; the game supplies its modes, address check and scenarios | `arp/controller.js` |
+
+- **Stays in `src/games/arp/`:** `frames.js`, ARP's receive/answer/cache/expiry rules, the subnet test, the Gratuitous ARP and Break-it scenarios, `lesson.js`. `engine.js` becomes the ARP assembly.
+- **Colour tokens:** `--color-arp-request` and `--color-arp-reply` become `--color-request` and `--color-reply` (ARP's request/reply, ND's NS/NA); `--color-ip-data` and `--color-eth` stay.
+- **Each game keeps its own bundle;** `/learn/arp` loads no ND code.
+- **Done when:** ARP's Vitest tests pass with only their imports changed; new tests cover `lan/switch.js` (group-bit flooding, unknown unicast, learning, ageing) and `lan/nic.js` (own MAC, broadcast, joined group, unjoined group); the `/learn/arp` Playwright tests pass; screenshots of each mode match before and after; the ARP page's script size stays about the same. Reviewed and merged before any ND code.
+
+### Topology and addresses
+
+Same devices and switch ports as section 6 (no attacker). Interface IDs are short so the addresses read easily; a page note says real hosts use stable random IDs (RFC 7217) or temporary ones (RFC 8981).
+
+| Node | Global | Link-local | MAC | Port |
+| --- | --- | --- | --- | --- |
+| H1 (You) | 2001:db8:0:1::11/64 | fe80::11 | 00:00:5e:00:53:11 | Gi0/1 |
+| H2 | 2001:db8:0:1::12/64 | fe80::12 | 00:00:5e:00:53:12 | Gi0/2 |
+| H3 | 2001:db8:0:1::13/64 | fe80::13 | 00:00:5e:00:53:13 | Gi0/3 |
+| R1 (default router) | 2001:db8:0:1::1/64 | fe80::1 | 00:00:5e:00:53:01 | Gi0/4 |
+
+- **Upstream.** R1's second interface is `2001:db8:0:ff::1` (`00:00:5e:00:53:a1`); the next hop is `fe80::fe` (`00:00:5e:00:53:fe`), already in R1's neighbour cache (ND on that link is not simulated). "Somewhere on the internet" is `2001:db8:8888::8`, a documentation address standing where ARP uses 8.8.8.8. Hop limit 64; R1 lowers it by one; answers come back with 64 − `INTERNET_HOPS`.
+- **Groups each card joins:** all-nodes `ff02::1` (`33:33:00:00:00:01`) and the solicited-node group of each address. A host's global and link-local addresses share their last 24 bits, so H2 joins one group, `ff02::1:ff00:12`; the page says so. R1 also joins all-routers `ff02::2`.
+- **No MLD snooping.** SW1 floods multicast like broadcast, as unmanaged switches do and as Cisco Catalyst does by default (MLD snooping is globally disabled by default on the 2960, 3560, 3750, 3850, 9300 and 9500 configuration guides). Snooping belongs to chapter 5, "Broadcasts and VLANs".
+
+### Engine (`src/games/nd/engine.js`, no DOM)
+
+Built on the shared core. State per host: addresses, joined groups, and `neighbors`: map of address → `{ mac, state, reachableUntil }` (like a Python dict of dicts), `state` being `REACHABLE` or `STALE`.
+
+1. **On-link or off-link.** A destination in `2001:db8:0:1::/64` or `fe80::/10` is resolved directly; anything else goes to the default router `fe80::1`. A note says real hosts learn the default router from R1's Router Advertisements (a later chapter); RA and SLAAC are not modelled.
+2. **Neighbor Solicitation (NS, ICMPv6 135).** On a cache miss the packet waits and the host sends an NS: IPv6 destination the target's solicited-node group, Ethernet destination its `33:33:ff:…` MAC, hop limit 255, a Source Link-Layer Address option with its MAC. The IPv6 source is the address the waiting packet uses (RFC 4861 §7.2.2), so the NS for `fe80::1` before an off-link ping comes from `2001:db8:0:1::11`. The engine first logs why ND is needed (the application knows the IPv6 address; Ethernet needs the MAC).
+3. **The NS on the wire.** SW1 learns and floods it. Cards not in the group (H3, R1 for an NS to H2) drop it in hardware: "not my group (network card)".
+4. **The target** creates or updates an entry for the sender as **STALE** (an NS doesn't prove two-way reachability), then answers with a unicast **Neighbor Advertisement** (NA, ICMPv6 136): Solicited 1, Override 1, Router 1 from R1, Target Link-Layer Address option.
+5. **The sender** marks the target **REACHABLE** on a solicited NA and sends the waiting packet. Every request is answered, as in ARP (echo, page, answer), including back through R1.
+6. **No answer.** The NS is retried 3 times, 1 s apart (simulated, and actually sent), then the packet is dropped with "address unreachable" (ICMPv6 type 1, code 3) shown at the sender (`nd:unreachable`).
+7. **Cache states.** REACHABLE lasts `reachableMs` (default 30 s, slider 10–300 s), then turns STALE (`cache:stale`). Using a STALE entry sends the packet at once, then a unicast NS probe to the cached MAC; a note says real hosts wait 5 s first (the DELAY state). A solicited NA makes it REACHABLE again; three unanswered probes delete the entry (`cache:expire`). STALE entries don't age out in the game. The MAC table ages as in ARP.
+8. **Hop limit 255.** A host drops any NS or NA whose hop limit isn't 255, so ND can't come from off the link.
+9. **Duplicate Address Detection** (RFC 4862). A host joins the solicited-node group of its tentative address and sends an NS from `::`, with no link-layer option, then waits 1 s. No answer: the address becomes usable (`dad:ok`). An owner defends with an NA to `ff02::1`, Solicited 0, Override 1; the host marks the address duplicate and never uses it (`dad:duplicate`). Nobody caches anything from a DAD NS.
+10. **Unsolicited NA.** Sent to `ff02::1`, Solicited 0, Override 1. A host that already has an entry for the address updates the MAC and sets it STALE; a host without one ignores it (unlike Gratuitous ARP), and the log says so.
+11. **Events:** those of section 6 (with `cache:update` carrying `state`), plus `cache:stale`, `nd:unreachable`, `dad:ok`, `dad:duplicate`. Every frame carries a `flow` number, as in ARP.
+12. **Calls:** `send(src, dst, app)`, `fail(name)`, `claimIp(name, addr, why?)` (runs DAD), `takeOver(name, addr)` (DAD, then an unsolicited NA), `primeCache(name, addr)`, `setReachableMs(ms)` (clamped to 10–300 s), `tick(ms)`, `runUntilIdle()`, `isIdle()`.
+
+### Frames (`src/games/nd/frames.js`)
+
+- **Address helpers:** `parseIpv6` (text in any valid form to 16 bytes), `formatIpv6` (RFC 5952 short form, used everywhere on the page), `solicitedNode(addr)` (`ff02::1:ff` + the last 24 bits), `multicastMac(addr)` (`33:33` + the last 32 bits), `onLink(addr)`.
+- **Encoding, in wire order:** Ethernet (destination, source, EtherType `0x86DD`); the 40-byte IPv6 header (version 6, traffic class 0, flow label 0, payload length, next header, hop limit, source, destination); then ICMPv6 (next header 58): NS (type, code, checksum, reserved, target, SLLA option type 1 length 1, omitted for DAD), NA (R/S/O flags in the top three bits, target, TLLA option type 2), echo request/reply (128/129: identifier, sequence). Web and DNS use next header 6 and 17, not decoded further, as in ARP.
+- **The ICMPv6 checksum is real,** computed over the IPv6 pseudo-header. An NS or NA with its option is 86 bytes, so no padding.
+- **Test vectors** for an NS, an NA, a DAD NS and an echo request come from Scapy, run once with `uv run --with scapy` (no dependency added); their hex is pasted into `frames.test.js`.
+- **Packet view:** `breakdown(frame)` gives every field with its bits; the NA flags are three 1-bit rows. Notes in the view: hop limit 255 is required, and the destination MAC is derived from the destination address.
+
+### Modes
+
+The switcher holds Learn, Sandbox (the default) and "DAD and unsolicited NA"; the hash names the mode (`#learn`, `#dad`). Switching resets the simulation.
+
+- **Learn** (`src/games/nd/lesson.js`, DOM-free, tested): an introduction and 9 steps, each ending on an engine event with a note of 60 characters at most beside one device. H1 pings `2001:db8:0:1::12` with empty caches:
+  1. Why ND: H1 knows the IPv6 address, not the MAC; its neighbour cache is empty.
+  2. Which group to ask: `::12` → `ff02::1:ff00:12` → `33:33:ff:00:00:12`, worked out on screen.
+  3. The NS leaves H1: SW1 learns H1's port and floods it, because the destination is a group address (with ARP's VLAN note).
+  4. Network cards filter it: H3 and R1 drop it in hardware; only H2 passes it up. Contrast: with ARP, every host's software read the broadcast.
+  5. H2 caches H1 as STALE, and why.
+  6. The NA comes back unicast: SW1 forwards it only to H1; H1 marks H2 REACHABLE.
+  7. The echo request reaches H2.
+  8. The echo reply uses H2's STALE entry, so H2 probes H1 with a unicast NS; H1 answers; H2 marks H1 REACHABLE ("real hosts wait 5 s first").
+  9. A second ping needs no ND.
+- **Sandbox:** the source host, the app (ping, web, DNS) and any destination address, checked with `parseIpv6`. Quick picks: H2, H3, `fe80::1`, `2001:db8:8888::8`, and the unused `2001:db8:0:1::99` (three NS, then "address unreachable"). The reachable-time slider and a "fail" control per host.
+- **DAD and unsolicited NA:** three scenarios. **H3 joins:** H3 runs DAD for `2001:db8:0:1::13` and the address becomes usable. **Failover:** H1 and R1 start caching H2; H2 fails, H3 takes over `2001:db8:0:1::12` (DAD passes, then an unsolicited NA); H1's and R1's entries move to H3's MAC as STALE, and the next ping's probe confirms H3. **Duplicate address:** H3 is given `2001:db8:0:1::12` while H2 is up; H2 defends it and H3 refuses the address, so no cache changes (unlike ARP's "Meanwhile" scenario). The Send form stays, so a visitor can ping afterwards. A short note ends each: these messages can be forged; the defences are RA Guard, ND Inspection and SEND (RFC 3971). Conceptual only, like ARP's note.
+
+### Page
+
+- `src/content/learn/nd.md`: title "How IPv6 Neighbor Discovery works", `component: nd`, tags `ipv6`, `neighbor-discovery`, `layer-2` (the first two added to `tags.yaml`). The page carries the addressing note and, at the end, an **ARP vs ND** table: broadcast vs multicast; its own EtherType vs ICMPv6; entries that expire vs entries that turn STALE; Gratuitous ARP vs unsolicited NA plus DAD.
+- **Cache panel columns:** address, MAC, state, with a countdown bar while REACHABLE.
+- **Course placement:** set `entry: nd` on the chapter 4 lesson in `path.yaml` and move `next: true` to the following lesson ("Try it for real: ARP in Containerlab"). Breadcrumbs, place line and previous/next come from section 12. A share card from `npm run og`; `/learn/nd` joins the Lighthouse page list.
+
+### Acceptance criteria
+
+- [ ] Stage 1: ARP is unchanged (section 6's criteria still pass) and the shared core has its own tests.
+- [ ] H1 → `2001:db8:0:1::12` with empty caches: an NS to `33:33:ff:00:00:12` flooded by SW1, dropped by H3's and R1's cards as "not my group", H2 caching H1 as STALE, a unicast NA, H1 caching H2 as REACHABLE, then the echo request.
+- [ ] H2's echo reply uses its STALE entry and triggers a unicast NS probe that H1 answers, leaving both REACHABLE.
+- [ ] Sending again while REACHABLE uses no ND; after `reachableMs` the entry is STALE and the next send probes.
+- [ ] `2001:db8:0:1::99`: three NS, 1 s apart, then "address unreachable".
+- [ ] `2001:db8:8888::8`: H1 resolves `fe80::1` with an NS from `2001:db8:0:1::11`; the packet goes to R1's MAC with the far IPv6 destination; R1 rewrites both MACs and the hop limit (64 → 63), shown in the hop table and R1's card; the answer comes back.
+- [ ] An NS or NA with hop limit other than 255 is dropped.
+- [ ] DAD: an NS from `::` with no link-layer option; no answer → usable; defended → duplicate, never used; no host caches anything from it.
+- [ ] Unsolicited NA updates an existing entry to the new MAC as STALE and is ignored by a host without one.
+- [ ] Failover and Duplicate address behave as described under Modes.
+- [ ] The hex for the NS, NA, DAD NS and echo request matches the Scapy vectors, checksums included.
+- [ ] Learn steps through all 9 steps with Next and Back.
+- [ ] Everything else in section 6's criteria that isn't ARP-specific: keyboard, reduced motion, 360 px, legend, "You", colours by kind, packet view, CSP and search tests, Lighthouse 100s.
+- [ ] A test checks the ND sources use only IPv6 addresses in `2001:db8::/32`, `fe80::/10`, `ff02::/16` or `::`, and only MACs `00:00:5e:00:53:xx` or `33:33:xx:xx:xx:xx`.
 
 ## Sources
 
