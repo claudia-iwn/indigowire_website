@@ -12,7 +12,16 @@ import { createSwitch } from '../lan/switch.js';
 import { nicDrop } from '../lan/nic.js';
 import { createUpstream } from '../lan/upstream.js';
 import { ETHERTYPE_IPV6, ND_NA, ND_NS } from './frames.js';
-import { ALL_NODES, ALL_ROUTERS, isLinkLocal, multicastMac, normalize, samePrefix64, solicitedNode } from './ipv6.js';
+import {
+  ALL_NODES,
+  ALL_ROUTERS,
+  isLinkLocal,
+  multicastMac,
+  normalize,
+  samePrefix64,
+  solicitedNode,
+  UNSPECIFIED,
+} from './ipv6.js';
 
 /**
  * @typedef {'ping' | 'web' | 'dns'} App
@@ -272,6 +281,15 @@ export function createEngine({ reachableMs = DEFAULT_REACHABLE_MS } = {}) {
   function receiveSolicitation(host, frame) {
     const nd = /** @type {import('./frames.js').NdMessage} */ (frame.nd);
     const { ip } = frame;
+    if (ip.src === UNSPECIFIED) {
+      // Duplicate Address Detection (RFC 4862 §5.4.3): the owner defends; nobody caches anything from ::.
+      if (!owns(host, nd.target)) return drop(host, frame, 'not my address');
+      log(
+        `${host.name} already uses ${nd.target}, so it defends it: a Neighbor Advertisement to all nodes saying ${nd.target} is at ${host.mac}.`,
+      );
+      advertise(host, nd.target, frame.flow);
+      return;
+    }
     if (!owns(host, nd.target)) return drop(host, frame, 'not my address');
     const check = ip.dst === nd.target; // unicast to the address itself: a reachability check
     if (nd.lla) {
@@ -309,6 +327,18 @@ export function createEngine({ reachableMs = DEFAULT_REACHABLE_MS } = {}) {
   function receiveAdvertisement(host, frame) {
     const nd = /** @type {import('./frames.js').NdMessage} */ (frame.nd);
     const lla = /** @type {string} */ (nd.lla);
+    if (host.tentative === nd.target) {
+      host.tentative = null;
+      host.duplicate = nd.target;
+      joinGroups(host);
+      emit('dad:duplicate', { host: host.name, ip: nd.target, mac: lla, time: state.clock });
+      emit('host:change', { host: host.name });
+      log(
+        `${host.name} hears ${lla} defend ${nd.target}: the address is already in use. DAD failed, so ${host.name} marks it duplicate and never uses it. Nobody's traffic goes to the wrong host.`,
+      );
+      return;
+    }
+    if (!nd.solicited) return receiveUnsolicited(host, frame);
     const asked = host.pending.has(nd.target) || host.probing.has(nd.target);
     // RFC 4861 §7.2.5: an answer to a question nobody asked changes nothing.
     if (!asked) return drop(host, frame, 'not asked');
@@ -323,6 +353,117 @@ export function createEngine({ reachableMs = DEFAULT_REACHABLE_MS } = {}) {
     const waiting = host.pending.get(nd.target) ?? [];
     host.pending.delete(nd.target);
     for (const packet of waiting) sendData(host, lla, packet);
+  }
+
+  /**
+   * An advertisement nobody asked for (RFC 4861 §7.2.5): with Override, it moves an existing
+   * entry to the new MAC, as STALE until checked. Unlike gratuitous ARP, it never creates one.
+   * @param {Host} host
+   * @param {Frame} frame
+   */
+  function receiveUnsolicited(host, frame) {
+    const nd = /** @type {import('./frames.js').NdMessage} */ (frame.nd);
+    const lla = /** @type {string} */ (nd.lla);
+    const had = host.neighbors.get(nd.target);
+    if (!had) {
+      log(
+        `${host.name} has no entry for ${nd.target}, so it ignores the advertisement: unlike gratuitous ARP, an unsolicited advertisement never creates an entry.`,
+      );
+      return drop(host, frame, 'no entry: ignored');
+    }
+    if (had.mac === lla || !nd.override) return;
+    setNeighbor(host, nd.target, lla, 'STALE');
+    log(`${host.name} updates ${nd.target}: it was ${had.mac}, now ${lla}, marked STALE until it is checked.`);
+  }
+
+  /**
+   * An advertisement to all nodes: a defence during DAD, or the announcement after a takeover.
+   * @param {Host} host
+   * @param {string} addr
+   * @param {number} flow
+   */
+  function advertise(host, addr, flow) {
+    transmit(host, {
+      dst: ALL_NODES_MAC,
+      src: host.mac,
+      type: ETHERTYPE_IPV6,
+      ip: { src: addr, dst: ALL_NODES, ttl: ND_HOP_LIMIT },
+      nd: {
+        type: ND_NA,
+        target: addr,
+        lla: host.mac,
+        router: host.role === 'gateway',
+        solicited: false,
+        override: true,
+      },
+      flow,
+    });
+  }
+
+  /**
+   * Give a host an address through Duplicate Address Detection (RFC 4862 §5.4): ask from ::
+   * whether anyone uses it, wait a second, then use it, unless an owner defends it.
+   * @param {string} name
+   * @param {string} addrText
+   * @param {string} [why]  The log line saying how the host came to claim it.
+   * @param {{ announce?: boolean }} [options]  announce: send an unsolicited NA once the address is usable.
+   */
+  function claimIp(name, addrText, why, { announce = false } = {}) {
+    const host = hostNamed(name);
+    const addr = normalize(addrText);
+    if (!addr) throw new Error(`Not an IPv6 address: ${addrText}`);
+    log(
+      why ??
+        `${name} is given the address ${addr}. Before using it, it checks that no other device has it: Duplicate Address Detection.`,
+    );
+    host.global = null;
+    host.duplicate = null;
+    host.tentative = addr;
+    joinGroups(host);
+    emit('host:change', { host: name });
+    const group = solicitedNode(addr);
+    transmit(host, {
+      dst: multicastMac(group),
+      src: host.mac,
+      type: ETHERTYPE_IPV6,
+      ip: { src: UNSPECIFIED, dst: group, ttl: ND_HOP_LIMIT },
+      nd: { type: ND_NS, target: addr },
+      flow: sim.flowId(),
+    });
+    log(
+      `${name} sends a Neighbor Solicitation from the unspecified address :: to ${group}: is anyone using ${addr}? It can't use the address as a source until the check passes.`,
+    );
+    schedule(ROUND_TRIP_MS + RETRANS_MS, () => {
+      if (host.tentative !== addr) return; // a defence arrived first
+      host.tentative = null;
+      host.global = addr;
+      joinGroups(host);
+      emit('dad:ok', { host: name, ip: addr, time: state.clock });
+      emit('host:change', { host: name });
+      log(`No one answered within a second: ${addr} is unique on this link, and ${name} starts using it.`);
+      if (announce) {
+        log(
+          `${name} sends an unsolicited Neighbor Advertisement to all nodes (${ALL_NODES}): ${addr} is now at ${host.mac}. Its Override flag tells neighbors that already have ${addr} to switch to the new MAC.`,
+        );
+        advertise(host, addr, sim.flowId());
+      }
+    });
+  }
+
+  /**
+   * Failover: a standby takes over an address (DAD, then an unsolicited NA).
+   * @param {string} name
+   * @param {string} addr
+   */
+  function takeOver(name, addr) {
+    claimIp(
+      name,
+      addr,
+      `${name}, the standby, stops hearing from the host that had ${normalize(addr)} and takes the address over.`,
+      {
+        announce: true,
+      },
+    );
   }
 
   /** @param {Host} host @param {Frame} frame */
@@ -607,6 +748,8 @@ export function createEngine({ reachableMs = DEFAULT_REACHABLE_MS } = {}) {
     emit,
     send,
     fail,
+    claimIp,
+    takeOver,
     primeCache,
     setReachableMs,
     tick: sim.tick,

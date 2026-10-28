@@ -18,6 +18,9 @@ function record(engine) {
     'cache:stale',
     'cache:expire',
     'nd:unreachable',
+    'dad:ok',
+    'dad:duplicate',
+    'host:change',
     'log',
   ]) {
     engine.on(event, (payload) => seen.push({ event, payload }));
@@ -259,5 +262,86 @@ describe('rules and settings', () => {
     engine.send('H1', G2);
     engine.runUntilIdle();
     expect(r.of('nd:unreachable')).toHaveLength(1);
+  });
+});
+
+describe('Duplicate Address Detection (RFC 4862)', () => {
+  const G3 = '2001:db8:0:1::13';
+
+  it('H3 joins: asks from :: with no MAC option, waits, then uses the address', () => {
+    const engine = createEngine();
+    const r = record(engine);
+    engine.claimIp('H3', G3);
+    expect(engine.state.hosts.H3).toMatchObject({ global: null, tentative: G3 });
+    expect(r.sent()[0].frame).toMatchObject({
+      dst: '33:33:ff:00:00:13',
+      ip: { src: '::', dst: 'ff02::1:ff00:13', ttl: 255 },
+      nd: { type: 135, target: G3 },
+    });
+    expect(r.sent()[0].frame.nd.lla).toBeUndefined();
+    engine.runUntilIdle();
+    expect(r.of('dad:ok')).toEqual([{ host: 'H3', ip: G3, time: ROUND_TRIP_MS + RETRANS_MS }]);
+    expect(engine.state.hosts.H3).toMatchObject({ global: G3, tentative: null });
+    expect(r.of('host:change')).toHaveLength(2);
+    for (const host of Object.values(engine.state.hosts)) expect(host.neighbors.size).toBe(0);
+  });
+
+  it('an owner defends its address; the newcomer marks it duplicate and never uses it', () => {
+    const engine = createEngine();
+    engine.primeCache('H1', G2);
+    engine.primeCache('R1', G2);
+    const r = record(engine);
+    engine.claimIp('H3', G2);
+    engine.runUntilIdle();
+    const defence = r.sent().find((hop) => hop.from === 'H2')?.frame;
+    expect(defence).toMatchObject({
+      dst: '33:33:00:00:00:01',
+      ip: { src: G2, dst: 'ff02::1', ttl: 255 },
+      nd: { type: 136, target: G2, lla: MAC.H2, solicited: false, override: true },
+    });
+    expect(r.of('dad:duplicate')).toEqual([{ host: 'H3', ip: G2, mac: MAC.H2, time: 4 * HOP_MS }]);
+    expect(engine.state.hosts.H3).toMatchObject({ global: null, tentative: null, duplicate: G2 });
+    expect(r.of('dad:ok')).toEqual([]);
+    // Nobody's traffic moves: H1 and R1 still have H2's MAC, and H2 cached nothing from ::.
+    expect(engine.state.hosts.H1.neighbors.get(G2)?.mac).toBe(MAC.H2);
+    expect(engine.state.hosts.R1.neighbors.get(G2)?.mac).toBe(MAC.H2);
+    expect(engine.state.hosts.H2.neighbors.size).toBe(0);
+    expect(r.sent().filter((hop) => hop.from === 'H3' && hop.frame.ip.src === G2)).toEqual([]);
+  });
+});
+
+describe('unsolicited Neighbor Advertisement', () => {
+  it('updates an entry that exists, as STALE with the new MAC, and is ignored where there is none', () => {
+    const engine = createEngine();
+    engine.primeCache('H1', G2);
+    const r = record(engine);
+    engine.fail('H2');
+    engine.takeOver('H3', G2);
+    engine.runUntilIdle();
+    const na = r.sent().find((hop) => hop.from === 'H3' && hop.frame.nd?.type === 136)?.frame;
+    expect(na).toMatchObject({
+      dst: '33:33:00:00:00:01',
+      ip: { src: G2, dst: 'ff02::1' },
+      nd: { solicited: false, override: true, lla: MAC.H3 },
+    });
+    expect(engine.state.hosts.H1.neighbors.get(G2)).toEqual({ mac: MAC.H3, state: 'STALE' });
+    expect(engine.state.hosts.R1.neighbors.has(G2)).toBe(false);
+    expect(r.text()).toMatch(/R1 has no entry for 2001:db8:0:1::12, so it ignores the advertisement/);
+  });
+
+  it('failover: after the takeover, a ping to the address is answered by H3, confirmed by a check', () => {
+    const engine = createEngine();
+    engine.primeCache('H1', G2);
+    engine.primeCache('R1', G2);
+    engine.fail('H2');
+    engine.takeOver('H3', G2);
+    engine.runUntilIdle();
+    const r = record(engine);
+    engine.send('H1', G2);
+    engine.runUntilIdle();
+    expect(r.sent()[0].frame).toMatchObject({ dst: MAC.H3, app: 'ping' });
+    expect(r.sent()[1].frame).toMatchObject({ dst: MAC.H3, nd: { type: 135, target: G2 } });
+    expect(engine.state.hosts.H1.neighbors.get(G2)).toMatchObject({ mac: MAC.H3, state: 'REACHABLE' });
+    expect(r.text()).toMatch(/H3 receives a ping \(ICMPv6 echo request\) from 2001:db8:0:1::11/);
   });
 });
