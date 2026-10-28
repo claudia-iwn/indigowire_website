@@ -135,6 +135,16 @@ export function appLabel({ app = 'ping', reply = false }) {
 }
 
 /**
+ * A frame's kind, for its colour and the hop table.
+ * @param {{ arp?: ArpPayload }} frame
+ * @returns {'request' | 'reply' | 'data'}
+ */
+export function frameKind(frame) {
+  if (!frame.arp) return 'data';
+  return frame.arp.oper === ARP_REQUEST ? 'request' : 'reply';
+}
+
+/**
  * The 14-byte Ethernet header of a data frame (EtherType IPv4).
  * @param {DataFrame} frame
  * @returns {Uint8Array}

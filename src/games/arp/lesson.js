@@ -2,11 +2,11 @@
  * The Learn mode's guided lesson (spec section 6, "Modes"): H1 pings H2 with empty
  * caches, then pings again. DOM-free, like the engine.
  *
- * Each step has a caption and the engine event it ends on. Live, the controller plays
- * the clock until that event fires (watchStep) and pauses. Back rebuilds the lesson in
- * a fresh engine and jumps straight to the step before (playTo). The engine always does
- * the same thing for the same input, so the rebuilt state is exact.
+ * Each step has a caption and the engine event it ends on; the shared playback
+ * (src/games/lan/lesson.js) plays to it.
  */
+
+import { playLesson, tickToward, watchStep } from '../lan/lesson.js';
 
 /** @typedef {ReturnType<typeof import('./engine.js').createEngine>} Engine */
 
@@ -93,36 +93,7 @@ export const LESSON = [
   },
 ];
 
-/**
- * Call `onDone` once when `step`'s ending event fires.
- * @param {Engine} engine
- * @param {LessonStep} step
- * @param {() => void} onDone
- * @returns {() => void} Unsubscribe.
- */
-export function watchStep(engine, step, onDone) {
-  if (!step.until) return () => {};
-  const { event, match } = step.until;
-  let fired = false;
-  return engine.on(event, (payload) => {
-    if (!fired && match(payload)) {
-      fired = true;
-      onDone();
-    }
-  });
-}
-
-/**
- * Advance the clock by up to `ms`, but stop exactly on the next queued event, so a step
- * can end on the moment its event happens.
- * @param {Engine} engine
- * @param {number} ms
- */
-export function tickToward(engine, ms) {
-  const next = engine.nextEventAt();
-  const now = engine.state.clock;
-  engine.tick(next !== null && next <= now + ms ? next - now : ms);
-}
+export { watchStep, tickToward };
 
 /**
  * Run the lesson instantly from the end of step `from` to the end of step `to`.
@@ -131,13 +102,5 @@ export function tickToward(engine, ms) {
  * @param {number} [from]  The step the engine is already at (0 for a fresh engine).
  */
 export function playTo(engine, to, from = 0) {
-  for (let n = from + 1; n <= to; n++) {
-    const step = LESSON[n];
-    let done = false;
-    const off = watchStep(engine, step, () => (done = true));
-    step.start?.(engine);
-    // Jump from event to event; stop if the engine runs dry (it shouldn't).
-    while (!done && !engine.isIdle()) tickToward(engine, Infinity);
-    off();
-  }
+  playLesson(engine, LESSON, to, from);
 }
