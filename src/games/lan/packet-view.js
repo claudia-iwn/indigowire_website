@@ -1,13 +1,11 @@
 /**
- * The packet breakout panel (spec section 6, "View"): one frame shown as
- *  - a strip of its parts (Ethernet header, ARP or IPv4, padding, FCS), coloured by layer,
+ * The packet breakout panel (spec sections 6 and 13), shared by the LAN games: one frame shown as
+ *  - a strip of its parts (Ethernet header, inner headers, padding, FCS), coloured by layer,
  *  - its inner header zoomed into 32-bit rows, the way RFCs draw it,
  *  - its bytes as a hex dump, linked to the fields both ways, and
  *  - the hop table: what each device did to the exchange's frames.
- * DOM code; the layouts come from breakdown() and hopRows(), which are tested without a browser.
+ * DOM code; each game supplies its layouts (breakdown) and bytes, which are tested without a browser.
  */
-import { arpFields, breakdown, dataFields, describeFrame, encodeArpFrame, encodeEthernetHeader } from './frames.js';
-
 /**
  * @template {keyof HTMLElementTagNameMap} K
  * @param {K} tag
@@ -21,14 +19,24 @@ function html(tag, attrs = {}, text) {
   return el;
 }
 
-/** @param {any} frame */
-const kindOf = (frame) => (frame.arp ? (frame.arp.oper === 1 ? 'request' : 'reply') : 'data');
+/**
+ * What a game tells the packet view.
+ * @typedef {object} PacketGame
+ * @property {(frame: any) => string} kindOf
+ * @property {(frame: any) => string} describe
+ * @property {(frame: any) => { strip: any[], zoom: { title: string, layer: string, rows: any[][] } }} breakdown
+ * @property {(frame: any) => { name: string, value: string, offset: number, length: number }[]} fields
+ * @property {(frame: any) => Uint8Array} bytes
+ * @property {(frame: any, bytes: Uint8Array) => string} bytesSummary  The "Bytes" fold's summary line.
+ * @property {(row: import('./hops.js').HopRow) => string} hopFrame  The hop table's Frame column.
+ * @property {string} hopName  The hop table's TTL column heading.
+ */
 
 /**
  * @param {HTMLElement} panel  The (initially empty) packet panel.
- * @param {{ onFollow: () => void }} options  Called when the visitor goes back to following the latest frame.
+ * @param {{ onFollow: () => void, game: PacketGame }} options  onFollow is called when the visitor goes back to following the latest frame.
  */
-export function mountPacketView(panel, { onFollow }) {
+export function mountPacketView(panel, { onFollow, game }) {
   const head = html('div', { class: 'packet-head' });
   const title = html('h2', { id: 'packet-title' }, 'Packet view');
   const status = html('p', { class: 'packet-status' });
@@ -54,18 +62,17 @@ export function mountPacketView(panel, { onFollow }) {
    * @param {boolean} pinned  True when the visitor picked it; false when following the latest frame.
    */
   function show(frame, pinned) {
-    const kind = kindOf(frame);
+    const kind = game.kindOf(frame);
     panel.dataset.kind = kind;
-    title.textContent = describeFrame(frame);
+    title.textContent = game.describe(frame);
     follow.hidden = !pinned;
     status.textContent = pinned
       ? 'Pinned, and the simulation is paused. Hover or focus any field to see its bytes.'
       : 'Following the latest frame. Select a frame on the diagram, or Inspect in the log, to pin it.';
 
-    const { strip, zoom } = breakdown(frame);
-    const isArp = Boolean(frame.arp);
-    const fields = isArp ? arpFields(frame) : dataFields(frame);
-    const bytes = isArp ? encodeArpFrame(frame) : encodeEthernetHeader(frame);
+    const { strip, zoom } = game.breakdown(frame);
+    const fields = game.fields(frame);
+    const bytes = game.bytes(frame);
     body.replaceChildren();
 
     // 1. The whole frame as a strip of blocks, widths by byte count.
@@ -108,13 +115,7 @@ export function mountPacketView(panel, { onFollow }) {
 
     // 3. Field tree and hex dump, folded away by default to keep the panel short.
     const details = html('details', { class: 'bytes' });
-    details.append(
-      html(
-        'summary',
-        {},
-        isArp ? `Bytes: all ${bytes.length} on the wire (without the FCS)` : 'Bytes: the 14-byte Ethernet header',
-      ),
-    );
+    details.append(html('summary', {}, game.bytesSummary(frame, bytes)));
     const split = html('div', { class: 'bytes-body' });
     const tree = html('ol', { class: 'fields' });
     fields.forEach((field, i) => {
@@ -159,7 +160,7 @@ export function mountPacketView(panel, { onFollow }) {
     const wrap = html('div', { class: 'table-wrap' });
     const table = html('table');
     const headRow = html('tr');
-    for (const name of ['Hop', 'Frame', 'Eth dst', 'Eth src', 'IP src → dst', 'TTL', 'What happened']) {
+    for (const name of ['Hop', 'Frame', 'Eth dst', 'Eth src', 'IP src → dst', game.hopName, 'What happened']) {
       headRow.append(html('th', { scope: 'col' }, name));
     }
     table.append(headRow);
@@ -177,7 +178,7 @@ export function mountPacketView(panel, { onFollow }) {
       };
       tr.append(
         td(`${row.from} → ${row.to.join(', ')}`),
-        td(row.kind === 'data' ? row.frame.app : `ARP ${row.kind}`),
+        td(game.hopFrame(row)),
         td(row.ethDst, 'ethDst'),
         td(row.ethSrc, 'ethSrc'),
         td(row.ip ? `${row.ip.src} → ${row.ip.dst}` : '—'),
