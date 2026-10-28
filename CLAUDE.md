@@ -18,7 +18,7 @@ Static Astro site for Indigo Wire Networks (Claudia de Luna, network engineer/ar
 | Lint (ESLint, Prettier, ruff) | `npm run lint`; auto-fix with `npm run format` |
 | Everything (lint + Vitest + pytest + build + Playwright) | `npm run check` — must pass before any commit |
 | Lighthouse (N1/N3, mobile) | `npm run lighthouse` — run before closing a milestone; reports in `lighthouse-reports/` |
-| Test the live site | `BASE_URL=https://indigowire-website.claudia-b4a.workers.dev npm run test:e2e` (or `node scripts/lighthouse.mjs`) |
+| Test the live site | `BASE_URL=https://indigowire.net npm run test:e2e` (also run it against `https://indigowire-website.claudia-b4a.workers.dev`, which has one extra test: its `noindex` header); `BASE_URL=https://indigowire.net node scripts/lighthouse.mjs` |
 | Share cards (Open Graph images) | `npm run og` (builds, then writes `public/og/*.jpg`; commit them) |
 | Validate a Spark entry | `uv run scripts/validate_spark.py <entry.md \| image.webp \| dir>` |
 | One publisher pass (no push) | `uv run scripts/spark_publisher.py --once --dry-run` (stub until M3) |
@@ -35,6 +35,10 @@ As of 27 October 2026, the site is built through M7 except for the items below; 
   - Analytics (R15): no `src/analytics.js` yet, and no beacon in `BaseLayout` (`TODO(M1)`). The ARP and Spark events wait on the PostHog key.
   - M3: `scripts/spark_publisher.py` is still a `STUB`; the gallery tag filter is a `TODO(M3)`; the build-fails-on-a-bad-entry check is not automated.
   - M6: Break-it mode, held for its own design pass and kept at the conceptual, simulation-only level in spec section 6. Then the accessibility and Lighthouse pass.
+- **Next up:** the IPv6 Neighbor Discovery game (chapter 4, IPv6), marked `next: true` in `src/content/path.yaml`. It gets its own design pass, like ARP; when it ships, set `entry:` on that lesson and move `next: true` to the following one.
+- **Owner tasks outside the repo** (checklists in spec section 9, "Security" and "Search and AI search"): tighten DMARC from about 10 November 2026 after checking the reports in Cloudflare's DMARC Management; rotate the Microsoft 365 DKIM keys to 2048 bits; submit `https://indigowire.net/sitemap.xml` in Google Search Console and set up Bing Webmaster Tools; replace or mark `draft: true` the three sample Spark entries; create the Hermes deploy key (M0). Keep Bot Fight Mode off and the Google verification TXT record in place.
+- **Working agreement:** commit only when the owner says "commit and push"; for multi-task work, a local branch with per-task commits is fine, merged to `main` on that word.
+- **Setting up another machine:** see `README.md`. Besides Node and uv, the tests and Lighthouse need Google Chrome installed (Playwright runs with `channel: 'chrome'`; `scripts/lighthouse.mjs` assumes macOS's Chrome path, so set `CHROME_PATH` elsewhere). Remaking the hero video needs `ffmpeg` and `cwebp`. Git-ignored local files (the `images/` logo archive, the old spec copy, the Spark addendum) are not in the repo; nothing in the build needs them.
 
 The header logo is `public/logo.svg` / `logo-dark.svg`, converted from the PDF master with `pdftocairo -svg`, cropped to the artwork, and recolored for dark mode (navy → white, indigo → `#B8C4FF`, copper unchanged). Favicons and app icons (`public/favicon.svg`, `favicon.ico`, `apple-touch-icon.png`, `icon-192/512.png`) come from the logo's circular mark. `docs/SPEC.md` is canonical; the root `indigowire.net Site Specification_SPEC.md` is an untracked local copy; never edit it. Where `spark-art-github-publishing-and-operations-addendum.md` conflicts with the spec (Cloudflare Pages, a `site/` + `gallery.json` layout), the spec wins.
 

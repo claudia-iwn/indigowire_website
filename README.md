@@ -9,6 +9,8 @@ git clone https://github.com/claudia-iwn/indigowire_website.git
 cd indigowire_website
 npm install        # Node LTS
 uv sync            # Python content scripts
+# Tests and Lighthouse also need Google Chrome installed (Playwright uses channel 'chrome';
+# outside macOS set CHROME_PATH for scripts/lighthouse.mjs).
 npm run dev        # http://localhost:4321
 npm run check      # lint + Vitest + pytest + build + Playwright
 ```
