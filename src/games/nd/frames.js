@@ -20,7 +20,8 @@ const OPT_SOURCE_LLA = 1;
 const OPT_TARGET_LLA = 2;
 
 /**
- * @typedef {{ type: 135 | 136, target: string, lla?: string, router?: boolean, solicited?: boolean, override?: boolean }} NdMessage
+ * @typedef {{ type: 135 | 136, target: string, lla?: string, router?: boolean, solicited?: boolean, override?: boolean, defends?: boolean }} NdMessage
+ *   `defends` is not on the wire: it marks an NA that answers a DAD NS, so the game can name it.
  *   `lla` is the link-layer address option: the sender's MAC in an NS (none in a DAD NS), the target's in an NA.
  * @typedef {object} NdFrame
  * @property {number} id
@@ -208,6 +209,7 @@ export function describeFrame(frame) {
     if (ip.dst === nd.target) return `Neighbor Solicitation (check): are you still ${nd.target}?`;
     return `Neighbor Solicitation: who has ${nd.target}?`;
   }
+  if (nd?.defends) return `Neighbor Advertisement (DAD defence): ${nd.target} is already at ${nd.lla}`;
   if (nd) return `${nd.solicited ? '' : 'Unsolicited '}Neighbor Advertisement: ${nd.target} is at ${nd.lla}`;
   const { short, long } = appLabel(frame);
   return `${short} (${long}): ${ip.src} → ${ip.dst}`;
@@ -240,6 +242,7 @@ export function frameNotes(frame) {
       `The destination MAC ${frame.dst} is made from the destination address ${frame.ip.dst}: 33:33 and its last 32 bits.`,
     );
   }
+  if (frame.nd.defends) notes.push('Solicited 0: the asker uses ::, so the answer goes to all nodes.');
   return notes;
 }
 

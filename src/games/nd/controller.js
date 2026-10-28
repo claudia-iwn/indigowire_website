@@ -5,17 +5,20 @@
  */
 import { startLanSimulator } from '../lan/controller.js';
 import { createEngine, DEFAULT_REACHABLE_MS } from './engine.js';
-import { isMulticast, normalize } from './ipv6.js';
+import { isLoopback, isMulticast, normalize } from './ipv6.js';
 import { LESSON, playTo } from './lesson.js';
 import { mountRenderer } from './renderer.js';
 
 const H2_ADDR = '2001:db8:0:1::12';
 
-/** @param {string} text  The error to show, or null when the address can be sent to. */
+/**
+ * @param {string} text
+ * @returns {string | null}  The error to show, or null when the address can be sent to.
+ */
 function checkAddress(text) {
   const addr = normalize(text);
   if (!addr) return 'Enter an IPv6 address, such as 2001:db8:0:1::12.';
-  if (addr === '::' || isMulticast(addr))
+  if (addr === '::' || isLoopback(addr) || isMulticast(addr))
     return 'Enter a unicast address: the game sends to one device, not :: or a group.';
   return null;
 }
@@ -80,7 +83,7 @@ function setupModes({ find, engine, view, remount, setPlaying }) {
           H2_ADDR,
           'Meanwhile, on H3, someone sets a static address of 2001:db8:0:1::12, which is H2’s.',
         ),
-      'H2 defends its address, so H3 refuses it. H1’s and R1’s caches never change: nobody’s traffic goes to the wrong host.',
+      'H2 defends its address, so H3 refuses it. H1’s and R1’s caches never change: nobody’s traffic goes to the wrong host. H3 keeps only fe80::13 for now.',
       true,
     ),
   );

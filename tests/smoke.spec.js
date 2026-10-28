@@ -847,7 +847,20 @@ test.describe('How IPv6 Neighbor Discovery works (R18, section 13)', () => {
   }
 
   test('a first ping fills both neighbor caches, H3’s card drops the solicitation', async ({ page }) => {
-    await sendAndStep(page, '2001:db8:0:1::12', 'H1 learns that 2001:db8:0:1::12');
+    // H3's card drops the solicitation (a short-lived note on the diagram), so watch for it while stepping.
+    const dropNote = page.locator('.note', { hasText: 'not my group (network card)' });
+    let dropped = false;
+    await page.goto('/learn/nd');
+    await page.getByRole('button', { name: 'Pause' }).click();
+    await page.getByLabel('To IPv6 address').fill('2001:db8:0:1::12');
+    await page.getByRole('button', { name: 'Send', exact: true }).click();
+    const step = page.getByRole('button', { name: 'Step' });
+    for (let i = 0; i < 40 && (await step.isEnabled()); i++) {
+      if ((await page.locator('.log').textContent())?.includes('H1 learns that 2001:db8:0:1::12')) break;
+      await step.click();
+      dropped ||= (await dropNote.count()) > 0;
+    }
+    expect(dropped).toBe(true);
     await expect(page.locator('.cache[data-host="H1"]')).toContainText('REACHABLE');
     await expect(page.locator('.cache[data-host="H2"]')).toContainText('STALE');
     await expect(page.locator('.log')).toContainText('solicited-node group, ff02::1:ff00:12 (33:33:ff:00:00:12)');

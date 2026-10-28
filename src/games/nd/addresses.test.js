@@ -9,7 +9,10 @@ const FILES = [
 ];
 const MAC = /\b(?:[0-9a-f]{2}:){5}[0-9a-f]{2}\b/gi;
 // Any run of hex digits and colons containing a colon; parseIpv6 below decides whether it is an address.
-const IPV6 = /(?<![\w:])[0-9a-f:]*:[0-9a-f:]*(?![\w:/])/gi; // not followed by "/": ff00::/8 is a prefix in a comment
+const IPV6 = /(?<![\w:])[0-9a-f:]*:[0-9a-f:]*(?![\w:])/gi; // an `addr/len` prefix is checked by its address part
+
+// The interface IDs the page names for H1-H3 and the unused host; any other short form (loopback, say) is still checked.
+const SHORTHAND = /^::(11|12|13|99)$/i;
 
 /** @param {string} addr */
 function allowed(addr) {
@@ -29,9 +32,10 @@ describe('example addresses (CLAUDE.md, spec section 3)', () => {
       for (const candidate of withoutMacs.match(IPV6) ?? []) {
         // The lesson text says "::12" for H2's interface ID, and a comment mentions "::ffff:192.0.2.1":
         // short forms of a part of an address, not addresses.
-        if (/^::[0-9a-f]{1,4}$/i.test(candidate) || /^::ffff:192$/i.test(candidate)) continue;
+        if (SHORTHAND.test(candidate) || /^::ffff:192$/i.test(candidate)) continue;
         if (!parseIpv6(candidate)) continue; // a time, a ratio, a CSS selector: not an address
-        expect(allowed(candidate), candidate).toBe(true);
+        // The one prefix the sources mention besides the allowed ranges is ff00::/8 (all multicast).
+        expect(allowed(candidate) || candidate === 'ff00::', candidate).toBe(true);
       }
     });
   }

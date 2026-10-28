@@ -287,7 +287,7 @@ export function createEngine({ reachableMs = DEFAULT_REACHABLE_MS } = {}) {
       log(
         `${host.name} already uses ${nd.target}, so it defends it: a Neighbor Advertisement to all nodes saying ${nd.target} is at ${host.mac}.`,
       );
-      advertise(host, nd.target, frame.flow);
+      advertise(host, nd.target, frame.flow, { defends: true });
       return;
     }
     if (!owns(host, nd.target)) return drop(host, frame, 'not my address');
@@ -381,8 +381,9 @@ export function createEngine({ reachableMs = DEFAULT_REACHABLE_MS } = {}) {
    * @param {Host} host
    * @param {string} addr
    * @param {number} flow
+   * @param {{ defends?: boolean }} [options]  defends: this answers a DAD NS (named in the game, not on the wire).
    */
-  function advertise(host, addr, flow) {
+  function advertise(host, addr, flow, options = {}) {
     transmit(host, {
       dst: ALL_NODES_MAC,
       src: host.mac,
@@ -395,6 +396,7 @@ export function createEngine({ reachableMs = DEFAULT_REACHABLE_MS } = {}) {
         router: host.role === 'gateway',
         solicited: false,
         override: true,
+        ...(options.defends ? { defends: true } : {}),
       },
       flow,
     });

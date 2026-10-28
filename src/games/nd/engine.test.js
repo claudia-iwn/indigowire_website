@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { checkNd, createEngine, HOP_MS, MAX_SOLICIT, RETRANS_MS, ROUND_TRIP_MS, TOPOLOGY } from './engine.js';
+import {
+  checkNd,
+  createEngine,
+  DEFAULT_REACHABLE_MS,
+  HOP_MS,
+  MAX_SOLICIT,
+  RETRANS_MS,
+  ROUND_TRIP_MS,
+  TOPOLOGY,
+} from './engine.js';
 
 const MAC = Object.fromEntries(TOPOLOGY.nodes.map((n) => [n.name, n.mac])); // name -> MAC
 const G1 = '2001:db8:0:1::11';
@@ -167,6 +176,19 @@ describe('resolving a neighbour', () => {
     ).toEqual(['ping', 'NS']);
   });
 
+  it('three unanswered checks delete a STALE entry (spec section 13, item 7)', () => {
+    const engine = createEngine();
+    const r = record(engine);
+    engine.primeCache('H1', G2);
+    engine.tick(DEFAULT_REACHABLE_MS); // REACHABLE ages into STALE
+    expect(engine.state.hosts.H1.neighbors.get(G2)?.state).toBe('STALE');
+    engine.fail('H2');
+    engine.send('H1', G2);
+    engine.runUntilIdle();
+    expect(r.of('cache:expire')).toEqual([{ host: 'H1', ip: G2 }]);
+    expect(engine.state.hosts.H1.neighbors.has(G2)).toBe(false);
+  });
+
   it('an unused address gets three solicitations, then "address unreachable"', () => {
     const engine = createEngine();
     const r = record(engine);
@@ -297,7 +319,7 @@ describe('Duplicate Address Detection (RFC 4862)', () => {
     expect(defence).toMatchObject({
       dst: '33:33:00:00:00:01',
       ip: { src: G2, dst: 'ff02::1', ttl: 255 },
-      nd: { type: 136, target: G2, lla: MAC.H2, solicited: false, override: true },
+      nd: { type: 136, target: G2, lla: MAC.H2, solicited: false, override: true, defends: true },
     });
     expect(r.of('dad:duplicate')).toEqual([{ host: 'H3', ip: G2, mac: MAC.H2, time: 4 * HOP_MS }]);
     expect(engine.state.hosts.H3).toMatchObject({ global: null, tentative: null, duplicate: G2 });

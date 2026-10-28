@@ -741,7 +741,7 @@ Measured 26 October 2026:
 Decided October 2026, M6. A link to any page shows a preview card on Bluesky, LinkedIn, Slack and the like.
 
 - **Tags on every page** (`BaseLayout`): `og:title`, `og:description`, `og:url`, `og:type`, `og:site_name`, `og:image` with its `width`, `height` and `alt`, and `twitter:card` = `summary_large_image`. Image URLs are absolute on `site.url` (`https://indigowire.net`).
-- **Which image:** Spark permalinks share their own image, as a 1200 px JPEG from `getImage` (LinkedIn does not reliably take WebP). Every other page uses one of four cards, listed with their alt text in `shareCards` in `src/site.config.js`:
+- **Which image:** Spark permalinks share their own image, as a 1200 px JPEG from `getImage` (LinkedIn does not reliably take WebP). Every other page uses one of five cards, listed with their alt text in `shareCards` in `src/site.config.js`:
 
 | Card | Used by | Picture |
 | --- | --- | --- |
@@ -1204,7 +1204,7 @@ Built on the shared core. State per host: addresses, joined groups, and `neighbo
 6. **No answer.** The NS is retried 3 times, 1 s apart (simulated, and actually sent), then the packet is dropped with "address unreachable" (ICMPv6 type 1, code 3) shown at the sender (`nd:unreachable`).
 7. **Cache states.** REACHABLE lasts `reachableMs` (default 30 s, slider 10–300 s), then turns STALE (`cache:stale`). Using a STALE entry sends the packet at once, then a unicast NS probe to the cached MAC; a note says real hosts wait 5 s first (the DELAY state). A solicited NA makes it REACHABLE again; three unanswered probes delete the entry (`cache:expire`). STALE entries don't age out in the game. SW1's MAC table ages at a fixed 60 s (`MAC_AGE_MS`); the slider sets only the reachable time. Timing rule: timers start after a 4-hop round trip, so "a second apart" shows as 3.4 s of simulated time between the three solicitations.
 8. **Hop limit 255.** A host drops any NS or NA whose hop limit isn't 255, so ND can't come from off the link.
-9. **Duplicate Address Detection** (RFC 4862). A host joins the solicited-node group of its tentative address and sends an NS from `::`, with no link-layer option, then waits 1 s. No answer: the address becomes usable (`dad:ok`). An owner defends with an NA to `ff02::1`, Solicited 0, Override 1; the host marks the address duplicate and never uses it (`dad:duplicate`). Nobody caches anything from a DAD NS.
+9. **Duplicate Address Detection** (RFC 4862). A host joins the solicited-node group of its tentative address and sends an NS from `::`, with no link-layer option, then waits 1 s. No answer: the address becomes usable (`dad:ok`). An owner defends with an NA to `ff02::1`, Solicited 0, Override 1 (it answers the DAD NS; it goes to all nodes only because the asker, `::`, can't be answered directly; the game labels it "DAD defence" through an off-the-wire `defends` field); the host marks the address duplicate and never uses it (`dad:duplicate`). Nobody caches anything from a DAD NS.
 10. **Unsolicited NA.** Sent to `ff02::1`, Solicited 0, Override 1. A host that already has an entry for the address updates the MAC and sets it STALE; a host without one ignores it (unlike Gratuitous ARP), and the log says so.
 11. **Events:** those of section 6 (with `cache:update` carrying `state`), plus `cache:stale`, `nd:unreachable`, `dad:ok`, `dad:duplicate`. Every frame carries a `flow` number, as in ARP.
 12. **Calls:** `send(src, dst, app)`, `fail(name)`, `claimIp(name, addr, why?)` (runs DAD), `takeOver(name, addr)` (DAD, then an unsolicited NA), `primeCache(name, addr)`, `setReachableMs(ms)` (clamped to 10–300 s), `tick(ms)`, `runUntilIdle()`, `isIdle()`.
@@ -1239,7 +1239,7 @@ The switcher holds Learn, Sandbox (the default) and "DAD and unsolicited NA"; th
 
 ### Page
 
-- `src/content/learn/nd.md`: title "How IPv6 Neighbor Discovery works", `component: nd`, tags `ipv6`, `neighbor-discovery`, `layer-2` (the first two added to `tags.yaml`). The page carries the addressing note and, at the end, an **ARP vs ND** table: broadcast vs multicast; its own EtherType vs ICMPv6; entries that expire vs entries that turn STALE; Gratuitous ARP vs unsolicited NA plus DAD.
+- `src/content/learn/nd.md`: title "How IPv6 Neighbor Discovery works", `component: nd`, tags `ipv6`, `neighbor-discovery`, `layer-2` (the first two added to `tags.yaml`). The page carries the addressing note and, at the end, an **ARP vs ND** table: broadcast vs multicast; its own EtherType vs ICMPv6; entries that expire vs entries that turn STALE; Gratuitous ARP vs unsolicited NA plus DAD (ARP: optional probes before use on most systems, RFC 5227, or a conflict noticed later; ND: Duplicate Address Detection always, RFC 4862).
 - **Cache panel columns:** address, MAC, state, with a countdown bar while REACHABLE.
 - **Narrow layout:** below the wide breakpoint the hosts sit two to a row (not three) so the IPv6 lines fit. The ARP page's Learn lesson nav now links to the ND lesson, the next available lesson in course order.
 - **Course placement:** set `entry: nd` on the chapter 4 lesson in `path.yaml` and move `next: true` to the following lesson ("Try it for real: ARP in Containerlab"). Breadcrumbs, place line and previous/next come from section 12. A share card from `npm run og`; `/learn/nd` joins the Lighthouse page list.
@@ -1260,6 +1260,18 @@ The switcher holds Learn, Sandbox (the default) and "DAD and unsolicited NA"; th
 - [x] Learn steps through all 9 steps with Next and Back.
 - [x] Everything else in section 6's criteria that isn't ARP-specific: keyboard, reduced motion, 360 px, legend, "You", colours by kind, packet view, CSP and search tests, Lighthouse 100s.
 - [x] A test checks the ND sources use only IPv6 addresses in `2001:db8::/32`, `fe80::/10`, `ff02::/16` or `::`, and only MACs `00:00:5e:00:53:xx` or `33:33:xx:xx:xx:xx`.
+
+**LAN core polish (later).** Deferred after the final review of M8 Stage 2:
+
+- A failed host stops retrying (ND and ARP).
+- R1's upstream address counts as R1's own.
+- The renderer looks up the lifetime once per frame, and the `cache:stale` handler is duplicated.
+- The ARP engine is typed as `LanEngine`.
+- Test the breakdown field indices against `frameFields`.
+- Tests for RFC 5952 "second run longer" and for the solicited-node byte 13.
+- The ARP vs ND table has an empty corner header cell and the noscript table has no caption.
+- The hop note should name the device in "answers only".
+- `make_og_images` depends on button names.
 
 ## Sources
 

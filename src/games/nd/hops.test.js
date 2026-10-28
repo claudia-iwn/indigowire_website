@@ -46,6 +46,15 @@ describe('hopRows', () => {
     ]);
   });
 
+  it('names a DAD defence as an answer to the asker, not an announcement', () => {
+    const rows = hopRows(
+      hopsOf((e) => e.claimIp('H3', '2001:db8:0:1::12')),
+      nameOf,
+    );
+    const note = rows.find((r) => r.from === 'H2')?.note ?? '';
+    expect(note).toContain('H2 defends 2001:db8:0:1::12: tells all nodes it is at 00:00:5e:00:53:12.');
+  });
+
   it('marks what R1 rebuilt with the hop limit', () => {
     const rows = hopRows(
       hopsOf((e) => e.send('H1', '2001:db8:8888::8')),

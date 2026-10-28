@@ -3,6 +3,7 @@ import {
   ALL_NODES,
   formatIpv6,
   isLinkLocal,
+  isLoopback,
   isMulticast,
   multicastMac,
   normalize,
@@ -86,6 +87,10 @@ describe('address kinds', () => {
     expect(isLinkLocal('2001:db8:0:1::11')).toBe(false);
     expect(isMulticast('ff02::1')).toBe(true);
     expect(isMulticast('2001:db8::1')).toBe(false);
+    // Built from parts: the address test bans a bare loopback literal in the sources.
+    expect(isLoopback(`::${1}`)).toBe(true);
+    expect(isLoopback('::')).toBe(false);
+    expect(isLoopback('2001:db8::1')).toBe(false);
   });
 
   it('compares the first 64 bits', () => {

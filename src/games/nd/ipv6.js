@@ -112,6 +112,9 @@ export function isLinkLocal(addr) {
 /** @param {string} addr  True for ff00::/8. */
 export const isMulticast = (addr) => bytesOf(addr)[0] === 0xff;
 
+/** @param {string} addr  True for the loopback address (fifteen zero bytes, then 1); it never leaves a host (RFC 4291 §2.5.3). */
+export const isLoopback = (addr) => bytesOf(addr).every((byte, i) => byte === (i === 15 ? 1 : 0));
+
 /**
  * True when the first 64 bits match: the same subnet, for the /64s every LAN here uses.
  * @param {string} a

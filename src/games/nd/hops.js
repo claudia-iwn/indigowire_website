@@ -22,6 +22,7 @@ function origin(frame, from, row) {
     if (ip.dst === nd.target) return `${from} checks that ${nd.target} is still at ${row.ethDst}.`;
     return `${from} asks ${nd.target}’s solicited-node group, ${ip.dst}: who has ${nd.target}?`;
   }
+  if (nd.defends) return `${from} defends ${nd.target}: tells all nodes it is at ${nd.lla}.`;
   if (!nd.solicited) return `${from} tells all nodes: ${nd.target} is at ${nd.lla}.`;
   return `${from} answers only ${row.ethDst}: ${nd.target} is at ${nd.lla}.`;
 }

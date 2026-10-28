@@ -133,6 +133,18 @@ describe('labels', () => {
     expect(describeFrame(FRAMES.unsolicited)).toBe(
       'Unsolicited Neighbor Advertisement: 2001:db8:0:1::12 is at 00:00:5e:00:53:13',
     );
+    const defence = { ...FRAMES.na, nd: { ...FRAMES.na.nd, solicited: false, defends: true } };
+    expect(describeFrame(defence)).toBe(
+      'Neighbor Advertisement (DAD defence): 2001:db8:0:1::12 is already at 00:00:5e:00:53:12',
+    );
+    expect(frameNotes(defence)).toContain('Solicited 0: the asker uses ::, so the answer goes to all nodes.');
+    expect(frameNotes(FRAMES.unsolicited)).not.toContain(
+      'Solicited 0: the asker uses ::, so the answer goes to all nodes.',
+    );
+    // `defends` is off the wire: the bytes are the same without it.
+    const { defends, ...plain } = defence.nd;
+    expect(defends).toBe(true);
+    expect(encodeFrame(defence)).toEqual(encodeFrame({ ...defence, nd: plain }));
     expect(describeFrame(FRAMES.echo)).toBe('ping (ICMPv6 echo request): 2001:db8:0:1::11 → 2001:db8:0:1::12');
   });
 
