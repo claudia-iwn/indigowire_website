@@ -1221,15 +1221,18 @@ Built on the shared core. State per host: addresses, joined groups, and `neighbo
 The switcher holds Learn, Sandbox (the default) and "DAD and unsolicited NA"; the hash names the mode (`#learn`, `#dad`). Switching resets the simulation.
 
 - **Learn** (`src/games/nd/lesson.js`, DOM-free, tested): an introduction and 9 steps, each ending on an engine event with a note of 60 characters at most beside one device. H1 pings `2001:db8:0:1::12` with empty caches:
-  1. Why ND: H1 knows the IPv6 address, not the MAC; its neighbour cache is empty.
-  2. Which group to ask: `::12` → `ff02::1:ff00:12` → `33:33:ff:00:00:12`, worked out on screen.
-  3. The NS leaves H1: SW1 learns H1's port and floods it, because the destination is a group address (with ARP's VLAN note).
-  4. Network cards filter it: H3 and R1 drop it in hardware; only H2 passes it up. Contrast: with ARP, every host's software read the broadcast.
-  5. H2 caches H1 as STALE, and why.
-  6. The NA comes back unicast: SW1 forwards it only to H1; H1 marks H2 REACHABLE.
-  7. The echo request reaches H2.
-  8. The echo reply uses H2's STALE entry, so H2 probes H1 with a unicast NS; H1 answers; H2 marks H1 REACHABLE ("real hosts wait 5 s first").
-  9. A second ping needs no ND.
+  1. H1 wants to ping H2: it knows the IPv6 address, not the MAC; every cache is empty.
+  2. Why Neighbor Discovery: H1 sends an NS to H2's solicited-node group, `::12` → `ff02::1:ff00:12` → `33:33:ff:00:00:12`, worked out on screen.
+  3. SW1 learns H1's port and floods the NS, because the destination is a group address (with ARP's VLAN note).
+  4. Only H2's network card listens: H3 and R1 drop it in hardware as "not my group". Contrast: with ARP, every host's software read the broadcast.
+  5. H2 notes H1 as STALE, and why, and answers with a unicast NA; SW1 forwards it only to H1.
+  6. H1 marks H2 REACHABLE and sends the echo request.
+  7. The echo request reaches H2; H2 replies and probes H1 with a unicast NS ("real hosts wait 5 s first").
+  8. The echo reply reaches H1, which answers the probe.
+  9. H2's check is answered and H2 marks H1 REACHABLE.
+  10. A second ping needs no ND.
+
+  No two steps end in the same tick of the simulation (a test checks), so the design's separate "which group to ask" step is part of step 1, and H2's STALE entry is told while SW1 forwards the answer.
 - **Sandbox:** the source host, the app (ping, web, DNS) and any destination address, checked with `parseIpv6`. Quick picks: H2, H3, `fe80::1`, `2001:db8:8888::8`, and the unused `2001:db8:0:1::99` (three NS, then "address unreachable"). The reachable-time slider and a "fail" control per host.
 - **DAD and unsolicited NA:** three scenarios. **H3 joins:** H3 runs DAD for `2001:db8:0:1::13` and the address becomes usable. **Failover:** H1 and R1 start caching H2; H2 fails, H3 takes over `2001:db8:0:1::12` (DAD passes, then an unsolicited NA); H1's and R1's entries move to H3's MAC as STALE, and the next ping's probe confirms H3. **Duplicate address:** H3 is given `2001:db8:0:1::12` while H2 is up; H2 defends it and H3 refuses the address, so no cache changes (unlike ARP's "Meanwhile" scenario). The Send form stays, so a visitor can ping afterwards. A short note ends each: these messages can be forged; the defences are RA Guard, ND Inspection and SEND (RFC 3971). Conceptual only, like ARP's note.
 
