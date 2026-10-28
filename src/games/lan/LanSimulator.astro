@@ -1,0 +1,982 @@
+---
+/**
+ * The LAN games' simulator markup (spec sections 6 and 13): modes, the Learn panel, the Send
+ * form, playback, the diagram with its tables, the packet view and the log. The game's own mode
+ * panels go in the `mode-panels` slot. src/games/lan/controller.js brings it to life.
+ */
+
+/**
+ * @typedef {object} Props
+ * @property {string} prefix  'arp' or 'nd': control ids, the mode radios' name, the root's class and data-<prefix> attribute.
+ * @property {{ value: string, label: string }[]} modes
+ * @property {string} sendModes  The modes that show the Send form, Step and the TTL slider, e.g. "sandbox garp".
+ * @property {{ name: string, label: string }[]} hosts  The From list: value and text.
+ * @property {{ label: string, value: string, inputmode: string }} dest  The To field.
+ * @property {{ label: string, value: string }[]} quick  The "Try:" buttons (`data-ip`).
+ * @property {{ label: string, min: number, max: number, value: number }} ttl  The slider, in seconds.
+ * @property {{ kind: 'request' | 'reply' | 'data', label: string }[]} legend  Frame kinds in the legend.
+ * @property {string} diagramLabel  The diagram's aria-label.
+ * @property {string} cacheTitle    e.g. "ARP caches".
+ */
+
+const { prefix, modes, sendModes, hosts, dest, quick, ttl, legend, diagramLabel, cacheTitle } = Astro.props;
+---
+
+<div class={`lan ${prefix}`} {...{ [`data-${prefix}`]: '' }}>
+  <fieldset class="modes">
+    <legend>Mode</legend>
+    {modes.map((mode) => (
+      <label>
+        <input type="radio" name={`${prefix}-mode`} value={mode.value} checked={mode.value === 'sandbox'} />
+        {mode.label}
+      </label>
+    ))}
+  </fieldset>
+
+  <section class="lesson" data-modes="learn" aria-labelledby="lesson-title" hidden>
+    <p class="lesson-count" id="lesson-count"></p>
+    <h2 id="lesson-title">Learn</h2>
+    <p class="lesson-caption" aria-live="polite"></p>
+    <div class="lesson-nav">
+      <button id="lesson-back" type="button">
+        Back
+      </button>
+      <button id="lesson-next" class="primary" type="button">
+        Next
+      </button>
+    </div>
+  </section>
+
+  <slot name="mode-panels" />
+
+  <form class="send" data-modes={sendModes} novalidate>
+    <div class="field">
+      <label for={`${prefix}-source`}>From</label>
+      <select id={`${prefix}-source`}>
+        {hosts.map((host) => (
+          <option value={host.name}>{host.label}</option>
+        ))}
+      </select>
+    </div>
+    <div class="field">
+      <label for={`${prefix}-dest`}>{dest.label}</label>
+      <input
+        id={`${prefix}-dest`}
+        inputmode={dest.inputmode}
+        autocomplete="off"
+        value={dest.value}
+        aria-describedby={`${prefix}-dest-error`}
+      />
+    </div>
+    <div class="field">
+      <label for={`${prefix}-app`}>Application</label>
+      <select id={`${prefix}-app`}>
+        <option value="ping">ping (ICMP)</option>
+        <option value="web">web (HTTP)</option>
+        <option value="dns">DNS (UDP)</option>
+      </select>
+    </div>
+    <button class="primary" type="submit">
+      Send
+    </button>
+    <p id={`${prefix}-dest-error`} class="error" aria-live="polite"></p>
+    <p class="quick">
+      Try:
+      {quick.map((q) => (
+        <button type="button" data-ip={q.value}>
+          {q.label}
+        </button>
+      ))}
+    </p>
+  </form>
+
+  <div class="playback" role="group" aria-label="Playback">
+    <button id={`${prefix}-play`} type="button">
+      Pause
+    </button>
+    <button id={`${prefix}-step`} type="button" data-modes={sendModes} disabled>
+      Step
+    </button>
+    <label>
+      Speed
+      <select id={`${prefix}-speed`}>
+        <option value="0.25">0.25×</option>
+        <option value="0.5">0.5×</option>
+        <option value="1" selected>
+          1×
+        </option>
+        <option value="2">2×</option>
+      </select>
+    </label>
+    <label class="ttl" data-modes={sendModes}>
+      {ttl.label}
+      <input id={`${prefix}-ttl`} type="range" min={ttl.min} max={ttl.max} step="10" value={ttl.value} />
+      <output id={`${prefix}-ttl-out`} for={`${prefix}-ttl`}>
+        {ttl.value} s
+      </output>
+    </label>
+    <button id={`${prefix}-reset`} type="button">
+      Reset
+    </button>
+  </div>
+
+  <!-- The diagram and the tables it changes, side by side on wide screens. -->
+  <div class="view">
+    <figure class="stage">
+      <svg class="topology" role="group" aria-label={diagramLabel}></svg>
+      <div class="bubbles"></div>
+      <figcaption>
+        <ul class="legend">
+          <li>
+            <span class="swatch user" aria-hidden="true"></span> User device (where applications run)
+          </li>
+          <li>
+            <span class="swatch infra" aria-hidden="true"></span> Network infrastructure
+          </li>
+          <li>
+            <span class="swatch you" aria-hidden="true"></span> You
+          </li>
+          {legend.map((item) => (
+            <li>
+              <span class={`swatch ${item.kind}`} aria-hidden="true"></span> {item.label}
+            </li>
+          ))}
+        </ul>
+      </figcaption>
+    </figure>
+
+    <div class="panels">
+      <section aria-labelledby="caches-title">
+        <h2 id="caches-title">{cacheTitle}</h2>
+        <div class="caches"></div>
+      </section>
+      <section aria-labelledby="mac-title">
+        <h2 id="mac-title">SW1 MAC address table</h2>
+        <div class="mac-table"></div>
+      </section>
+    </div>
+  </div>
+
+  <section class="packet" aria-labelledby="packet-title" tabindex="-1"></section>
+
+  <section class="log" aria-labelledby="log-title">
+    <h2 id="log-title">Event log</h2>
+    <ol></ol>
+    <p class="live visually-hidden" aria-live="polite"></p>
+  </section>
+</div>
+
+<style>
+  .lan {
+    display: grid;
+    /* One column that may shrink below its content, so wide tables scroll inside their own box. */
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+    margin-block: var(--space-4);
+  }
+  /* Hidden until the script runs, so visitors without JavaScript see only the table. */
+  :global(html:not(.js)) .lan {
+    display: none;
+  }
+
+  button,
+  select,
+  input {
+    font: inherit;
+  }
+  button {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+    color: var(--color-text);
+    padding: var(--space-1) var(--space-3);
+    cursor: pointer;
+  }
+  button:hover:not(:disabled) {
+    border-color: var(--color-accent);
+  }
+  button:disabled {
+    cursor: not-allowed;
+    color: var(--color-text-muted);
+  }
+  button.primary {
+    background: var(--color-link);
+    border-color: var(--color-link);
+    color: var(--color-bg);
+    font-weight: 600;
+  }
+  select,
+  input:not([type='range']) {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-bg);
+    color: var(--color-text);
+    padding: var(--space-1) var(--space-2);
+  }
+
+  /* Parts that belong to other modes; beats the display rules below. */
+  [data-modes][hidden] {
+    display: none;
+  }
+  .modes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .modes legend {
+    font-weight: 600;
+    margin-block-end: var(--space-1);
+    padding: 0;
+    width: 100%;
+  }
+  .modes label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: var(--space-1) var(--space-3);
+    cursor: pointer;
+  }
+  .modes label:has(:checked) {
+    border-color: var(--color-link);
+    background: var(--color-surface);
+    font-weight: 600;
+  }
+  .modes label:has(:focus-visible) {
+    outline: 2px solid var(--color-link);
+    outline-offset: 2px;
+  }
+
+  .lesson {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+    padding: var(--space-3) var(--space-4);
+  }
+  .lesson h2 {
+    margin: 0 0 var(--space-2);
+    font-size: var(--text-lg);
+  }
+  .lesson-count {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+  }
+  .lesson-caption {
+    margin: 0 0 var(--space-3);
+    min-height: 4.5em;
+  }
+  .lesson-nav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+  }
+
+  .send {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: var(--space-2) var(--space-3);
+  }
+  .field {
+    display: grid;
+    gap: var(--space-1);
+  }
+  .field label {
+    font-size: var(--text-sm);
+    font-weight: 600;
+  }
+  #arp-dest {
+    width: 10rem;
+  }
+  .error {
+    flex-basis: 100%;
+    margin: 0;
+    color: var(--color-accent);
+    font-weight: 600;
+  }
+  .error:empty {
+    display: none;
+  }
+  .quick {
+    flex-basis: 100%;
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+  }
+  .playback {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+    font-size: var(--text-sm);
+  }
+  .ttl {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .stage {
+    position: relative;
+    margin: 0;
+  }
+  .topology {
+    display: block;
+    width: 100%;
+    aspect-ratio: 900 / 500;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    font-family: var(--font-mono);
+  }
+  @media (width < 40rem) {
+    .topology {
+      aspect-ratio: 400 / 600;
+    }
+  }
+  .legend {
+    list-style: none;
+    padding: 0;
+    margin: var(--space-2) 0 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-4);
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+  }
+  .swatch {
+    display: inline-block;
+    width: 1.1em;
+    height: 0.8em;
+    border-radius: 3px;
+    vertical-align: -0.05em;
+  }
+  .swatch.user {
+    border: 2px solid var(--color-text);
+    background: var(--color-bg);
+  }
+  .swatch.infra {
+    background: var(--iw-indigo);
+  }
+  .swatch.you {
+    background: var(--color-accent);
+    border-radius: 999px;
+  }
+  .swatch.request {
+    background: var(--color-request);
+  }
+  .swatch.reply {
+    background: var(--color-reply);
+  }
+  .swatch.data {
+    background: var(--color-ip-data);
+  }
+
+  /* SVG parts are drawn by renderer.js, so their styles are global to this page. */
+  .topology :global(.link line),
+  .topology :global(.upstream) {
+    stroke: var(--iw-copper);
+    stroke-width: 4;
+  }
+  .topology :global(.upstream) {
+    stroke-dasharray: 10 6;
+  }
+  .topology :global(.link.attacker line) {
+    stroke-dasharray: 8 6;
+  }
+  .topology :global(.port) {
+    fill: var(--color-text-muted);
+    font-size: 13px;
+  }
+  .topology :global(.node rect),
+  .topology :global(.node path) {
+    stroke-width: 2;
+  }
+  .topology :global(.node.user rect:first-child) {
+    fill: var(--color-bg);
+    stroke: var(--color-text);
+  }
+  .topology :global(.node.user text) {
+    fill: var(--color-text);
+  }
+  .topology :global(.node.infra rect) {
+    fill: var(--iw-indigo);
+    stroke: var(--iw-indigo);
+  }
+  .topology :global(.node.infra text) {
+    fill: var(--color-on-brand);
+  }
+  .topology :global(.node.attacker rect:first-child) {
+    stroke: var(--color-accent);
+    stroke-dasharray: 6 4;
+  }
+  /* A failed host: dashed outline and link, muted text (still readable, so no opacity). */
+  .topology :global(.link.down line) {
+    stroke: var(--color-text-muted);
+    stroke-dasharray: 4 6;
+  }
+  .topology :global(.node.down rect:first-child) {
+    stroke: var(--color-text-muted);
+    stroke-dasharray: 6 4;
+  }
+  .topology :global(.node.down text) {
+    fill: var(--color-text-muted);
+  }
+  .topology :global(.node.cloud path) {
+    fill: var(--color-bg);
+    stroke: var(--color-text-muted);
+    stroke-dasharray: 5 4;
+  }
+  .topology :global(.node.cloud text) {
+    fill: var(--color-text-muted);
+  }
+  .topology :global(.icon rect),
+  .topology :global(.icon path) {
+    fill: none;
+    stroke: var(--color-text-muted);
+    stroke-width: 1.5;
+  }
+  .topology :global(.name) {
+    font-size: 16px;
+    font-weight: 700;
+  }
+  .topology :global(.role),
+  .topology :global(.addr) {
+    font-size: 12.5px;
+  }
+  .topology :global(.you rect) {
+    fill: var(--color-accent);
+    stroke: none;
+  }
+  .topology :global(.you text) {
+    fill: var(--color-bg);
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .topology :global(.frame) {
+    cursor: pointer;
+  }
+  .topology :global(.frame rect) {
+    fill: var(--color-bg);
+    stroke-width: 2.5;
+  }
+  .topology :global(.frame text) {
+    fill: var(--color-bg);
+    font-size: 12px;
+    font-weight: 700;
+  }
+  /* Envelopes: filled in their kind's colour, matching the packet view and legend. */
+  .topology :global(.frame.request rect) {
+    fill: var(--color-request);
+    stroke: var(--color-request);
+  }
+  .topology :global(.frame.reply rect) {
+    fill: var(--color-reply);
+    stroke: var(--color-reply);
+  }
+  .topology :global(.frame.data rect) {
+    fill: var(--color-ip-data);
+    stroke: var(--color-ip-data);
+  }
+  .topology :global(.frame:focus-visible) {
+    outline: none;
+  }
+  .topology :global(.frame:focus-visible rect) {
+    stroke: var(--color-focus);
+    stroke-width: 4;
+  }
+  .topology :global(.note) {
+    fill: var(--color-accent);
+    font-size: 13px;
+    font-weight: 700;
+    animation: fade 2s ease-in forwards;
+  }
+  @keyframes fade {
+    to {
+      opacity: 0;
+    }
+  }
+
+  .bubbles :global(.bubble) {
+    position: absolute;
+    max-width: min(20rem, 80%);
+    display: flex;
+    gap: var(--space-2);
+    align-items: start;
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-bg);
+    border: 2px solid var(--color-accent);
+    border-radius: var(--radius);
+    font-size: var(--text-sm);
+    box-shadow: 0 0.25rem 1rem color-mix(in srgb, var(--color-heading) 20%, transparent);
+  }
+  /* Learn mode's note for the current step, beside the device it is about. */
+  .bubbles :global(.step-note) {
+    position: absolute;
+    width: max-content;
+    max-width: min(15rem, 60%);
+    padding: var(--space-1) var(--space-2);
+    background: var(--color-bg);
+    border: 2px solid var(--color-accent);
+    border-radius: var(--radius);
+    font-size: var(--text-sm);
+    line-height: 1.35;
+    box-shadow: 0 0.25rem 1rem color-mix(in srgb, var(--color-heading) 20%, transparent);
+    animation: note-in 0.25s ease-out both;
+  }
+  .bubbles :global(.step-note-node) {
+    font-weight: 700;
+    color: var(--color-accent);
+  }
+  @keyframes note-in {
+    from {
+      opacity: 0;
+      transform: translateY(0.25rem);
+    }
+  }
+  .bubbles :global(.bubble p) {
+    margin: 0;
+  }
+  .bubbles :global(.bubble-close) {
+    padding: 0 var(--space-2);
+    line-height: 1.4;
+  }
+
+  /* Packet view: one colour per frame kind, matching the envelope on the diagram. */
+  .packet {
+    --kind: var(--color-eth);
+    border: 2px solid var(--kind);
+    border-radius: var(--radius);
+    padding: var(--space-3);
+    background: var(--color-surface);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-3);
+  }
+  .packet[data-kind='request'] {
+    --kind: var(--color-request);
+  }
+  .packet[data-kind='reply'] {
+    --kind: var(--color-reply);
+  }
+  .packet[data-kind='data'] {
+    --kind: var(--color-ip-data);
+  }
+  .packet :global(.packet-head) {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    gap: var(--space-3);
+  }
+  .packet :global(h2) {
+    min-width: 0;
+    margin: 0;
+    font-size: var(--text-lg);
+    color: var(--kind);
+    overflow-wrap: anywhere;
+  }
+  .packet :global(h3) {
+    margin: 0 0 var(--space-1);
+    font-size: var(--text-base);
+  }
+  .packet :global(.packet-status) {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+  }
+  .packet :global(.packet-body) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-3);
+    min-width: 0;
+  }
+
+  /* The frame strip: box-drawn blocks sized by byte count, tinted by layer. */
+  .packet :global(.strip) {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    border: 1.5px solid var(--color-text);
+    border-right: 0;
+  }
+  .packet :global(.block) {
+    --layer: var(--color-eth);
+    display: grid;
+    align-content: start;
+    padding: var(--space-1) var(--space-2);
+    border-right: 1.5px solid var(--color-text);
+    background: color-mix(in srgb, var(--layer) 16%, var(--color-bg));
+    overflow-wrap: anywhere;
+  }
+  .packet :global(.block.arp) {
+    --layer: var(--color-request);
+  }
+  .packet[data-kind='reply'] :global(.block.arp) {
+    --layer: var(--color-reply);
+  }
+  .packet :global(.block.ip),
+  .packet :global(.block.payload) {
+    --layer: var(--color-ip-data);
+  }
+  .packet :global(.block.payload) {
+    background: color-mix(in srgb, var(--layer) 8%, var(--color-bg));
+  }
+  .packet :global(.block.trailer) {
+    background: var(--color-bg);
+  }
+  .packet :global(.block .value) {
+    white-space: nowrap;
+  }
+  .packet :global(.block .label) {
+    font-weight: 700;
+    color: var(--layer);
+  }
+  .packet :global(.block.trailer .label) {
+    color: var(--color-text-muted);
+  }
+  .packet :global(.size) {
+    color: var(--color-text-muted);
+  }
+
+  /* The inner header in 32-bit rows: 32 grid columns, one per bit. */
+  .packet :global(.zoom) {
+    --layer: var(--kind);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    min-width: 0;
+  }
+  .packet :global(.zoom h3) {
+    font-family: var(--font-body);
+    color: var(--layer);
+  }
+  .packet :global(.ruler),
+  .packet :global(.rows) {
+    display: grid;
+    grid-template-columns: repeat(32, minmax(0, 1fr));
+  }
+  .packet :global(.ruler span) {
+    grid-column: span 8;
+    color: var(--color-text-muted);
+    font-size: 0.7rem;
+  }
+  .packet :global(.ruler span:nth-child(4)) {
+    grid-column: span 7;
+  }
+  .packet :global(.ruler span:last-child) {
+    grid-column: span 1;
+    text-align: right;
+  }
+  .packet :global(.rows) {
+    border-top: 1.5px solid var(--layer);
+    border-left: 1.5px solid var(--layer);
+  }
+  .packet :global(.cell) {
+    display: grid;
+    justify-items: center;
+    align-content: center;
+    text-align: center;
+    padding: var(--space-1);
+    border-right: 1.5px solid var(--layer);
+    border-bottom: 1.5px solid var(--layer);
+    background: color-mix(in srgb, var(--layer) 12%, var(--color-bg));
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .packet :global(.cell .label) {
+    font-family: var(--font-body);
+    font-size: 0.72rem;
+    color: var(--color-text-muted);
+  }
+  .packet :global(.cell .value) {
+    font-weight: 700;
+  }
+  .packet :global(.cell.unmodelled) {
+    background: var(--color-bg);
+  }
+  .packet :global(.cell.unmodelled .value) {
+    color: var(--color-text-muted);
+    font-weight: 400;
+  }
+
+  .packet :global(.bytes summary) {
+    cursor: pointer;
+    font-weight: 600;
+    font-size: var(--text-sm);
+  }
+  .packet :global(.bytes-body) {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+    gap: var(--space-3);
+    margin-top: var(--space-2);
+  }
+  .packet :global(.fields) {
+    margin: 0;
+    padding-left: var(--space-4);
+    font-size: var(--text-sm);
+  }
+  .packet :global(.fields li) {
+    padding: 0 var(--space-1);
+    border-radius: 4px;
+    overflow-wrap: anywhere;
+  }
+  .packet :global(.field-name) {
+    font-weight: 600;
+  }
+  .packet :global(.hexdump) {
+    min-width: 0;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    overflow-x: auto;
+  }
+  .packet :global(.hexrow) {
+    display: flex;
+    gap: 0.45em;
+    white-space: nowrap;
+  }
+  .packet :global(.offset) {
+    color: var(--color-text-muted);
+    margin-right: 0.5em;
+  }
+  .packet :global(.byte) {
+    border-radius: 3px;
+  }
+  .packet :global(.hl),
+  .packet :global(.hl .label),
+  .packet :global(.hl .value),
+  .packet :global(.hl .size) {
+    background: var(--kind);
+    color: var(--color-bg);
+  }
+
+  /* Hop by hop: changed cells stand out, the frame on show is marked. */
+  .packet :global(.table-wrap) {
+    /* Positioned, so the screen-reader-only "(changed)" labels stay inside the scroll box. */
+    position: relative;
+    overflow-x: auto;
+  }
+  .packet :global(.hops table) {
+    font-family: var(--font-body);
+    font-size: 0.8rem;
+    min-width: 44rem;
+  }
+  .packet :global(.hops td),
+  .packet :global(.hops th) {
+    padding: 0.25rem 0.5rem 0.25rem 0;
+    vertical-align: top;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .packet :global(.hops tr td:first-child) {
+    white-space: nowrap;
+    font-weight: 600;
+    border-left: 4px solid var(--row);
+    padding-left: var(--space-2);
+  }
+  .packet :global(.hops tr.request) {
+    --row: var(--color-request);
+  }
+  .packet :global(.hops tr.reply) {
+    --row: var(--color-reply);
+  }
+  .packet :global(.hops tr.data) {
+    --row: var(--color-ip-data);
+  }
+  .packet :global(.hops tr.current) {
+    background: color-mix(in srgb, var(--row) 10%, transparent);
+  }
+  .packet :global(.hops td.changed) {
+    font-weight: 700;
+    color: var(--color-bg);
+    background: var(--row);
+  }
+
+  /* R1's before/after card over the diagram, timed by the simulation clock. */
+  .bubbles :global(.rewrite) {
+    position: absolute;
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-bg);
+    border: 2px solid var(--color-ip-data);
+    border-radius: var(--radius);
+    font-size: 0.78rem;
+    width: max-content;
+    max-width: min(19rem, 90%);
+    box-shadow: 0 0.25rem 1rem color-mix(in srgb, var(--color-heading) 20%, transparent);
+  }
+  .bubbles :global(.rewrite[hidden]) {
+    display: none;
+  }
+  .bubbles :global(.rewrite-title) {
+    margin: 0 0 var(--space-1);
+    font-weight: 700;
+    color: var(--color-ip-data);
+  }
+  .bubbles :global(.rewrite dl) {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0 var(--space-2);
+    margin: 0;
+    font-family: var(--font-mono);
+  }
+  .bubbles :global(.rewrite dt) {
+    font-family: var(--font-body);
+    font-weight: 600;
+  }
+  .bubbles :global(.rewrite dd) {
+    margin: 0;
+  }
+  .bubbles :global(.rewrite s) {
+    color: var(--color-text-muted);
+  }
+  .bubbles :global(.rewrite .new) {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--color-ip-data);
+    animation: arrive 0.6s 0.3s ease-out both;
+  }
+  @keyframes arrive {
+    from {
+      opacity: 0;
+      transform: translateX(-0.5em);
+    }
+  }
+  .muted,
+  .lan :global(.muted) {
+    color: var(--color-text-muted);
+    font-weight: 400;
+  }
+
+  .panels {
+    display: grid;
+    gap: var(--space-4);
+    align-content: start;
+  }
+  .view {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+  }
+  /*
+   * Wide screens: the tables go beside the diagram, so a change shows up next to the
+   * frame that caused it. The pair grows past the page column (up to 90rem) so the
+   * diagram keeps its size; the negative margins centre it on the column.
+   */
+  @media (width >= 72rem) {
+    .view {
+      --view-width: min(90rem, 100vw - 2 * var(--space-3));
+      width: var(--view-width);
+      margin-inline: calc((100% - var(--view-width)) / 2);
+      grid-template-columns: minmax(0, 1fr) 23rem;
+    }
+    .view .caches {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+  h2 {
+    font-size: var(--text-lg);
+    margin: 0 0 var(--space-2);
+  }
+  .caches {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 21rem), 1fr));
+    gap: var(--space-2);
+  }
+  .lan :global(.cache),
+  .mac-table {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: var(--space-2) var(--space-3);
+  }
+  .lan :global(.cache h3) {
+    margin: 0 0 var(--space-1);
+    font-size: var(--text-base);
+  }
+  .lan :global(table) {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+  }
+  .lan :global(th) {
+    text-align: left;
+    font-family: var(--font-body);
+    color: var(--color-text-muted);
+    font-weight: 600;
+  }
+  .lan :global(td),
+  .lan :global(th) {
+    padding: 0.15rem 0.4rem 0.15rem 0;
+  }
+  .lan :global(.empty) {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+  }
+  .lan :global(.expires) {
+    white-space: nowrap;
+  }
+  .lan :global(.bar) {
+    display: inline-block;
+    width: 2.5rem;
+    height: 0.4rem;
+    margin-right: 0.3rem;
+    background: var(--color-border);
+    border-radius: 999px;
+    overflow: hidden;
+    vertical-align: middle;
+  }
+  .lan :global(.bar > span) {
+    display: block;
+    height: 100%;
+    background: var(--color-accent);
+    transform-origin: left;
+  }
+  .lan :global(tr.changed) {
+    animation: changed 1.5s ease-out;
+  }
+  @keyframes changed {
+    from {
+      background: color-mix(in srgb, var(--color-accent) 30%, transparent);
+    }
+  }
+
+  .log ol {
+    max-height: 18rem;
+    overflow-y: auto;
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    list-style: none;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    font-size: var(--text-sm);
+  }
+  .log :global(li) {
+    padding-block: 0.15rem;
+  }
+  .log :global(.time) {
+    font-family: var(--font-mono);
+    color: var(--color-text-muted);
+    margin-right: var(--space-1);
+  }
+  .log :global(.frame-line) {
+    font-weight: 600;
+  }
+  .log :global(.inspect) {
+    padding: 0 var(--space-2);
+    font-size: 0.8rem;
+  }
+</style>

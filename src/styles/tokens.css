@@ -37,8 +37,9 @@
   --color-on-brand: #ffffff;
   /* ARP simulator frame kinds: the moving envelope and its packet view share one colour.
      Each passes 4.5:1 as text on --color-bg and --color-surface in its theme. */
-  --color-arp-request: light-dark(#6b3fa0, #c4a5f5);
-  --color-arp-reply: light-dark(#a63c2a, #f5a58f);
+  /* Request and reply frames: ARP request/reply, ND solicitation/advertisement. */
+  --color-request: light-dark(#6b3fa0, #c4a5f5);
+  --color-reply: light-dark(#a63c2a, #f5a58f);
   --color-ip-data: light-dark(#0b7268, #5fd8c8);
   --color-eth: light-dark(#566075, #a8b0c4);
 
