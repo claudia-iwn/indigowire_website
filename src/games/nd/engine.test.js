@@ -302,6 +302,7 @@ describe('Duplicate Address Detection (RFC 4862)', () => {
     expect(r.of('dad:duplicate')).toEqual([{ host: 'H3', ip: G2, mac: MAC.H2, time: 4 * HOP_MS }]);
     expect(engine.state.hosts.H3).toMatchObject({ global: null, tentative: null, duplicate: G2 });
     expect(r.of('dad:ok')).toEqual([]);
+    expect(r.of('host:change')).toHaveLength(2);
     // Nobody's traffic moves: H1 and R1 still have H2's MAC, and H2 cached nothing from ::.
     expect(engine.state.hosts.H1.neighbors.get(G2)?.mac).toBe(MAC.H2);
     expect(engine.state.hosts.R1.neighbors.get(G2)?.mac).toBe(MAC.H2);
@@ -336,6 +337,7 @@ describe('unsolicited Neighbor Advertisement', () => {
     engine.fail('H2');
     engine.takeOver('H3', G2);
     engine.runUntilIdle();
+    expect(engine.state.hosts.R1.neighbors.get(G2)).toEqual({ mac: MAC.H3, state: 'STALE' });
     const r = record(engine);
     engine.send('H1', G2);
     engine.runUntilIdle();

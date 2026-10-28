@@ -1,8 +1,8 @@
 /**
  * IPv6 Neighbor Discovery simulation engine (spec section 13). DOM-free: no window, no document.
  * Built on the shared LAN core (src/games/lan/): the clock, SW1, the network cards and R1's
- * upstream link are the ARP game's; this file adds Neighbor Discovery (RFC 4861) and, in
- * Task 5, Duplicate Address Detection (RFC 4862).
+ * upstream link are the ARP game's; this file adds Neighbor Discovery (RFC 4861) and
+ * Duplicate Address Detection (RFC 4862).
  *
  * Time is simulated and kept by the shared core: every hop takes HOP_MS, and tick(ms) runs
  * whatever falls due, in order, so tests run a whole exchange instantly.
