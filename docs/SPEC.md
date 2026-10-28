@@ -944,7 +944,7 @@ Seven milestones, each ending in a deployed, working site; hand Claude Code one 
 
 ### M8: IPv6 Neighbor Discovery (R18, section 13)
 
-- [x] Stage 1: the shared LAN core in `src/games/lan/` with ARP unchanged (tests, screenshots, bundle size); reviewed and merged first. Done 28 October 2026: src/games/lan/ (sim, ethernet, nic, switch, upstream, hops, lesson, renderer, packet view, controller, LanSimulator.astro); ARP unchanged (tests untouched, 18 screenshots match, script 35955 → 38364 bytes)
+- [x] Stage 1: the shared LAN core in `src/games/lan/` with ARP unchanged (tests, screenshots, bundle size); reviewed and merged first. Done 28 October 2026: src/games/lan/ (sim, ethernet, nic, switch, upstream, hops, lesson, renderer, packet view, controller, LanSimulator.astro); ARP unchanged (tests untouched, 18 screenshots match, script 35955 → 38364 bytes raw, 13083 → 14248 bytes gzip (+8.9%); the growth is the config objects' property names, which cross module boundaries and cannot be minified (final review))
 - [ ] `nd/frames.js`: address helpers, encoding, checksum, `breakdown()`, Scapy vectors
 - [ ] `nd/engine.js`: NS/NA, REACHABLE/STALE and probes, retries and "address unreachable", off-link via `fe80::1`, DAD, unsolicited NA, scenarios
 - [ ] `nd/lesson.js`: the 9 Learn steps
@@ -1172,6 +1172,7 @@ Built first, as a refactor only: ARP must behave exactly as before. The parts of
 - **`src/games/lan/LanSimulator.astro`** holds the simulator's markup and CSS; each game passes its modes, hosts, quick picks, slider, legend and labels as props, and its own mode panels in the `mode-panels` slot.
 - **`src/games/lan/hops.js`** holds the hop table (it was listed under `upstream.js` in the design).
 - **Owner decision (28 October 2026):** the base control rules (buttons, selects, inputs) are copied into the ARP page for its slotted Gratuitous ARP panel; Stage 2 replaces the copy with a shared class for slotted mode panels, styled once in `LanSimulator.astro`, and makes the To field's width rule (`#arp-dest`) work for any prefix.
+- **Stage 2 starts with core adjustments** (final review, 28 October 2026), before any ND code, re-checked against the 18-shot ARP baseline: a `LanEngine` typedef for the engine shape the shared view and controller rely on (`state.hosts`, `state.switch.macTable`, `state.clock`, `state.ttlMs`, `on`, `tick`, `nextEventAt`, `isIdle`, `send`), stating that `ip.ttl` carries IPv6's hop limit; the cache panel also redraws on `cache:stale` (and `cache:update` payloads name the address `ip`); each countdown row carries its own lifetime, so REACHABLE time and MAC-table age can differ; a neutral packet-layer class instead of `.block.arp`; one `hopName` passed from the view to the packet view; the slotted-panel control class and a prefix-free To-field width (owner decision above); and the small items left from Stage 1 (merge the double JSDoc above `queue` in `lan/sim.js`, a Python comparison for the destructuring defaults in `lan/upstream.js`, tests for `tick(0)` and `runUntilIdle` on an empty queue, a switch test that a multicast destination is never learnt, lesson tests for a step without `until`).
 - **Each game keeps its own bundle;** `/learn/arp` loads no ND code.
 - **Done when:** ARP's Vitest tests pass with only their imports changed; new tests cover `lan/switch.js` (group-bit flooding, unknown unicast, learning, ageing) and `lan/nic.js` (own MAC, broadcast, joined group, unjoined group); the `/learn/arp` Playwright tests pass; screenshots of each mode match before and after; the ARP page's script size stays about the same. Reviewed and merged before any ND code.
 
@@ -1240,7 +1241,7 @@ The switcher holds Learn, Sandbox (the default) and "DAD and unsolicited NA"; th
 
 ### Acceptance criteria
 
-- [ ] Stage 1: ARP is unchanged (section 6's criteria still pass) and the shared core has its own tests.
+- [x] Stage 1: ARP is unchanged (section 6's criteria still pass) and the shared core has its own tests.
 - [ ] H1 → `2001:db8:0:1::12` with empty caches: an NS to `33:33:ff:00:00:12` flooded by SW1, dropped by H3's and R1's cards as "not my group", H2 caching H1 as STALE, a unicast NA, H1 caching H2 as REACHABLE, then the echo request.
 - [ ] H2's echo reply uses its STALE entry and triggers a unicast NS probe that H1 answers, leaving both REACHABLE.
 - [ ] Sending again while REACHABLE uses no ND; after `reachableMs` the entry is STALE and the next send probes.
