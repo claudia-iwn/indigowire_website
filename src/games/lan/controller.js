@@ -26,7 +26,7 @@ const MAX_FRAME_MS = 250;
  * @property {string} prefix  Control ids start with it (`arp-source`), and the mode radios are named `${prefix}-mode`.
  * @property {string[]} modes  Every mode value; 'learn' and 'sandbox' are built in, the others belong to the game.
  * @property {number} defaultTtlMs
- * @property {(options: { ttlMs: number }) => any} createEngine
+ * @property {(options: { ttlMs: number }) => import('./sim.js').LanEngine} createEngine
  * @property {(parts: any, engine: any, options: { onInspect: () => void }) => any} mountView
  * @property {import('./lesson.js').LessonStep[]} lesson
  * @property {(engine: any, to: number) => void} playTo

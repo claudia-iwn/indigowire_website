@@ -62,6 +62,7 @@ const { prefix, modes, sendModes, hosts, dest, quick, ttl, legend, diagramLabel,
       <label for={`${prefix}-dest`}>{dest.label}</label>
       <input
         id={`${prefix}-dest`}
+        class="dest"
         inputmode={dest.inputmode}
         autocomplete="off"
         value={dest.value}
@@ -218,6 +219,47 @@ const { prefix, modes, sendModes, hosts, dest, quick, ttl, legend, diagramLabel,
   [data-modes][hidden] {
     display: none;
   }
+
+  /* Controls in a game's own mode panels: they are slotted in from the page, so the scoped rules
+     above don't reach them. Same rules, same specificity: :global() adds no scope attribute, and
+     `.lan-panel button` (0,1,1) weighs what the page's `button[data-astro-cid-…]` did. */
+  :global(.lan-panel button),
+  :global(.lan-panel select),
+  :global(.lan-panel input) {
+    font: inherit;
+  }
+  :global(.lan-panel button) {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+    color: var(--color-text);
+    padding: var(--space-1) var(--space-3);
+    cursor: pointer;
+  }
+  :global(.lan-panel button:hover:not(:disabled)) {
+    border-color: var(--color-accent);
+  }
+  :global(.lan-panel button:disabled) {
+    cursor: not-allowed;
+    color: var(--color-text-muted);
+  }
+  :global(.lan-panel button.primary) {
+    background: var(--color-link);
+    border-color: var(--color-link);
+    color: var(--color-bg);
+    font-weight: 600;
+  }
+  :global(.lan-panel select),
+  :global(.lan-panel input:not([type='range'])) {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-bg);
+    color: var(--color-text);
+    padding: var(--space-1) var(--space-2);
+  }
+  :global(.lan-panel[data-modes][hidden]) {
+    display: none;
+  }
   .modes {
     display: flex;
     flex-wrap: wrap;
@@ -291,7 +333,7 @@ const { prefix, modes, sendModes, hosts, dest, quick, ttl, legend, diagramLabel,
     font-size: var(--text-sm);
     font-weight: 600;
   }
-  #arp-dest {
+  .dest {
     width: 10rem;
   }
   .error {
@@ -622,10 +664,10 @@ const { prefix, modes, sendModes, hosts, dest, quick, ttl, legend, diagramLabel,
     background: color-mix(in srgb, var(--layer) 16%, var(--color-bg));
     overflow-wrap: anywhere;
   }
-  .packet :global(.block.arp) {
+  .packet :global(.block:not(.eth, .ip, .payload, .trailer)) {
     --layer: var(--color-request);
   }
-  .packet[data-kind='reply'] :global(.block.arp) {
+  .packet[data-kind='reply'] :global(.block:not(.eth, .ip, .payload, .trailer)) {
     --layer: var(--color-reply);
   }
   .packet :global(.block.ip),

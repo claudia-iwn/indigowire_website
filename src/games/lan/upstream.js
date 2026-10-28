@@ -28,6 +28,7 @@ export function createUpstream(sim, { link, etherType, hopName, ipTtl, internetH
    * @param {IpFrame} frame
    */
   function forward(router, frame) {
+    // Like Python's app = frame.get('app', 'ping'): defaults for keys the frame lacks.
     const { ip, app = 'ping', reply = false } = frame;
     /** @type {IpFrame} */
     const out = {

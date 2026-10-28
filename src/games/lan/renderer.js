@@ -17,7 +17,8 @@ export const NEXT_HOP = 'next hop';
  * Where everything sits, for wide screens and phones (portrait). Coordinates are in
  * the SVG's viewBox units, so the drawing scales with its box.
  * @typedef {{ x: number, y: number }} Point
- * @typedef {{ viewBox: string, box: { w: number, h: number }, macSize: number, card: 'above' | 'right', places: Record<string, Point> }} Layout
+ * @typedef {{ viewBox: string, box: { w: number, h: number }, macSize: number, addrSize?: number, card: 'above' | 'right', places: Record<string, Point> }} Layout
+ *   `addrSize`: font size in px for the address lines; the CSS size when unset.
  */
 /**
  * What a game tells the shared view.
@@ -31,7 +32,11 @@ export const NEXT_HOP = 'next hop';
  * @property {(frame: any) => string} frameLabel  The short label on a moving frame.
  * @property {(frame: any) => string} describe  One line, for the log, labels and the packet view.
  * @property {{ columns: string[], rows: (host: any) => { key: string, values: string[], expiresAt?: number }[] }} cache
- *   A row with `expiresAt` gets a countdown bar in its last cell.
+ *   A row with `expiresAt` gets a countdown bar in its last cell. The engine's `cache:update`, `cache:stale` and
+ *   `cache:expire` payloads are `{ host, ip }`; a row's `key` must equal that `ip`, so the changed row flashes.
+ * @property {{ cache: (engine: import('./sim.js').LanEngine) => number, mac: (engine: import('./sim.js').LanEngine) => number }} lifetime
+ *   The full length of a countdown, in ms, for the cache rows and the MAC-table rows. Read every frame,
+ *   so a slider change shows at once.
  * @property {Record<string, (payload: any) => { host: string, text: string }>} bubbles  Engine event → speech bubble.
  * @property {(hops: any[], nameOf: (mac: string) => string) => import('./hops.js').HopRow[]} hopRows
  * @property {import('./packet-view.js').PacketGame} packet
@@ -73,7 +78,7 @@ const seconds = (ms) => `${(ms / 1000).toFixed(1)} s`;
  * Draw the simulation and keep it in step with the engine.
  * @param {{ svg: SVGSVGElement, bubbles: HTMLElement, caches: HTMLElement, macTable: HTMLElement,
  *   log: HTMLOListElement, live: HTMLElement, packet: HTMLElement }} parts
- * @param {any} engine
+ * @param {import('./sim.js').LanEngine} engine
  * @param {LanView} game
  * @param {{ onInspect?: (frame: any) => void }} [options]
  */
@@ -169,7 +174,10 @@ export function mountLanRenderer(parts, engine, game, { onInspect } = {}) {
       // Address lines under the name (ARP: the IP; ND: global and link-local), then the MAC.
       const lines = game.addressLines(node);
       lines.forEach((text, i) => {
-        group.append(svg('text', { class: 'addr', x: p.x, y: p.y + 6 + 18 * i, 'text-anchor': 'middle' }, text));
+        const line = svg('text', { class: 'addr', x: p.x, y: p.y + 6 + 18 * i, 'text-anchor': 'middle' }, text);
+        // Through el.style, as the MAC line below: the CSP blocks style="" attributes.
+        if (layout.addrSize) line.style.fontSize = `${layout.addrSize}px`;
+        group.append(line);
       });
       const mac = svg(
         'text',
@@ -324,7 +332,7 @@ export function mountLanRenderer(parts, engine, game, { onInspect } = {}) {
       } else {
         const table = html('table');
         table.append(row('th', game.cache.columns));
-        for (const entry of entries) table.append(row('td', entry.values, entry.expiresAt, entry.key));
+        for (const entry of entries) table.append(row('td', entry.values, entry.expiresAt, entry.key, 'cache'));
         section.append(table);
       }
       parts.caches.append(section);
@@ -340,7 +348,7 @@ export function mountLanRenderer(parts, engine, game, { onInspect } = {}) {
     const table = html('table');
     table.append(row('th', ['MAC', 'Port', 'Expires']));
     for (const [mac, entry] of engine.state.switch.macTable)
-      table.append(row('td', [mac, entry.port, ''], entry.expiresAt, mac));
+      table.append(row('td', [mac, entry.port, ''], entry.expiresAt, mac, 'mac'));
     parts.macTable.append(table);
   }
 
@@ -350,14 +358,16 @@ export function mountLanRenderer(parts, engine, game, { onInspect } = {}) {
    * @param {string[]} values
    * @param {number} [expiresAt]
    * @param {string} [key]
+   * @param {'cache' | 'mac'} [table]  Which countdown length the bar uses (`game.lifetime[table]`).
    */
-  function row(cell, values, expiresAt, key) {
+  function row(cell, values, expiresAt, key, table) {
     const tr = html('tr', key ? { 'data-key': key } : {});
     values.forEach((value, i) => {
       const td = html(cell, cell === 'th' ? { scope: 'col' } : {}, value);
       if (expiresAt !== undefined && i === values.length - 1) {
         td.className = 'expires';
         td.dataset.expiresAt = String(expiresAt);
+        if (table) td.dataset.lifetime = table;
         const bar = html('span', { class: 'bar', 'aria-hidden': 'true' });
         bar.append(html('span'));
         td.append(bar, html('span', { class: 'secs' }));
@@ -424,6 +434,7 @@ export function mountLanRenderer(parts, engine, game, { onInspect } = {}) {
       if (latest) showFrame(latest, false);
     },
     game: game.packet,
+    hopName: game.hopName,
   });
 
   /**
@@ -511,6 +522,15 @@ export function mountLanRenderer(parts, engine, game, { onInspect } = {}) {
       flash(/** @type {HTMLElement} */ (parts.caches.querySelector(`[data-host="${host}"]`)), ip);
     }),
     engine.on('cache:expire', drawCaches),
+    engine.on('cache:stale', ({ host, ip }) => {
+      drawCaches();
+      flash(/** @type {HTMLElement} */ (parts.caches.querySelector(`[data-host="${host}"]`)), ip);
+    }),
+    // A host's addresses changed (ND's Duplicate Address Detection): redraw its box and cache heading.
+    engine.on('host:change', () => {
+      drawTopology();
+      drawCaches();
+    }),
     engine.on('mactable:update', ({ mac }) => {
       drawMacTable();
       flash(parts.macTable, mac);
@@ -572,7 +592,7 @@ export function mountLanRenderer(parts, engine, game, { onInspect } = {}) {
       const td = /** @type {HTMLElement} */ (cell);
       const left = Math.max(0, Number(td.dataset.expiresAt) - clock);
       const bar = /** @type {HTMLElement} */ (td.querySelector('.bar > span'));
-      bar.style.transform = `scaleX(${Math.min(1, left / engine.state.ttlMs)})`;
+      bar.style.transform = `scaleX(${Math.min(1, left / game.lifetime[td.dataset.lifetime === 'mac' ? 'mac' : 'cache'](engine))})`;
       const secs = `${Math.ceil(left / 1000)} s`;
       const label = /** @type {HTMLElement} */ (td.querySelector('.secs'));
       if (label.textContent !== secs) label.textContent = secs;

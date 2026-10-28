@@ -70,6 +70,11 @@ const ARP_VIEW = {
   upstream: TOPOLOGY.upstream,
   hopMs: HOP_MS,
   hopName: 'TTL',
+  // ARP's own engine has `state.ttlMs`, one lifetime for both tables (the shared LanEngine type doesn't).
+  lifetime: {
+    cache: (/** @type {any} */ engine) => engine.state.ttlMs,
+    mac: (/** @type {any} */ engine) => engine.state.ttlMs,
+  },
   addressLines: (node) => [node.ip],
   frameKind,
   frameLabel,
@@ -97,7 +102,6 @@ const ARP_VIEW = {
     bytesSummary: (frame, bytes) =>
       frame.arp ? `Bytes: all ${bytes.length} on the wire (without the FCS)` : 'Bytes: the 14-byte Ethernet header',
     hopFrame: (row) => (row.kind === 'data' ? row.frame.app : `ARP ${row.kind}`),
-    hopName: 'TTL',
   },
 };
 

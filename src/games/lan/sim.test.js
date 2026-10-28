@@ -78,4 +78,16 @@ describe('createSim', () => {
     const { sim } = fresh();
     expect([sim.frameId(), sim.frameId(), sim.flowId(), sim.frameId(), sim.flowId()]).toEqual([1, 2, 1, 3, 2]);
   });
+
+  it('handles an empty queue: tick(0) moves nothing, runUntilIdle returns at once', () => {
+    const state = { clock: 0, log: [] };
+    let advanced = 0;
+    const sim = createSim(state, { onAdvance: () => advanced++ });
+    sim.tick(0);
+    expect(state.clock).toBe(0);
+    expect(advanced).toBe(1);
+    sim.runUntilIdle();
+    expect(state.clock).toBe(0);
+    expect(advanced).toBe(1);
+  });
 });

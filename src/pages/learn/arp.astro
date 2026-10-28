@@ -114,7 +114,7 @@ const MODES = [
     diagramLabel="Network diagram: three user devices and the router R1 on switch SW1"
     cacheTitle="ARP caches"
   >
-    <section slot="mode-panels" class="garp" data-modes="garp" aria-labelledby="garp-title" hidden>
+    <section slot="mode-panels" class="garp lan-panel" data-modes="garp" aria-labelledby="garp-title" hidden>
       <h2 id="garp-title">Gratuitous ARP</h2>
       <p>
         A gratuitous ARP is a host announcing its own address: an ARP request for its own IP, sent to everyone. Nobody
@@ -213,47 +213,6 @@ const MODES = [
     margin: 0;
     font-size: var(--text-sm);
     color: var(--color-text-muted);
-  }
-
-  /* The base control rules again: the GARP panel is slotted into LanSimulator, so it keeps this page's scope and not the component's. */
-  button,
-  select,
-  input {
-    font: inherit;
-  }
-  button {
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius);
-    background: var(--color-surface);
-    color: var(--color-text);
-    padding: var(--space-1) var(--space-3);
-    cursor: pointer;
-  }
-  button:hover:not(:disabled) {
-    border-color: var(--color-accent);
-  }
-  button:disabled {
-    cursor: not-allowed;
-    color: var(--color-text-muted);
-  }
-  button.primary {
-    background: var(--color-link);
-    border-color: var(--color-link);
-    color: var(--color-bg);
-    font-weight: 600;
-  }
-  select,
-  input:not([type='range']) {
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius);
-    background: var(--color-bg);
-    color: var(--color-text);
-    padding: var(--space-1) var(--space-2);
-  }
-
-  /* Parts that belong to other modes; beats the display rules below. */
-  [data-modes][hidden] {
-    display: none;
   }
 
   .garp {

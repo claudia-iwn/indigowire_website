@@ -15,8 +15,10 @@
 export function createSim(state, { onAdvance = () => {} } = {}) {
   /** @type {Map<string, Set<(payload: any) => void>>} */
   const listeners = new Map(); // like a Python defaultdict(set)
-  /** Timed actions, run in time order (then in the order they were added). */
-  /** @type {{ at: number, seq: number, run: () => void }[]} */
+  /**
+   * Timed actions, run in time order (then in the order they were added).
+   * @type {{ at: number, seq: number, run: () => void }[]}
+   */
   let queue = [];
   let seq = 0;
   let nextFrameId = 1;
@@ -107,3 +109,22 @@ export function createSim(state, { onAdvance = () => {} } = {}) {
 
 /** The simulation core's type, for the modules built on it. */
 /** @typedef {ReturnType<typeof createSim>} Sim */
+
+/**
+ * A device the shared view draws and the shared switch serves.
+ * @typedef {{ name: string, role: 'host' | 'gateway' | 'attacker', mac: string, port: string, down: boolean }} LanHost
+ */
+
+/**
+ * What the shared view and controller need from a game's engine (spec section 13). Packets
+ * carry `ip: { src, dst, ttl }`; for IPv6, `ttl` holds the hop limit.
+ * @typedef {object} LanEngine
+ * @property {{ clock: number, hosts: Record<string, LanHost & Record<string, any>>,
+ *   switch: { name: string, macTable: Map<string, { port: string, expiresAt: number }> },
+ *   log: { at: number, text: string }[] }} state
+ * @property {Sim['on']} on
+ * @property {Sim['tick']} tick
+ * @property {Sim['nextEventAt']} nextEventAt
+ * @property {Sim['isIdle']} isIdle
+ * @property {(src: string, dst: string, app?: 'ping' | 'web' | 'dns') => void} send
+ */

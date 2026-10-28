@@ -29,14 +29,15 @@ function html(tag, attrs = {}, text) {
  * @property {(frame: any) => Uint8Array} bytes
  * @property {(frame: any, bytes: Uint8Array) => string} bytesSummary  The "Bytes" fold's summary line.
  * @property {(row: import('./hops.js').HopRow) => string} hopFrame  The hop table's Frame column.
- * @property {string} hopName  The hop table's TTL column heading.
+ * @property {(frame: any) => string[]} [notes]  Short notes shown under the header rows, e.g. why a field has its value.
  */
 
 /**
  * @param {HTMLElement} panel  The (initially empty) packet panel.
- * @param {{ onFollow: () => void, game: PacketGame }} options  onFollow is called when the visitor goes back to following the latest frame.
+ * @param {{ onFollow: () => void, game: PacketGame, hopName: string }} options  onFollow is called when the visitor goes
+ *   back to following the latest frame; hopName heads the hop table's TTL column ('TTL' or 'Hop limit').
  */
-export function mountPacketView(panel, { onFollow, game }) {
+export function mountPacketView(panel, { onFollow, game, hopName }) {
   const head = html('div', { class: 'packet-head' });
   const title = html('h2', { id: 'packet-title' }, 'Packet view');
   const status = html('p', { class: 'packet-status' });
@@ -113,6 +114,15 @@ export function mountPacketView(panel, { onFollow, game }) {
     zoomEl.append(grid);
     body.append(zoomEl);
 
+    // 2b. The game's notes on this frame, if any (ND: why the hop limit is 255).
+    // `?.` and `??`: call notes only if the game has it, and use [] when it returns nothing.
+    const notes = game.notes?.(frame) ?? [];
+    if (notes.length) {
+      const list = html('ul', { class: 'packet-notes' });
+      for (const text of notes) list.append(html('li', {}, text));
+      body.append(list);
+    }
+
     // 3. Field tree and hex dump, folded away by default to keep the panel short.
     const details = html('details', { class: 'bytes' });
     details.append(html('summary', {}, game.bytesSummary(frame, bytes)));
@@ -160,7 +170,7 @@ export function mountPacketView(panel, { onFollow, game }) {
     const wrap = html('div', { class: 'table-wrap' });
     const table = html('table');
     const headRow = html('tr');
-    for (const name of ['Hop', 'Frame', 'Eth dst', 'Eth src', 'IP src → dst', game.hopName, 'What happened']) {
+    for (const name of ['Hop', 'Frame', 'Eth dst', 'Eth src', 'IP src → dst', hopName, 'What happened']) {
       headRow.append(html('th', { scope: 'col' }, name));
     }
     table.append(headRow);

@@ -98,4 +98,10 @@ describe('createSwitch', () => {
     sw.forgetPort('Gi0/2');
     expect([...table.keys()]).toEqual([MAC.H1]);
   });
+
+  it('never learns a multicast destination, only sources', () => {
+    const { table, sw } = setup();
+    sw.receive({ id: 1, src: MAC.H1, dst: '33:33:ff:00:00:12' }, 'Gi0/1');
+    expect([...table.keys()]).toEqual([MAC.H1]);
+  });
 });

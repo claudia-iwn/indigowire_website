@@ -58,4 +58,17 @@ describe('lesson playback', () => {
     playLesson(engine, LESSON, 2, 1);
     expect(engine.state.clock).toBe(200);
   });
+
+  it('a step without `until` never ends by itself, and playLesson stops when the engine runs dry', () => {
+    const engine = tinyEngine();
+    let fired = 0;
+    const off = watchStep(engine, LESSON[0], () => fired++);
+    engine.send('a');
+    engine.runUntilIdle();
+    off();
+    expect(fired).toBe(0);
+    // A step with no start and no `until`: nothing is queued, so playback returns at once.
+    playLesson(engine, [LESSON[0], { title: 'x', caption: '', note: { node: 'H1', text: '' } }], 1);
+    expect(engine.isIdle()).toBe(true);
+  });
 });
