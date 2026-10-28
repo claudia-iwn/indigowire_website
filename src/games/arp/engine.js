@@ -2,11 +2,11 @@
  * ARP simulation engine (spec section 6). DOM-free: no window, no document.
  * The renderer subscribes to events; it never reaches into engine state directly.
  *
- * Time is simulated. Every hop (host to switch, or switch to host) takes HOP_MS.
- * Work is kept in a queue of timed actions, and tick(ms) advances the clock and runs
- * whatever falls due, in order, so tests can run a whole exchange instantly.
+ * Time is simulated and kept by the shared core (src/games/lan/sim.js): every hop takes HOP_MS,
+ * and tick(ms) runs whatever falls due, in order.
  */
 import { BROADCAST_MAC, ZERO_MAC, ETHERTYPE_ARP, ETHERTYPE_IPV4, ARP_REQUEST, ARP_REPLY } from './frames.js';
+import { createSim } from '../lan/sim.js';
 
 /**
  * @typedef {object} Node
@@ -116,9 +116,6 @@ function sameSubnet(a, b, prefix) {
 export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) {
   const nodes = TOPOLOGY.nodes.filter((node) => attacker || node.role !== 'attacker');
 
-  /** @type {Map<EngineEvent, Set<(payload: any) => void>>} */
-  const listeners = new Map(); // like a Python defaultdict(set)
-
   const state = {
     clock: 0,
     ttlMs,
@@ -148,49 +145,13 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
   };
   /** @typedef {(typeof state.hosts)[string]} Host */
 
-  /** Timed actions, run in time order (then in the order they were added). */
-  /** @type {{ at: number, seq: number, run: () => void }[]} */
-  let queue = [];
-  let seq = 0;
-  let nextFrameId = 1;
-  let nextFlow = 1;
+  // The clock, timed actions, events and log are shared with the other LAN games.
+  const sim = createSim(state, { onAdvance: expire });
+  const { on, emit, log, schedule } = sim; // like Python's on, emit, ... = sim.on, sim.emit, ...
+
   /** ARP requests being flooded, by frame id: who asked, and how many copies are still on the wire. */
   /** @type {Map<number, { host: string, ip: string, remaining: number, answered: boolean }>} */
   const floods = new Map();
-
-  /**
-   * @param {EngineEvent} event
-   * @param {(payload: any) => void} handler
-   * @returns {() => void} Call to unsubscribe.
-   */
-  function on(event, handler) {
-    if (!listeners.has(event)) listeners.set(event, new Set());
-    listeners.get(event)?.add(handler);
-    return () => listeners.get(event)?.delete(handler);
-  }
-
-  /**
-   * @param {EngineEvent} event
-   * @param {unknown} payload
-   */
-  function emit(event, payload) {
-    for (const handler of listeners.get(event) ?? []) handler(payload);
-  }
-
-  /** @param {string} text One plain-English line for the event log. */
-  function log(text) {
-    const entry = { at: state.clock, text };
-    state.log.push(entry);
-    emit('log', entry);
-  }
-
-  /**
-   * @param {number} delay
-   * @param {() => void} run
-   */
-  function schedule(delay, run) {
-    queue.push({ at: state.clock + delay, seq: seq++, run });
-  }
 
   /** @param {string} port */
   const nodeByPort = (port) => Object.values(state.hosts).find((host) => host.port === port);
@@ -201,7 +162,7 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
    * @param {Omit<Frame, 'id'>} fields
    */
   function transmit(host, fields) {
-    return transmitFrame(host, /** @type {Frame} */ ({ id: nextFrameId++, ...fields }));
+    return transmitFrame(host, /** @type {Frame} */ ({ id: sim.frameId(), ...fields }));
   }
 
   /**
@@ -356,7 +317,7 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
     } else if (host.role === 'gateway') {
       const { upstream } = TOPOLOGY;
       const out = /** @type {Frame} */ ({
-        id: nextFrameId++,
+        id: sim.frameId(),
         dst: upstream.nextHop.mac,
         src: upstream.mac,
         type: ETHERTYPE_IPV4,
@@ -437,7 +398,7 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
   function sendData(host, mac, packet) {
     const { ip, app, reply, flow, via } = packet;
     const frame = /** @type {Frame} */ ({
-      id: nextFrameId++,
+      id: sim.frameId(),
       dst: mac,
       src: host.mac,
       type: ETHERTYPE_IPV4,
@@ -476,7 +437,7 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
       const ip = /** @type {NonNullable<Frame['ip']>} */ (frame.ip);
       if (frame.reply) return;
       const back = /** @type {Frame} */ ({
-        id: nextFrameId++,
+        id: sim.frameId(),
         dst: upstream.mac,
         src: upstream.nextHop.mac,
         type: ETHERTYPE_IPV4,
@@ -568,12 +529,12 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
     }
     const local = sameSubnet(host.ip, dstIp, host.prefix);
 
-    const flow = nextFlow++;
+    const flow = sim.flowId();
     if (!local && host.role === 'gateway') {
       const { upstream } = TOPOLOGY;
       log(`${src} routes ${APP_LABEL[app]} for ${dstIp} straight out its upstream link to the next hop.`);
       routeOut(host, {
-        id: nextFrameId++,
+        id: sim.frameId(),
         dst: upstream.nextHop.mac,
         src: upstream.mac,
         type: ETHERTYPE_IPV4,
@@ -619,7 +580,7 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
       src: host.mac,
       type: ETHERTYPE_ARP,
       arp: { oper: ARP_REQUEST, sha: host.mac, spa: host.ip, tha: ZERO_MAC, tpa: host.ip },
-      flow: nextFlow++,
+      flow: sim.flowId(),
     });
   }
 
@@ -654,7 +615,7 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
       src: attackerHost.mac,
       type: ETHERTYPE_ARP,
       arp: { oper: ARP_REPLY, sha: attackerHost.mac, spa: claimIp, tha: victim.mac, tpa: victim.ip },
-      flow: nextFlow++,
+      flow: sim.flowId(),
     });
   }
 
@@ -695,37 +656,6 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
     state.ttlMs = Math.min(MAX_TTL_MS, Math.max(MIN_TTL_MS, ms));
   }
 
-  /**
-   * Advance the simulated clock by `ms`, running everything that falls due on the way.
-   * @param {number} ms
-   */
-  function tick(ms) {
-    const until = state.clock + ms;
-    for (;;) {
-      const due = queue.filter((item) => item.at <= until);
-      if (due.length === 0) break;
-      // The earliest action, ties broken by the order they were scheduled.
-      const next = due.reduce((a, b) => (b.at < a.at || (b.at === a.at && b.seq < a.seq) ? b : a));
-      queue = queue.filter((item) => item !== next);
-      state.clock = next.at;
-      expire();
-      next.run();
-    }
-    state.clock = until;
-    expire();
-  }
-
-  /** Run until nothing is left in flight. For tests and the Step control. */
-  function runUntilIdle() {
-    while (queue.length > 0) tick(Math.min(...queue.map((item) => item.at)) - state.clock);
-  }
-
-  /** Simulated time of the next queued action, or null when idle. The Step control ticks to it. */
-  const nextEventAt = () => (queue.length ? Math.min(...queue.map((item) => item.at)) : null);
-
-  /** True when no frame or timer is pending. */
-  const isIdle = () => queue.length === 0;
-
   return {
     state,
     on,
@@ -737,9 +667,9 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
     fail,
     primeCache,
     setTtl,
-    tick,
-    runUntilIdle,
-    isIdle,
-    nextEventAt,
+    tick: sim.tick,
+    runUntilIdle: sim.runUntilIdle,
+    isIdle: sim.isIdle,
+    nextEventAt: sim.nextEventAt,
   };
 }
