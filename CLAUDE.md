@@ -54,7 +54,7 @@ The header logo is `public/logo.svg` / `logo-dark.svg`, converted from the PDF m
 
 ## Architecture rules
 
-- **Games:** logic lives in a DOM-free engine module (`src/games/<game>/engine.js`) with Vitest tests. Rendering (`renderer.js`, SVG, positioned from the engine clock) only subscribes to engine events. Never mix the two.
+- **Games:** logic lives in a DOM-free engine module (`src/games/<game>/engine.js`) with Vitest tests. Rendering (`renderer.js`, SVG, positioned from the engine clock) only subscribes to engine events. Never mix the two. The LAN games share a core in `src/games/lan/` (clock, switch, network card, upstream link, hop table, Learn playback, renderer, packet view, controller, `LanSimulator.astro`); a game passes what differs as a config object (spec section 13).
 - **Content:** everything is files under `src/content/`, validated by the schemas in `src/content.config.js`. A bad file must fail the build, not publish.
 - **Tags:** only values listed in `src/content/tags.yaml` (lowercase kebab-case).
 - **External links:** defined once in `src/site.config.js`. Never hard-code profile URLs in components.

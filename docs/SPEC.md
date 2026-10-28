@@ -944,7 +944,7 @@ Seven milestones, each ending in a deployed, working site; hand Claude Code one 
 
 ### M8: IPv6 Neighbor Discovery (R18, section 13)
 
-- [ ] Stage 1: the shared LAN core in `src/games/lan/` with ARP unchanged (tests, screenshots, bundle size); reviewed and merged first
+- [x] Stage 1: the shared LAN core in `src/games/lan/` with ARP unchanged (tests, screenshots, bundle size); reviewed and merged first. Done 28 October 2026: src/games/lan/ (sim, ethernet, nic, switch, upstream, hops, lesson, renderer, packet view, controller, LanSimulator.astro); ARP unchanged (tests untouched, 18 screenshots match, script 35955 → 38364 bytes)
 - [ ] `nd/frames.js`: address helpers, encoding, checksum, `breakdown()`, Scapy vectors
 - [ ] `nd/engine.js`: NS/NA, REACHABLE/STALE and probes, retries and "address unreachable", off-link via `fe80::1`, DAD, unsolicited NA, scenarios
 - [ ] `nd/lesson.js`: the 9 Learn steps
@@ -1168,7 +1168,10 @@ Built first, as a refactor only: ARP must behave exactly as before. The parts of
 | `controller.js` | Playback, mode switcher, Learn step navigation; the game supplies its modes, address check and scenarios | `arp/controller.js` |
 
 - **Stays in `src/games/arp/`:** `frames.js`, ARP's receive/answer/cache/expiry rules, the subnet test, the Gratuitous ARP and Break-it scenarios, `lesson.js`. `engine.js` becomes the ARP assembly.
-- **Colour tokens:** `--color-arp-request` and `--color-arp-reply` become `--color-request` and `--color-reply` (ARP's request/reply, ND's NS/NA); `--color-ip-data` and `--color-eth` stay.
+- **Colour tokens:** `--color-arp-request` and `--color-arp-reply` became `--color-request` and `--color-reply` (ARP's request/reply, ND's NS/NA); `--color-ip-data` and `--color-eth` stay.
+- **`src/games/lan/LanSimulator.astro`** holds the simulator's markup and CSS; each game passes its modes, hosts, quick picks, slider, legend and labels as props, and its own mode panels in the `mode-panels` slot.
+- **`src/games/lan/hops.js`** holds the hop table (it was listed under `upstream.js` in the design).
+- **Owner decision (28 October 2026):** the base control rules (buttons, selects, inputs) are copied into the ARP page for its slotted Gratuitous ARP panel; Stage 2 replaces the copy with a shared class for slotted mode panels, styled once in `LanSimulator.astro`, and makes the To field's width rule (`#arp-dest`) work for any prefix.
 - **Each game keeps its own bundle;** `/learn/arp` loads no ND code.
 - **Done when:** ARP's Vitest tests pass with only their imports changed; new tests cover `lan/switch.js` (group-bit flooding, unknown unicast, learning, ageing) and `lan/nic.js` (own MAC, broadcast, joined group, unjoined group); the `/learn/arp` Playwright tests pass; screenshots of each mode match before and after; the ARP page's script size stays about the same. Reviewed and merged before any ND code.
 
