@@ -82,6 +82,17 @@
   url: https://networkautomation.forum/autocon3
   source: AutoCon 3 programme, workshop WS:C4
 
+- id: netgru-port-self-service
+  kind: talk
+  date: 2025-01-23
+  title: Network Port Self Service
+  event: Simplifying Network Automation with NetGru (Cisco DevNet)
+  location: Online
+  role: With host NetGru (Adrian Iliesiu, Cisco DevNet)
+  video: https://www.youtube.com/watch?v=Jw1NrF0aDD0
+  code: https://github.com/cldeluna/port_selfservice_apocalypse
+  source: Owner (published 2025-01-23, 1 h 7 min, on Cisco DevNet's YouTube channel); YouTube listing; companion repo
+
 - id: autocon2-jinja2-workshop
   kind: workshop
   date: 2024-11-18
