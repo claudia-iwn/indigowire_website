@@ -14,7 +14,7 @@ const OUT = 'lighthouse-reports';
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 
 // N1 and N3 targets apply to these pages; the rest are reported for the baseline.
-const KEY_PAGES = ['/', '/spark', '/learn/arp'];
+const KEY_PAGES = ['/', '/spark', '/learn/arp', '/learn/nd'];
 const PAGES = [
   ...KEY_PAGES,
   '/about',

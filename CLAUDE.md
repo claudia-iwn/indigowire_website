@@ -27,15 +27,15 @@ Prettier ignores all Markdown (`**/*.md`) so the spec and content keep their han
 
 ## Current state
 
-As of 27 October 2026, the site is built through M7 except for the items below; spec section 10 has the checklist. `indigowire.net` is live on Cloudflare: Worker custom domains for the apex and `www`, a redirect rule sends `www` to the apex, Always Use HTTPS is on, email is confirmed working and Google Search Console is verified.
+As of 28 October 2026, the site is built through M8 except for the items below; spec section 10 has the checklist. `indigowire.net` is live on Cloudflare: Worker custom domains for the apex and `www`, a redirect rule sends `www` to the apex, Always Use HTTPS is on, email is confirmed working and Google Search Console is verified.
 
-- **Done:** site shell, content collections and topics, the Spark gallery with permalinks, categories and RSS, the validator, the Speaking page (R16), Open Graph share cards (N8), and the ARP game: engine, frames, the `lesson.js` Learn lesson, the renderer and controller with Learn, Sandbox and Gratuitous ARP modes, the packet view and the hop table; the learning path scaffold (M7: course map, Home teaser, lesson placement, Course structured data).
+- **Done:** site shell, content collections and topics, the Spark gallery with permalinks, categories and RSS, the validator, the Speaking page (R16), Open Graph share cards (N8), and the ARP game: engine, frames, the `lesson.js` Learn lesson, the renderer and controller with Learn, Sandbox and Gratuitous ARP modes, the packet view and the hop table; the IPv6 Neighbor Discovery game (M8, `/learn/nd`, on the shared LAN core in `src/games/lan/`): engine, frames, Learn lesson, and Learn, Sandbox and DAD/unsolicited NA modes; the learning path scaffold (M7: course map, Home teaser, lesson placement, Course structured data).
 - **Not done:**
   - M0: the Hermes deploy key.
   - Analytics (R15): no `src/analytics.js` yet, and no beacon in `BaseLayout` (`TODO(M1)`). The ARP and Spark events wait on the PostHog key.
   - M3: `scripts/spark_publisher.py` is still a `STUB`; the gallery tag filter is a `TODO(M3)`; the build-fails-on-a-bad-entry check is not automated.
   - M6: Break-it mode, held for its own design pass and kept at the conceptual, simulation-only level in spec section 6. Then the accessibility and Lighthouse pass.
-- **Next up:** the IPv6 Neighbor Discovery game (chapter 4, IPv6), marked `next: true` in `src/content/path.yaml`. It gets its own design pass, like ARP; when it ships, set `entry:` on that lesson and move `next: true` to the following one.
+- **Next up:** the lab lesson "Try it for real: ARP in Containerlab" (chapter 4), marked `next: true` in `src/content/path.yaml`. It gets its own design pass; when it ships, set `entry:` on that lesson and move `next: true` to the following one.
 - **Owner tasks outside the repo** (checklists in spec section 9, "Security" and "Search and AI search"): tighten DMARC from about 10 November 2026 after checking the reports in Cloudflare's DMARC Management; rotate the Microsoft 365 DKIM keys to 2048 bits; submit `https://indigowire.net/sitemap.xml` in Google Search Console and set up Bing Webmaster Tools; replace or mark `draft: true` the three sample Spark entries; create the Hermes deploy key (M0). Keep Bot Fight Mode off and the Google verification TXT record in place.
 - **Working agreement:** commit only when the owner says "commit and push"; for multi-task work, a local branch with per-task commits is fine, merged to `main` on that word.
 - **Setting up another machine:** see `README.md`. Besides Node and uv, the tests and Lighthouse need Google Chrome installed (Playwright runs with `channel: 'chrome'`; `scripts/lighthouse.mjs` assumes macOS's Chrome path, so set `CHROME_PATH` elsewhere). Remaking the hero video needs `ffmpeg` and `cwebp`. Git-ignored local files (the `images/` logo archive, the old spec copy, the Spark addendum) are not in the repo; nothing in the build needs them.
@@ -70,7 +70,7 @@ The header logo is `public/logo.svg` / `logo-dark.svg`, converted from the PDF m
 - WCAG 2.2 AA, fully keyboard operable; every animation respects `prefers-reduced-motion`.
 - Light and dark themes from the same tokens.
 - Works from 360 px wide with no horizontal scroll.
-- Lighthouse Performance ≥ 95 and Accessibility = 100 on Home, `/spark` and `/learn/arp`.
+- Lighthouse Performance ≥ 95 and Accessibility = 100 on Home, `/spark`, `/learn/arp` and `/learn/nd`.
 - Analytics are cookieless only: Cloudflare Web Analytics plus PostHog with `cookieless_mode: "always"`. Event names come from `src/analytics.js`. No cookies, no consent banner.
 
 ## Working agreement

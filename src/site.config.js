@@ -28,7 +28,7 @@ export const site = {
 /**
  * The share cards in public/og/, made by `npm run og` (scripts/make_og_images.mjs).
  * Pages without their own pick one of these; Spark permalinks share their own image.
- * @type {Record<'default' | 'learn' | 'arp' | 'spark', ShareImage>}
+ * @type {Record<'default' | 'learn' | 'arp' | 'nd' | 'spark', ShareImage>}
  */
 export const shareCards = {
   default: {
@@ -46,6 +46,12 @@ export const shareCards = {
   arp: {
     src: '/og/arp.jpg',
     alt: 'How IPv4 ARP works: the simulator’s diagram, with an ARP request flooding from switch SW1 to H2, H3 and R1.',
+    width: 1200,
+    height: 630,
+  },
+  nd: {
+    src: '/og/nd.jpg',
+    alt: 'How IPv6 Neighbor Discovery works: the simulator’s diagram, with a Neighbor Solicitation flooding from switch SW1 to H2, H3 and R1.',
     width: 1200,
     height: 630,
   },

@@ -88,13 +88,14 @@ async function startPreview() {
 }
 
 /**
- * Photograph the ARP simulator a moment into H1's first broadcast.
+ * Photograph a LAN simulator a moment into H1's first flood.
  * @param {import('@playwright/test').Browser} browser
+ * @param {string} path the page to photograph (/learn/arp or /learn/nd)
  */
-async function arpSnapshot(browser) {
+async function snapshot(browser, path) {
   const page = await browser.newPage({ viewport: { width: 1100, height: 900 }, deviceScaleFactor: 2 });
   await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'no-preference' });
-  await page.goto(`http://localhost:${PORT}/learn/arp`);
+  await page.goto(`http://localhost:${PORT}${path}`);
   await page.getByRole('button', { name: 'Pause' }).click();
   await page.getByRole('button', { name: 'Send', exact: true }).click();
   // Step to SW1's flood, then let the copies travel about halfway.
@@ -118,7 +119,10 @@ await mkdir(OUT, { recursive: true });
 const server = await startPreview();
 const browser = await chromium.launch({ channel: 'chrome' });
 try {
-  const diagram = `<img src="${await arpSnapshot(browser)}" alt="" style="border:1px solid var(--color-border);border-radius:12px">`;
+  const photo = async (/** @type {string} */ path) =>
+    `<img src="${await snapshot(browser, path)}" alt="" style="border:1px solid var(--color-border);border-radius:12px">`;
+  const diagram = await photo('/learn/arp');
+  const ndDiagram = await photo('/learn/nd');
   const cards = [
     {
       name: 'default',
@@ -138,6 +142,12 @@ try {
       title: 'How IPv4 ARP works',
       line: 'Play a host on a switched LAN and watch ARP resolve an address, frame by frame.',
       art: diagram,
+    },
+    {
+      name: 'nd',
+      title: 'How IPv6 Neighbor Discovery works',
+      line: "Play a host on an IPv6 LAN and watch Neighbor Discovery find a neighbor's MAC, with multicast instead of broadcast.",
+      art: ndDiagram,
     },
     {
       name: 'spark',

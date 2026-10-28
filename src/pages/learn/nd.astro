@@ -38,7 +38,7 @@ const resource = learningResourceLd({
   published: entry.data.published,
   updated: entry.data.updated,
   keywords: (entry.data.tags ?? []).map((tag) => tagNames[tag] ?? tag),
-  image: shareCards.default.src,
+  image: shareCards.nd.src,
   position: lesson.position,
 });
 
@@ -53,13 +53,7 @@ const MODES = [
 ];
 ---
 
-<BaseLayout
-  title={entry.data.title}
-  {description}
-  ogImage={shareCards.default}
-  breadcrumbs={crumbs}
-  jsonLd={[resource]}
->
+<BaseLayout title={entry.data.title} {description} ogImage={shareCards.nd} breadcrumbs={crumbs} jsonLd={[resource]}>
   <LessonBreadcrumbs crumbs={crumbs} />
   <h1>{entry.data.title}</h1>
   <p class="lede">{entry.data.summary}</p>
@@ -284,9 +278,6 @@ const MODES = [
     flex-wrap: wrap;
     gap: var(--space-2);
     margin-block-end: var(--space-3);
-  }
-  .dad-status:empty {
-    display: none;
   }
   .dad-status {
     font-weight: 600;

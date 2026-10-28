@@ -580,13 +580,13 @@ The site should be fast, accessible and private by default, with targets Claude 
 | Best practices | HTTPS, no console errors, no deprecated APIs, correctly sized images |
 | SEO | Titles, descriptions, crawlable links, nothing blocking indexing |
 
-`scripts/lighthouse.mjs` audits eleven pages, prints one row each, saves the full reports to `lighthouse-reports/` (not committed), and exits non-zero if Home, `/spark` or `/learn/arp` misses N1 or N3. Lighthouse sometimes fails to record a page load (`NO_NAVSTART`) and asks for a re-run, so the script retries a page up to three times before reporting the error.
+`scripts/lighthouse.mjs` audits twelve pages, prints one row each, saves the full reports to `lighthouse-reports/` (not committed), and exits non-zero if Home, `/spark`, `/learn/arp` or `/learn/nd` misses N1 or N3. Lighthouse sometimes fails to record a page load (`NO_NAVSTART`) and asks for a re-run, so the script retries a page up to three times before reporting the error.
 
 Live run on workers.dev, 27 October 2026 (Lighthouse 13.5.0, mobile): every page 100 in accessibility, best practices and SEO; performance 100 everywhere except Home at 99; LCP 1.0 to 1.7 s; CLS 0 on every page.
 
 | ID | Area | Target | How it is checked |
 | --- | --- | --- | --- |
-| N1 | Performance | Lighthouse Performance ≥ 95 on Home, `/spark` and `/learn/arp` (mobile) | `npm run lighthouse` (`scripts/lighthouse.mjs`) before each milestone closes; exits non-zero if N1 or N3 is missed |
+| N1 | Performance | Lighthouse Performance ≥ 95 on Home, `/spark`, `/learn/arp` and `/learn/nd` (mobile) | `npm run lighthouse` (`scripts/lighthouse.mjs`) before each milestone closes; exits non-zero if N1 or N3 is missed |
 | N2 | JavaScript budget | 0 KB of loaded scripts on content pages. Allowed inline exceptions: the theme and text-effects scripts on every page (N5): the `<head>` script that applies a saved choice before first paint (`src/lib/boot-script.js`, about 0.6 KB raw) and the header toggles (a bundled script that Astro prints inline because it is small, about 1 KB raw); together under 1 KB gzipped, and both hashed into the CSP (N10) and the locale-date script on Spark permalinks (section 7; UTC text is the no-JS fallback), and, as the one non-inline exception, the decorative "decrypt" script shared by Home, About and Speaking (`src/components/Decrypt.astro`; one cached file, about 2.5 KB gzipped, skipped with reduced motion or the header switch, no layout shift; section 9), the `/learn` part opener (inline, about 0.2 KB: when a link targets a chapter or part inside a folded part, it opens that part and scrolls to it; section 12, "`/learn`"), and the Home hero band script (`src/components/HeroBand.astro`; one cached file, about 1 KB gzipped; section 9, "Home hero band"). ≤ 150 KB gzipped on a game page | Build output size check |
 | N3 | Accessibility | WCAG 2.2 AA; Lighthouse Accessibility = 100 | Lighthouse + keyboard walk-through |
 | N4 | Motion | All animation respects `prefers-reduced-motion`; decorative text effects also have an on-site off switch (header) | Manual check with the OS setting on |
@@ -748,6 +748,7 @@ Decided October 2026, M6. A link to any page shows a preview card on Bluesky, Li
 | `default` | Home, About, Speaking, Contact, Topics, 404 | The light hero still (dye on wet linen) |
 | `learn` | `/learn` and Learn articles | A snapshot of the ARP simulator mid-broadcast |
 | `arp` | `/learn/arp` | The same snapshot, titled "How IPv4 ARP works" |
+| `nd` | `/learn/nd` | A snapshot of the ND simulator mid-flood, titled "How IPv6 Neighbor Discovery works" |
 | `spark` | `/spark` and its category pages | The dark hero still (pigment in a vat). Not a mosaic of Spark images, which would go stale with every new image |
 
 - **How they are made:** `npm run og` builds the site and runs `scripts/make_og_images.mjs`. It draws each card as an HTML page from the tokens and logo (logo, title, one line, `indigowire.net`, the copper bar) and photographs it in Chrome with Playwright at 1200 × 630, as a JPEG of about 60–90 KB in `public/og/`. The cards are committed, like the hero video. Re-run it when a card's title, the logo, the hero stills or the simulator's look change. No new dependency.
@@ -945,11 +946,11 @@ Seven milestones, each ending in a deployed, working site; hand Claude Code one 
 ### M8: IPv6 Neighbor Discovery (R18, section 13)
 
 - [x] Stage 1: the shared LAN core in `src/games/lan/` with ARP unchanged (tests, screenshots, bundle size); reviewed and merged first. Done 28 October 2026: src/games/lan/ (sim, ethernet, nic, switch, upstream, hops, lesson, renderer, packet view, controller, LanSimulator.astro); ARP unchanged (tests untouched, 18 screenshots match, script 35955 → 38364 bytes raw, 13083 → 14248 bytes gzip (+8.9%); the growth is the config objects' property names, which cross module boundaries and cannot be minified (final review))
-- [ ] `nd/frames.js`: address helpers, encoding, checksum, `breakdown()`, Scapy vectors
-- [ ] `nd/engine.js`: NS/NA, REACHABLE/STALE and probes, retries and "address unreachable", off-link via `fe80::1`, DAD, unsolicited NA, scenarios
-- [ ] `nd/lesson.js`: the 9 Learn steps
-- [ ] `/learn/nd`: page, three modes, cache columns, ARP vs ND table, tags, Playwright tests
-- [ ] Ship: `entry: nd` and `next: true` moved in `path.yaml`, share card, Lighthouse
+- [x] `nd/frames.js`: address helpers, encoding, checksum, `breakdown()`, Scapy vectors. Done 28 October 2026: address helpers in `nd/ipv6.js`, encoding in `nd/frames.js`, Scapy vectors in `frames.test.js`
+- [x] `nd/engine.js`: NS/NA, REACHABLE/STALE and probes, retries and "address unreachable", off-link via `fe80::1`, DAD, unsolicited NA, scenarios. Done 28 October 2026: `engine.test.js`
+- [x] `nd/lesson.js`: the 9 Learn steps. Done 28 October 2026: `lesson.test.js`
+- [x] `/learn/nd`: page, three modes, cache columns, ARP vs ND table, tags, Playwright tests. Done 28 October 2026
+- [x] Ship: `entry: nd` and `next: true` moved in `path.yaml`, share card, Lighthouse. Done 28 October 2026: `entry: nd`, `next: true` on the Containerlab lab, `public/og/nd.jpg`, `/learn/nd` in the Lighthouse list (100 in every category), the ARP visual baseline still 18 of 18, and `src/games/nd/addresses.test.js` checks the addressing rule
 
 ## 11. Open questions
 
@@ -1119,7 +1120,7 @@ A `path` collection loaded with Astro's `file()` loader. As built, the file hold
 | | `next` | optional `true`. At most one lesson in the whole file; the build fails on two |
 | | `note` | optional, one line for the map (e.g. the DNS "from the field" note) |
 
-**Status** is derived, never stored: a lesson with an `entry` is **available**; the `next` lesson without an entry is **up next**; anything else is **not available yet**. When the up-next lesson ships, its `entry` is added and `next` moves to another lesson. Up next on 27 October 2026: IPv6 Neighbor Discovery (chapter 4). `buildCourse` in `src/lib/path.js` throws on two `next` lessons, a `next` lesson that is already available, an unknown `entry`, a duplicate chapter id or an unknown `deeper` id. No unit test reads `path.yaml` directly (owner's decision: it would need `yaml`, which is not a declared dependency); the build and the Playwright tests cover the real file. `src/lib/path.js` (DOM-free, Vitest-tested) computes statuses, chapter numbers, a lesson's place ("Part 1 · Chapter 4 · Finding your neighbours · IPv4"), the chapters for each journey step, and the previous and next available lessons.
+**Status** is derived, never stored: a lesson with an `entry` is **available**; the `next` lesson without an entry is **up next**; anything else is **not available yet**. When the up-next lesson ships, its `entry` is added and `next` moves to another lesson. Up next on 28 October 2026: "Try it for real: ARP in Containerlab" (chapter 4); IPv6 Neighbor Discovery shipped on that date. `buildCourse` in `src/lib/path.js` throws on two `next` lessons, a `next` lesson that is already available, an unknown `entry`, a duplicate chapter id or an unknown `deeper` id. No unit test reads `path.yaml` directly (owner's decision: it would need `yaml`, which is not a declared dependency); the build and the Playwright tests cover the real file. `src/lib/path.js` (DOM-free, Vitest-tested) computes statuses, chapter numbers, a lesson's place ("Part 1 · Chapter 4 · Finding your neighbours · IPv4"), the chapters for each journey step, and the previous and next available lessons.
 
 ### `/learn`
 
@@ -1201,7 +1202,7 @@ Built on the shared core. State per host: addresses, joined groups, and `neighbo
 4. **The target** creates or updates an entry for the sender as **STALE** (an NS doesn't prove two-way reachability), then answers with a unicast **Neighbor Advertisement** (NA, ICMPv6 136): Solicited 1, Override 1, Router 1 from R1, Target Link-Layer Address option.
 5. **The sender** marks the target **REACHABLE** on a solicited NA and sends the waiting packet. Every request is answered, as in ARP (echo, page, answer), including back through R1.
 6. **No answer.** The NS is retried 3 times, 1 s apart (simulated, and actually sent), then the packet is dropped with "address unreachable" (ICMPv6 type 1, code 3) shown at the sender (`nd:unreachable`).
-7. **Cache states.** REACHABLE lasts `reachableMs` (default 30 s, slider 10–300 s), then turns STALE (`cache:stale`). Using a STALE entry sends the packet at once, then a unicast NS probe to the cached MAC; a note says real hosts wait 5 s first (the DELAY state). A solicited NA makes it REACHABLE again; three unanswered probes delete the entry (`cache:expire`). STALE entries don't age out in the game. The MAC table ages as in ARP.
+7. **Cache states.** REACHABLE lasts `reachableMs` (default 30 s, slider 10–300 s), then turns STALE (`cache:stale`). Using a STALE entry sends the packet at once, then a unicast NS probe to the cached MAC; a note says real hosts wait 5 s first (the DELAY state). A solicited NA makes it REACHABLE again; three unanswered probes delete the entry (`cache:expire`). STALE entries don't age out in the game. SW1's MAC table ages at a fixed 60 s (`MAC_AGE_MS`); the slider sets only the reachable time. Timing rule: timers start after a 4-hop round trip, so "a second apart" shows as 3.4 s of simulated time between the three solicitations.
 8. **Hop limit 255.** A host drops any NS or NA whose hop limit isn't 255, so ND can't come from off the link.
 9. **Duplicate Address Detection** (RFC 4862). A host joins the solicited-node group of its tentative address and sends an NS from `::`, with no link-layer option, then waits 1 s. No answer: the address becomes usable (`dad:ok`). An owner defends with an NA to `ff02::1`, Solicited 0, Override 1; the host marks the address duplicate and never uses it (`dad:duplicate`). Nobody caches anything from a DAD NS.
 10. **Unsolicited NA.** Sent to `ff02::1`, Solicited 0, Override 1. A host that already has an entry for the address updates the MAC and sets it STALE; a host without one ignores it (unlike Gratuitous ARP), and the log says so.
@@ -1210,7 +1211,7 @@ Built on the shared core. State per host: addresses, joined groups, and `neighbo
 
 ### Frames (`src/games/nd/frames.js`)
 
-- **Address helpers:** `parseIpv6` (text in any valid form to 16 bytes), `formatIpv6` (RFC 5952 short form, used everywhere on the page), `solicitedNode(addr)` (`ff02::1:ff` + the last 24 bits), `multicastMac(addr)` (`33:33` + the last 32 bits), `onLink(addr)`.
+- **Address helpers:** `parseIpv6` (text in any valid form to 16 bytes), `formatIpv6` (RFC 5952 short form, used everywhere on the page), `solicitedNode(addr)` (`ff02::1:ff` + the last 24 bits), `multicastMac(addr)` (`33:33` + the last 32 bits), `onLink(addr)`. The address helpers live in `src/games/nd/ipv6.js`; `frames.js` holds the encoding.
 - **Encoding, in wire order:** Ethernet (destination, source, EtherType `0x86DD`); the 40-byte IPv6 header (version 6, traffic class 0, flow label 0, payload length, next header, hop limit, source, destination); then ICMPv6 (next header 58): NS (type, code, checksum, reserved, target, SLLA option type 1 length 1, omitted for DAD), NA (R/S/O flags in the top three bits, target, TLLA option type 2), echo request/reply (128/129: identifier, sequence). Web and DNS use next header 6 and 17, not decoded further, as in ARP.
 - **The ICMPv6 checksum is real,** computed over the IPv6 pseudo-header. An NS or NA with its option is 86 bytes, so no padding.
 - **Test vectors** for an NS, an NA, a DAD NS and an echo request come from Scapy, run once with `uv run --with scapy` (no dependency added); their hex is pasted into `frames.test.js`.
@@ -1240,24 +1241,25 @@ The switcher holds Learn, Sandbox (the default) and "DAD and unsolicited NA"; th
 
 - `src/content/learn/nd.md`: title "How IPv6 Neighbor Discovery works", `component: nd`, tags `ipv6`, `neighbor-discovery`, `layer-2` (the first two added to `tags.yaml`). The page carries the addressing note and, at the end, an **ARP vs ND** table: broadcast vs multicast; its own EtherType vs ICMPv6; entries that expire vs entries that turn STALE; Gratuitous ARP vs unsolicited NA plus DAD.
 - **Cache panel columns:** address, MAC, state, with a countdown bar while REACHABLE.
+- **Narrow layout:** below the wide breakpoint the hosts sit two to a row (not three) so the IPv6 lines fit. The ARP page's Learn lesson nav now links to the ND lesson, the next available lesson in course order.
 - **Course placement:** set `entry: nd` on the chapter 4 lesson in `path.yaml` and move `next: true` to the following lesson ("Try it for real: ARP in Containerlab"). Breadcrumbs, place line and previous/next come from section 12. A share card from `npm run og`; `/learn/nd` joins the Lighthouse page list.
 
 ### Acceptance criteria
 
 - [x] Stage 1: ARP is unchanged (section 6's criteria still pass) and the shared core has its own tests.
-- [ ] H1 → `2001:db8:0:1::12` with empty caches: an NS to `33:33:ff:00:00:12` flooded by SW1, dropped by H3's and R1's cards as "not my group", H2 caching H1 as STALE, a unicast NA, H1 caching H2 as REACHABLE, then the echo request.
-- [ ] H2's echo reply uses its STALE entry and triggers a unicast NS probe that H1 answers, leaving both REACHABLE.
-- [ ] Sending again while REACHABLE uses no ND; after `reachableMs` the entry is STALE and the next send probes.
-- [ ] `2001:db8:0:1::99`: three NS, 1 s apart, then "address unreachable".
-- [ ] `2001:db8:8888::8`: H1 resolves `fe80::1` with an NS from `2001:db8:0:1::11`; the packet goes to R1's MAC with the far IPv6 destination; R1 rewrites both MACs and the hop limit (64 → 63), shown in the hop table and R1's card; the answer comes back.
-- [ ] An NS or NA with hop limit other than 255 is dropped.
-- [ ] DAD: an NS from `::` with no link-layer option; no answer → usable; defended → duplicate, never used; no host caches anything from it.
-- [ ] Unsolicited NA updates an existing entry to the new MAC as STALE and is ignored by a host without one.
-- [ ] Failover and Duplicate address behave as described under Modes.
-- [ ] The hex for the NS, NA, DAD NS and echo request matches the Scapy vectors, checksums included.
-- [ ] Learn steps through all 9 steps with Next and Back.
-- [ ] Everything else in section 6's criteria that isn't ARP-specific: keyboard, reduced motion, 360 px, legend, "You", colours by kind, packet view, CSP and search tests, Lighthouse 100s.
-- [ ] A test checks the ND sources use only IPv6 addresses in `2001:db8::/32`, `fe80::/10`, `ff02::/16` or `::`, and only MACs `00:00:5e:00:53:xx` or `33:33:xx:xx:xx:xx`.
+- [x] H1 → `2001:db8:0:1::12` with empty caches: an NS to `33:33:ff:00:00:12` flooded by SW1, dropped by H3's and R1's cards as "not my group", H2 caching H1 as STALE, a unicast NA, H1 caching H2 as REACHABLE, then the echo request.
+- [x] H2's echo reply uses its STALE entry and triggers a unicast NS probe that H1 answers, leaving both REACHABLE.
+- [x] Sending again while REACHABLE uses no ND; after `reachableMs` the entry is STALE and the next send probes.
+- [x] `2001:db8:0:1::99`: three NS, 1 s apart, then "address unreachable".
+- [x] `2001:db8:8888::8`: H1 resolves `fe80::1` with an NS from `2001:db8:0:1::11`; the packet goes to R1's MAC with the far IPv6 destination; R1 rewrites both MACs and the hop limit (64 → 63), shown in the hop table and R1's card; the answer comes back.
+- [x] An NS or NA with hop limit other than 255 is dropped.
+- [x] DAD: an NS from `::` with no link-layer option; no answer → usable; defended → duplicate, never used; no host caches anything from it.
+- [x] Unsolicited NA updates an existing entry to the new MAC as STALE and is ignored by a host without one.
+- [x] Failover and Duplicate address behave as described under Modes.
+- [x] The hex for the NS, NA, DAD NS and echo request matches the Scapy vectors, checksums included.
+- [x] Learn steps through all 9 steps with Next and Back.
+- [x] Everything else in section 6's criteria that isn't ARP-specific: keyboard, reduced motion, 360 px, legend, "You", colours by kind, packet view, CSP and search tests, Lighthouse 100s.
+- [x] A test checks the ND sources use only IPv6 addresses in `2001:db8::/32`, `fe80::/10`, `ff02::/16` or `::`, and only MACs `00:00:5e:00:53:xx` or `33:33:xx:xx:xx:xx`.
 
 ## Sources
 
