@@ -9,6 +9,7 @@ import { BROADCAST_MAC, ZERO_MAC, ETHERTYPE_ARP, ETHERTYPE_IPV4, ARP_REQUEST, AR
 import { createSim } from '../lan/sim.js';
 import { createSwitch } from '../lan/switch.js';
 import { nicDrop } from '../lan/nic.js';
+import { createUpstream } from '../lan/upstream.js';
 
 /**
  * @typedef {object} Node
@@ -160,6 +161,17 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
     deliver: hostReceive,
   });
 
+  const uplink = createUpstream(sim, {
+    link: TOPOLOGY.upstream,
+    etherType: ETHERTYPE_IPV4,
+    hopName: 'TTL',
+    ipTtl: IP_TTL,
+    internetHops: INTERNET_HOPS,
+    hopMs: HOP_MS,
+    labelOf,
+    onLan: fromUpstream,
+  });
+
   /** ARP requests being flooded, by frame id: who asked, and how many copies are still on the wire. */
   /** @type {Map<number, { host: string, ip: string, remaining: number, answered: boolean }>} */
   const floods = new Map();
@@ -281,31 +293,13 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
    * @param {Frame} frame
    */
   function receiveData(host, frame) {
-    const { ip, app = 'ping', reply = false } = frame;
+    const { ip, reply = false } = frame;
     if (!ip) return;
     if (ip.dst === host.ip) {
       log(`${host.name} receives ${labelOf(frame)} from ${ip.src}.`);
       if (!reply) answer(host, frame);
     } else if (host.role === 'gateway') {
-      const { upstream } = TOPOLOGY;
-      const out = /** @type {Frame} */ ({
-        id: sim.frameId(),
-        dst: upstream.nextHop.mac,
-        src: upstream.mac,
-        type: ETHERTYPE_IPV4,
-        ip: { ...ip, ttl: ip.ttl - 1 },
-        app,
-        reply,
-        flow: frame.flow,
-        parent: frame.id,
-      });
-      emit('frame:forward', { frame, out, node: host.name, to: upstream.nextHop.name, time: state.clock });
-      log(
-        `${host.name} removes the Ethernet header, looks up a route to ${ip.dst}, lowers the TTL from ${ip.ttl} to ` +
-          `${ip.ttl - 1} and builds a new frame for its upstream link: from its own MAC ${upstream.mac} to the next ` +
-          `hop's ${upstream.nextHop.mac}. The MAC addresses change at every hop; the IP addresses stay ${ip.src} → ${ip.dst}.`,
-      );
-      routeOut(host, out);
+      uplink.forward(host, frame);
     } else {
       drop(host, frame, 'not for me');
     }
@@ -395,49 +389,12 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
   }
 
   /**
-   * Send a frame out R1's upstream link. At the next hop a request is answered: the reply
-   * comes back from "the internet" to R1.
+   * A packet from the internet for the LAN: R1 routes it on, using ARP first if it must.
    * @param {Host} router
    * @param {Frame} frame
    */
-  function routeOut(router, frame) {
-    const { upstream } = TOPOLOGY;
-    const to = upstream.nextHop.name;
-    emit('frame:emit', { frame, from: router.name, to, at: state.clock, arrivesAt: state.clock + HOP_MS });
-    schedule(HOP_MS, () => {
-      emit('frame:arrive', { frame, node: to, time: state.clock });
-      const ip = /** @type {NonNullable<Frame['ip']>} */ (frame.ip);
-      if (frame.reply) return;
-      const back = /** @type {Frame} */ ({
-        id: sim.frameId(),
-        dst: upstream.mac,
-        src: upstream.nextHop.mac,
-        type: ETHERTYPE_IPV4,
-        ip: { src: ip.dst, dst: ip.src, ttl: IP_TTL - INTERNET_HOPS },
-        app: frame.app,
-        reply: true,
-        flow: frame.flow,
-      });
-      log(
-        `${labelOf(back)} from ${ip.dst} comes back across the internet to the next hop, which sends it to ${router.name}.`,
-      );
-      emit('frame:emit', { frame: back, from: to, to: router.name, at: state.clock, arrivesAt: state.clock + HOP_MS });
-      schedule(HOP_MS, () => upstreamReceive(router, back));
-    });
-  }
-
-  /**
-   * R1 receives a packet on its upstream link and routes it onto the LAN.
-   * @param {Host} router
-   * @param {Frame} frame
-   */
-  function upstreamReceive(router, frame) {
-    emit('frame:arrive', { frame, node: router.name, time: state.clock });
+  function fromUpstream(router, frame) {
     const ip = /** @type {NonNullable<Frame['ip']>} */ (frame.ip);
-    if (ip.dst === TOPOLOGY.upstream.ip) {
-      log(`${router.name} receives ${labelOf(frame)} from ${ip.src}.`);
-      return;
-    }
     if (!sameSubnet(router.ip, ip.dst, router.prefix)) return;
     const packet = {
       ip: { ...ip, ttl: ip.ttl - 1 },
@@ -498,17 +455,7 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
 
     const flow = sim.flowId();
     if (!local && host.role === 'gateway') {
-      const { upstream } = TOPOLOGY;
-      log(`${src} routes ${APP_LABEL[app]} for ${dstIp} straight out its upstream link to the next hop.`);
-      routeOut(host, {
-        id: sim.frameId(),
-        dst: upstream.nextHop.mac,
-        src: upstream.mac,
-        type: ETHERTYPE_IPV4,
-        ip: { src: upstream.ip, dst: dstIp, ttl: IP_TTL },
-        app,
-        flow,
-      });
+      uplink.originate(host, dstIp, app, flow);
       return;
     }
     if (!local && !GATEWAY) throw new Error('No gateway in the topology');
