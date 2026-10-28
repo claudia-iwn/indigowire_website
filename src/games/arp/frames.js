@@ -1,8 +1,9 @@
 /**
  * Frame building and byte encoding for the inspector (spec section 6). DOM-free.
  */
+import { BROADCAST_MAC } from '../lan/ethernet.js';
 
-export const BROADCAST_MAC = 'ff:ff:ff:ff:ff:ff';
+export { BROADCAST_MAC };
 export const ZERO_MAC = '00:00:00:00:00:00';
 export const ETHERTYPE_ARP = 0x0806;
 export const ETHERTYPE_IPV4 = 0x0800;

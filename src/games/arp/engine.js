@@ -7,6 +7,8 @@
  */
 import { BROADCAST_MAC, ZERO_MAC, ETHERTYPE_ARP, ETHERTYPE_IPV4, ARP_REQUEST, ARP_REPLY } from './frames.js';
 import { createSim } from '../lan/sim.js';
+import { createSwitch } from '../lan/switch.js';
+import { nicDrop } from '../lan/nic.js';
 
 /**
  * @typedef {object} Node
@@ -149,12 +151,18 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
   const sim = createSim(state, { onAdvance: expire });
   const { on, emit, log, schedule } = sim; // like Python's on, emit, ... = sim.on, sim.emit, ...
 
+  const sw = createSwitch(sim, {
+    name: SWITCH,
+    table: state.switch.macTable,
+    devices: () => Object.values(state.hosts),
+    ttlMs: () => state.ttlMs,
+    hopMs: HOP_MS,
+    deliver: hostReceive,
+  });
+
   /** ARP requests being flooded, by frame id: who asked, and how many copies are still on the wire. */
   /** @type {Map<number, { host: string, ip: string, remaining: number, answered: boolean }>} */
   const floods = new Map();
-
-  /** @param {string} port */
-  const nodeByPort = (port) => Object.values(state.hosts).find((host) => host.port === port);
 
   /**
    * Put a frame on a host's link toward the switch.
@@ -171,50 +179,13 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
    */
   function transmitFrame(host, frame) {
     emit('frame:emit', { frame, from: host.name, to: SWITCH, at: state.clock, arrivesAt: state.clock + HOP_MS });
-    schedule(HOP_MS, () => switchReceive(frame, host.port));
+    schedule(HOP_MS, () => {
+      const outs = sw.receive(frame, host.port);
+      // An ARP request waits until every copy has arrived before its timeout starts.
+      const flood = floods.get(frame.id);
+      if (flood) flood.remaining = outs.length;
+    });
     return frame;
-  }
-
-  /**
-   * SW1: learn the source MAC on the ingress port, then flood or forward.
-   * @param {Frame} frame
-   * @param {string} ingress
-   */
-  function switchReceive(frame, ingress) {
-    emit('frame:arrive', { frame, node: SWITCH, time: state.clock });
-    const expiresAt = state.clock + state.ttlMs;
-    const known = state.switch.macTable.get(frame.src);
-    state.switch.macTable.set(frame.src, { port: ingress, expiresAt });
-    emit('mactable:update', { mac: frame.src, port: ingress, expiresAt });
-    if (!known) log(`${SWITCH} learns that ${frame.src} is on ${ingress}.`);
-
-    const entry = state.switch.macTable.get(frame.dst);
-    /** @type {Host[]} */
-    let outs;
-    // Either way the frame leaves exactly as it arrived: a switch never rewrites it.
-    let how = 'forward';
-    // A failed host's port is down, so nothing goes out of it.
-    const others = Object.values(state.hosts).filter((host) => host.port !== ingress && !host.down);
-    if (frame.dst === BROADCAST_MAC) {
-      how = 'flood';
-      outs = others;
-      log(`${SWITCH} floods the broadcast out every other port.`);
-    } else if (!entry) {
-      how = 'flood';
-      outs = others;
-      log(`${SWITCH} has no entry for ${frame.dst}, so it floods the frame out every other port.`);
-    } else {
-      const out = nodeByPort(entry.port);
-      outs = out && entry.port !== ingress ? [out] : [];
-      if (out) log(`${SWITCH} knows ${frame.dst} is on ${entry.port} and forwards the frame only there.`);
-    }
-
-    const flood = floods.get(frame.id);
-    if (flood) flood.remaining = outs.length;
-    for (const host of outs) {
-      emit('frame:emit', { frame, from: SWITCH, to: host.name, how, at: state.clock, arrivesAt: state.clock + HOP_MS });
-      schedule(HOP_MS, () => hostReceive(host, frame));
-    }
   }
 
   /**
@@ -224,8 +195,9 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
   function hostReceive(host, frame) {
     emit('frame:arrive', { frame, node: host.name, time: state.clock });
     if (host.down) return;
-    if (frame.dst !== host.mac && frame.dst !== BROADCAST_MAC) {
-      drop(host, frame, 'not for me');
+    const reason = nicDrop(host, frame.dst);
+    if (reason) {
+      drop(host, frame, reason);
     } else if (frame.arp) {
       receiveArp(host, frame, frame.arp);
     } else {
@@ -506,12 +478,7 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
         }
       }
     }
-    for (const [mac, entry] of state.switch.macTable) {
-      if (entry.expiresAt <= state.clock) {
-        state.switch.macTable.delete(mac);
-        emit('mactable:expire', { mac, port: entry.port });
-      }
-    }
+    sw.expire();
   }
 
   /**
@@ -630,11 +597,7 @@ export function createEngine({ ttlMs = DEFAULT_TTL_MS, attacker = false } = {}) 
     host.down = true;
     emit('host:down', { host: name, time: state.clock });
     log(`${name} fails. ${SWITCH} sees its port ${host.port} go down and forgets the MAC addresses learnt there.`);
-    for (const [mac, entry] of state.switch.macTable) {
-      if (entry.port !== host.port) continue;
-      state.switch.macTable.delete(mac);
-      emit('mactable:expire', { mac, port: entry.port });
-    }
+    sw.forgetPort(host.port);
   }
 
   /**
